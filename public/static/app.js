@@ -51,7 +51,92 @@ const state = {
     { icon: '🎯', title: '미션 완료 임박!', desc: '수업 기록 1개만 더하면 완료', time: '10분 전', unread: true, bg: 'rgba(255,215,0,0.15)' },
     { icon: '🏆', title: '이서연이 확인 완료', desc: '교학상장이 인정되었어요!', time: '1시간 전', unread: false, bg: 'rgba(0,184,148,0.15)' },
     { icon: '🔥', title: '18일 연속 스트릭!', desc: '대단해요! 최고 기록 갱신 중', time: '어제', unread: false, bg: 'rgba(255,99,71,0.15)' },
-  ]
+  ],
+  // 과제 데이터
+  assignments: [
+    {
+      id: 1,
+      subject: '수학',
+      title: '치환적분 연습문제 풀이',
+      desc: '교재 p.142~148 연습문제 1~15번',
+      type: '문제풀이',
+      teacher: '김태호',
+      dueDate: '2025-02-20',
+      createdDate: '2025-02-14',
+      color: '#6C5CE7',
+      status: 'in-progress', // 'pending','in-progress','completed'
+      progress: 60,
+      plan: [
+        { step: 1, title: '1~5번 기본 문제 풀기', date: '2/15', done: true },
+        { step: 2, title: '6~10번 응용 문제 풀기', date: '2/17', done: true },
+        { step: 3, title: '11~15번 심화 문제 풀기', date: '2/18', done: false },
+        { step: 4, title: '오답 정리 및 복습', date: '2/19', done: false },
+        { step: 5, title: '최종 점검 후 제출', date: '2/20', done: false },
+      ]
+    },
+    {
+      id: 2,
+      subject: '영어',
+      title: '영작문 에세이 제출',
+      desc: 'My Future Career Plan 주제, A4 2장 분량',
+      type: '에세이/작문',
+      teacher: '이정민',
+      dueDate: '2025-02-18',
+      createdDate: '2025-02-12',
+      color: '#00B894',
+      status: 'in-progress',
+      progress: 40,
+      plan: [
+        { step: 1, title: '주제 브레인스토밍 & 아웃라인', date: '2/13', done: true },
+        { step: 2, title: '초안 작성 (body)', date: '2/15', done: true },
+        { step: 3, title: '서론/결론 작성', date: '2/16', done: false },
+        { step: 4, title: '문법 체크 & 수정', date: '2/17', done: false },
+        { step: 5, title: '최종 제출', date: '2/18', done: false },
+      ]
+    },
+    {
+      id: 3,
+      subject: '과학',
+      title: '산화환원 실험 보고서',
+      desc: '실험 결과 분석 및 결론 도출, 그래프 포함',
+      type: '보고서',
+      teacher: '최은지',
+      dueDate: '2025-02-25',
+      createdDate: '2025-02-15',
+      color: '#FDCB6E',
+      status: 'pending',
+      progress: 0,
+      plan: [
+        { step: 1, title: '실험 데이터 정리', date: '2/17', done: false },
+        { step: 2, title: '그래프 작성', date: '2/19', done: false },
+        { step: 3, title: '결과 분석 작성', date: '2/21', done: false },
+        { step: 4, title: '결론 및 고찰', date: '2/23', done: false },
+        { step: 5, title: '최종 검토 후 제출', date: '2/25', done: false },
+      ]
+    },
+    {
+      id: 4,
+      subject: '국어',
+      title: '윤동주 시 감상문',
+      desc: '서시 감상문 원고지 3장 분량, 자아성찰 관점',
+      type: '감상문',
+      teacher: '박선영',
+      dueDate: '2025-02-14',
+      createdDate: '2025-02-10',
+      color: '#FF6B6B',
+      status: 'completed',
+      progress: 100,
+      plan: [
+        { step: 1, title: '시 반복 읽기 & 핵심 정리', date: '2/11', done: true },
+        { step: 2, title: '감상문 초안 작성', date: '2/12', done: true },
+        { step: 3, title: '수정 및 퇴고', date: '2/13', done: true },
+        { step: 4, title: '최종 제출', date: '2/14', done: true },
+      ]
+    },
+  ],
+  assignmentFilter: 'all', // 'all','in-progress','pending','completed'
+  editingAssignment: null,
+  viewingAssignment: null,
 };
 
 // ==================== MAIN RENDER ====================
@@ -93,6 +178,9 @@ function renderStudentApp() {
   if (state.currentScreen === 'weekly-report') return renderWeeklyReportStudent();
   if (state.currentScreen === 'record-history') return renderRecordHistory();
   if (state.currentScreen === 'notifications') return renderNotifications();
+  if (state.currentScreen === 'record-assignment') return renderRecordAssignment();
+  if (state.currentScreen === 'assignment-plan') return renderAssignmentPlan();
+  if (state.currentScreen === 'assignment-list') return renderAssignmentList();
 
   let content = '';
   content += renderXpBar();
@@ -485,13 +573,55 @@ function renderHomeTab() {
         </div>
       </div>
 
+      <!-- Upcoming Assignments Home Card -->
+      ${state.assignments.filter(a => a.status !== 'completed').length > 0 ? `
+      <div class="card stagger-5 animate-in">
+        <div class="card-header-row">
+          <span class="card-title">📋 다가오는 과제</span>
+          <button class="card-link" onclick="goScreen('assignment-list')">전체보기 →</button>
+        </div>
+        <div class="upcoming-assignments">
+          ${state.assignments.filter(a => a.status !== 'completed').sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).map(a => {
+            const dDay = getDday(a.dueDate);
+            const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+            const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+            return `
+            <div class="upcoming-assignment-card ${urgency}" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+              <div class="ua-left">
+                <div class="ua-dday-badge ${urgency}">${dDayText}</div>
+              </div>
+              <div class="ua-center">
+                <div class="ua-subject-row">
+                  <span class="ua-subject-dot" style="background:${a.color}"></span>
+                  <span class="ua-subject">${a.subject}</span>
+                  <span class="ua-type">${a.type}</span>
+                </div>
+                <div class="ua-title">${a.title}</div>
+                <div class="ua-progress-row">
+                  <div class="ua-progress-bar"><div class="ua-progress-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+                  <span class="ua-progress-text">${a.progress}%</span>
+                </div>
+              </div>
+              <div class="ua-right">
+                <i class="fas fa-chevron-right"></i>
+              </div>
+            </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      ` : ''}
+
       <!-- Quick Actions -->
-      <div style="padding:0 16px 16px;display:flex;gap:8px" class="stagger-5 animate-in">
+      <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap" class="stagger-6 animate-in">
         <button class="quick-action-btn" onclick="goScreen('evening-routine')">
           <i class="fas fa-moon"></i> 저녁 루틴
         </button>
         <button class="quick-action-btn" onclick="goScreen('class-end-popup')">
           <i class="fas fa-bell"></i> 수업종료 팝업
+        </button>
+        <button class="quick-action-btn" onclick="goScreen('assignment-list')">
+          <i class="fas fa-clipboard-list"></i> 과제 관리
         </button>
       </div>
     </div>
@@ -536,6 +666,7 @@ function renderRecordTab() {
       <div class="record-type-grid">
         ${[
           { screen:'record-class', icon:'📝', bg:'rgba(108,92,231,0.15)', title:'수업 기록', desc:'30초 만에 오늘 수업을 기록', xp:'+10' },
+          { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
           { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 로그', desc:'AI 7단계 수준 분류', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창체 / 동아리', desc:'비교과 활동 기록', xp:'+20' },
@@ -551,8 +682,36 @@ function renderRecordTab() {
         `).join('')}
       </div>
 
+      <!-- Upcoming Assignments Mini -->
+      ${state.assignments.filter(a => a.status !== 'completed').length > 0 ? `
+      <div class="card stagger-6 animate-in">
+        <div class="card-header-row">
+          <span class="card-title">📋 진행 중인 과제</span>
+          <button class="card-link" onclick="goScreen('assignment-list')">전체보기 →</button>
+        </div>
+        ${state.assignments.filter(a => a.status !== 'completed').slice(0, 2).map(a => {
+          const dDay = getDday(a.dueDate);
+          const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+          const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+          return `
+          <div class="assignment-mini-row" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+            <div class="assignment-mini-dot" style="background:${a.color}"></div>
+            <div class="assignment-mini-info">
+              <span class="assignment-mini-subject">${a.subject}</span>
+              <span class="assignment-mini-title">${a.title}</span>
+            </div>
+            <div class="assignment-mini-right">
+              <span class="assignment-dday ${urgency}">${dDayText}</span>
+              <div class="assignment-mini-bar"><div class="assignment-mini-bar-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+      </div>
+      ` : ''}
+
       <!-- Recent Records Timeline -->
-      <div class="card stagger-5 animate-in">
+      <div class="card stagger-7 animate-in">
         <div class="card-header-row">
           <span class="card-title">📜 최근 기록</span>
           <button class="card-link" onclick="goScreen('record-history')">전체보기 →</button>
@@ -944,6 +1103,435 @@ function renderRecordTeach() {
       </div>
     </div>
   `;
+}
+
+// ==================== RECORD ASSIGNMENT (과제 기록) ====================
+
+function renderRecordAssignment() {
+  const subjectColors = {
+    '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+    '한국사':'#74B9FF','체육':'#A29BFE','미술':'#FD79A8','기타':'#636e72'
+  };
+  const editing = state.editingAssignment;
+  const isEdit = editing !== null;
+  const a = isEdit ? state.assignments.find(x => x.id === editing) : null;
+  
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state.editingAssignment=null;goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>${isEdit ? '과제 수정' : '📋 과제 기록'}</h1>
+        <span class="xp-badge-sm">+15 XP</span>
+      </div>
+
+      <div class="form-body">
+        <div class="assignment-intro-card animate-in">
+          <span class="assignment-intro-icon">📋</span>
+          <div>
+            <h3>선생님이 내 준 과제를 기록하세요</h3>
+            <p>마감일까지의 계획도 함께 세울 수 있어요!</p>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📚 과목</label>
+          <div class="chip-row" id="assignment-subject-chips">
+            ${['국어','수학','영어','과학','한국사','기타'].map((s,i) => `<button class="chip ${(isEdit && a.subject===s) || (!isEdit && i===1) ? 'active' : ''}" data-subject="${s}">${s}</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📝 과제 제목</label>
+          <input class="input-field" id="assignment-title" placeholder="예: 치환적분 연습문제 풀이" value="${isEdit ? a.title : ''}">
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📄 상세 내용</label>
+          <textarea class="input-field" id="assignment-desc" rows="3" placeholder="과제의 구체적인 내용, 범위, 조건 등을 적어주세요">${isEdit ? a.desc : ''}</textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📂 과제 유형</label>
+          <div class="assignment-type-grid">
+            ${[
+              {type:'문제풀이', icon:'✏️'},
+              {type:'에세이/작문', icon:'📝'},
+              {type:'보고서', icon:'📊'},
+              {type:'감상문', icon:'📖'},
+              {type:'프로젝트', icon:'🔬'},
+              {type:'발표준비', icon:'🎤'},
+              {type:'실험/실습', icon:'🧪'},
+              {type:'기타', icon:'📌'},
+            ].map((t,i) => `
+              <button class="assignment-type-btn ${(isEdit && a.type===t.type) || (!isEdit && i===0) ? 'active' : ''}" data-atype="${t.type}">
+                <span>${t.icon}</span><span>${t.type}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">👨‍🏫 선생님</label>
+          <input class="input-field" id="assignment-teacher" placeholder="과제를 내 준 선생님" value="${isEdit ? a.teacher : ''}">
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📅 마감일</label>
+          <input class="input-field" type="date" id="assignment-due" value="${isEdit ? a.dueDate : '2025-02-22'}" style="color:var(--text-primary)">
+        </div>
+
+        <div class="assignment-plan-cta animate-in" onclick="saveAssignment(true)">
+          <div class="plan-cta-icon">📅</div>
+          <div class="plan-cta-content">
+            <h3>제출 계획 세우기</h3>
+            <p>마감일까지 단계별 플랜을 AI가 도와줘요!</p>
+          </div>
+          <i class="fas fa-chevron-right" style="color:var(--primary-light)"></i>
+        </div>
+
+        <button class="btn-primary" onclick="saveAssignment(false)">
+          ${isEdit ? '과제 수정 완료' : '과제 기록 완료 +15 XP ✨'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== ASSIGNMENT PLAN (과제 계획) ====================
+
+function renderAssignmentPlan() {
+  const a = state.assignments.find(x => x.id === state.viewingAssignment);
+  if (!a) { goScreen('main'); return ''; }
+  
+  const dDay = getDday(a.dueDate);
+  const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+  const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+  const donePlanSteps = a.plan.filter(p => p.done).length;
+  const totalPlanSteps = a.plan.length;
+  const planPct = totalPlanSteps > 0 ? Math.round(donePlanSteps / totalPlanSteps * 100) : 0;
+  
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state.viewingAssignment=null;goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📅 과제 계획</h1>
+        <span class="assignment-dday ${urgency}" style="font-size:13px;padding:5px 12px">${dDayText}</span>
+      </div>
+
+      <div class="form-body">
+        <!-- Assignment Summary Card -->
+        <div class="assignment-summary-card animate-in" style="border-left:4px solid ${a.color}">
+          <div class="asm-header">
+            <div class="asm-subject" style="color:${a.color}">${a.subject}</div>
+            <span class="asm-type">${a.type}</span>
+          </div>
+          <h2 class="asm-title">${a.title}</h2>
+          <p class="asm-desc">${a.desc}</p>
+          <div class="asm-meta">
+            <span><i class="fas fa-user"></i> ${a.teacher} 선생님</span>
+            <span><i class="fas fa-calendar"></i> ${formatDate(a.dueDate)} 까지</span>
+          </div>
+          <div class="asm-progress-row">
+            <div class="asm-progress-bar"><div class="asm-progress-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+            <span class="asm-progress-text">${a.progress}%</span>
+          </div>
+        </div>
+
+        <!-- Plan Steps -->
+        <div class="plan-section stagger-1 animate-in">
+          <div class="card-header-row">
+            <span class="card-title">📋 단계별 플랜</span>
+            <span class="card-subtitle">${donePlanSteps}/${totalPlanSteps} 완료</span>
+          </div>
+          
+          <div class="plan-progress-mini">
+            <div class="plan-progress-bar"><div class="plan-progress-fill" style="width:${planPct}%;background:${a.color}"></div></div>
+          </div>
+
+          <div class="plan-steps">
+            ${a.plan.map((step, i) => {
+              const isNext = !step.done && (i === 0 || a.plan[i-1].done);
+              return `
+              <div class="plan-step ${step.done ? 'done' : ''} ${isNext ? 'next' : ''}">
+                <div class="plan-step-check" onclick="togglePlanStep(${a.id}, ${i})">
+                  ${step.done 
+                    ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:20px"></i>'
+                    : isNext 
+                      ? '<i class="far fa-circle" style="color:var(--primary-light);font-size:20px"></i>'
+                      : '<i class="far fa-circle" style="color:var(--text-muted);font-size:20px"></i>'
+                  }
+                </div>
+                <div class="plan-step-line ${i === a.plan.length - 1 ? 'last' : ''} ${step.done ? 'done' : ''}"></div>
+                <div class="plan-step-content ${isNext ? 'highlight' : ''}">
+                  <div class="plan-step-header">
+                    <span class="plan-step-num">Step ${step.step}</span>
+                    <span class="plan-step-date">${step.date}</span>
+                  </div>
+                  <span class="plan-step-title">${step.title}</span>
+                </div>
+              </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- AI Suggestion -->
+        <div class="ai-plan-card stagger-2 animate-in">
+          <div class="ai-header">
+            <span class="ai-icon">🤖</span>
+            <span class="ai-title">AI 플랜 제안</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:8px">
+            ${dDay <= 3 
+              ? `⚠️ 마감이 <strong style="color:var(--accent)">${dDay}일</strong> 남았어요! 오늘부터 하루 1단계씩 진행하면 충분히 완료할 수 있어요. 집중 시간을 확보하세요!`
+              : `✅ 마감까지 <strong style="color:var(--success)">${dDay}일</strong> 남았어요. 현재 진행률 ${a.progress}%로 순조로운 편이에요. 꾸준히 하루에 1단계씩 진행해보세요!`
+            }
+          </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn-secondary" style="flex:1" onclick="state.editingAssignment=${a.id};goScreen('record-assignment')">
+            <i class="fas fa-edit"></i> 수정
+          </button>
+          <button class="btn-primary" style="flex:2" onclick="goScreen('assignment-list')">
+            <i class="fas fa-list"></i> 과제 목록
+          </button>
+        </div>
+
+        ${a.status !== 'completed' ? `
+        <button class="btn-ghost" style="width:100%;margin-top:8px;color:var(--success)" onclick="completeAssignment(${a.id})">
+          ✅ 과제 완료 처리
+        </button>
+        ` : `
+        <div class="assignment-completed-badge">
+          <i class="fas fa-check-circle"></i> 이 과제는 완료되었습니다! 🎉
+        </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// ==================== ASSIGNMENT LIST (과제 목록/관리) ====================
+
+function renderAssignmentList() {
+  const filter = state.assignmentFilter;
+  const filtered = filter === 'all' 
+    ? state.assignments 
+    : state.assignments.filter(a => a.status === filter);
+  
+  const activeCount = state.assignments.filter(a => a.status !== 'completed').length;
+  const completedCount = state.assignments.filter(a => a.status === 'completed').length;
+  
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state.assignmentFilter='all';goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📋 과제 관리</h1>
+        <button class="header-add-btn" onclick="state.editingAssignment=null;goScreen('record-assignment')"><i class="fas fa-plus"></i></button>
+      </div>
+
+      <div class="form-body">
+        <!-- Stats Summary -->
+        <div class="assignment-stats-row animate-in">
+          <div class="assignment-stat-card">
+            <span class="assignment-stat-num" style="color:var(--primary-light)">${activeCount}</span>
+            <span class="assignment-stat-label">진행 중</span>
+          </div>
+          <div class="assignment-stat-card">
+            <span class="assignment-stat-num" style="color:var(--success)">${completedCount}</span>
+            <span class="assignment-stat-label">완료</span>
+          </div>
+          <div class="assignment-stat-card">
+            <span class="assignment-stat-num" style="color:var(--accent)">${state.assignments.filter(a => getDday(a.dueDate) <= 3 && a.status !== 'completed').length}</span>
+            <span class="assignment-stat-label">긴급</span>
+          </div>
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="chip-row" style="margin-bottom:16px" id="assignment-filter-chips">
+          ${[
+            {id:'all', label:'전체', count: state.assignments.length},
+            {id:'in-progress', label:'진행 중', count: state.assignments.filter(a=>a.status==='in-progress').length},
+            {id:'pending', label:'시작 전', count: state.assignments.filter(a=>a.status==='pending').length},
+            {id:'completed', label:'완료', count: state.assignments.filter(a=>a.status==='completed').length},
+          ].map(f => `<button class="chip ${filter===f.id?'active':''}" data-afilter="${f.id}">${f.label} (${f.count})</button>`).join('')}
+        </div>
+
+        <!-- Assignment Cards -->
+        ${filtered.length === 0 ? `
+          <div style="text-align:center;padding:40px 0;color:var(--text-muted)">
+            <span style="font-size:40px">📭</span>
+            <p style="margin-top:12px">해당하는 과제가 없습니다</p>
+          </div>
+        ` : ''}
+        
+        ${filtered.sort((a,b) => {
+          if (a.status === 'completed' && b.status !== 'completed') return 1;
+          if (a.status !== 'completed' && b.status === 'completed') return -1;
+          return new Date(a.dueDate) - new Date(b.dueDate);
+        }).map((a, i) => {
+          const dDay = getDday(a.dueDate);
+          const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+          const urgency = a.status === 'completed' ? 'completed' : dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+          const donePlanSteps = a.plan.filter(p => p.done).length;
+          return `
+          <div class="assignment-card ${urgency} stagger-${i+1} animate-in" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+            <div class="ac-top">
+              <div class="ac-subject-badge" style="background:${a.color}22;color:${a.color};border:1px solid ${a.color}44">${a.subject}</div>
+              <span class="ac-type">${a.type}</span>
+              <span class="assignment-dday ${urgency}" style="margin-left:auto">${a.status === 'completed' ? '✅ 완료' : dDayText}</span>
+            </div>
+            <h3 class="ac-title">${a.title}</h3>
+            <p class="ac-desc">${a.desc}</p>
+            <div class="ac-bottom">
+              <div class="ac-meta">
+                <span><i class="fas fa-user"></i> ${a.teacher}</span>
+                <span><i class="fas fa-calendar"></i> ${formatDate(a.dueDate)}</span>
+              </div>
+              <div class="ac-progress-row">
+                <div class="ac-progress-bar"><div class="ac-progress-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+                <span class="ac-progress-text">${a.progress}%</span>
+                <span class="ac-plan-count">${donePlanSteps}/${a.plan.length}단계</span>
+              </div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+
+        <!-- Add Assignment Button -->
+        <button class="add-assignment-btn" onclick="state.editingAssignment=null;goScreen('record-assignment')">
+          <i class="fas fa-plus-circle"></i> 새 과제 추가
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== ASSIGNMENT UTILITIES ====================
+
+function getDday(dateStr) {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const due = new Date(dateStr);
+  due.setHours(0,0,0,0);
+  return Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function saveAssignment(goToPlan) {
+  const subjectChip = document.querySelector('#assignment-subject-chips .chip.active');
+  const typeBtn = document.querySelector('.assignment-type-btn.active');
+  const title = document.getElementById('assignment-title')?.value || '';
+  const desc = document.getElementById('assignment-desc')?.value || '';
+  const teacher = document.getElementById('assignment-teacher')?.value || '';
+  const dueDate = document.getElementById('assignment-due')?.value || '';
+  const subject = subjectChip ? subjectChip.dataset.subject : '수학';
+  const type = typeBtn ? typeBtn.dataset.atype : '문제풀이';
+  
+  const subjectColors = {
+    '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+    '한국사':'#74B9FF','체육':'#A29BFE','미술':'#FD79A8','기타':'#636e72'
+  };
+
+  if (state.editingAssignment !== null) {
+    const a = state.assignments.find(x => x.id === state.editingAssignment);
+    if (a) {
+      a.subject = subject;
+      a.title = title || a.title;
+      a.desc = desc || a.desc;
+      a.type = type;
+      a.teacher = teacher || a.teacher;
+      a.dueDate = dueDate || a.dueDate;
+      a.color = subjectColors[subject] || '#636e72';
+    }
+    state.editingAssignment = null;
+    if (goToPlan) {
+      state.viewingAssignment = a.id;
+      goScreen('assignment-plan');
+    } else {
+      showXpPopup(5, '과제 수정 완료!');
+    }
+    return;
+  }
+
+  const newId = state.assignments.length > 0 ? Math.max(...state.assignments.map(a=>a.id)) + 1 : 1;
+  const daysUntilDue = getDday(dueDate);
+  const stepsCount = Math.max(3, Math.min(6, daysUntilDue));
+  
+  // Auto-generate plan steps
+  const plan = [];
+  const dueD = new Date(dueDate);
+  const today = new Date();
+  for (let i = 0; i < stepsCount; i++) {
+    const stepDate = new Date(today.getTime() + ((dueD - today) / stepsCount) * (i + 1));
+    const stepLabels = ['자료 조사 및 준비','초안 작성','본문 완성','검토 및 수정','최종 점검','제출'];
+    plan.push({
+      step: i + 1,
+      title: stepLabels[i] || `${i+1}단계 진행`,
+      date: `${stepDate.getMonth()+1}/${stepDate.getDate()}`,
+      done: false
+    });
+  }
+
+  const newAssignment = {
+    id: newId,
+    subject,
+    title: title || '새 과제',
+    desc: desc || '',
+    type,
+    teacher: teacher || '',
+    dueDate,
+    createdDate: new Date().toISOString().split('T')[0],
+    color: subjectColors[subject] || '#636e72',
+    status: 'pending',
+    progress: 0,
+    plan
+  };
+  
+  state.assignments.push(newAssignment);
+
+  if (goToPlan) {
+    state.viewingAssignment = newId;
+    goScreen('assignment-plan');
+  } else {
+    showXpPopup(15, '과제 기록 완료! 📋');
+  }
+}
+
+function togglePlanStep(assignmentId, stepIdx) {
+  const a = state.assignments.find(x => x.id === assignmentId);
+  if (!a) return;
+  a.plan[stepIdx].done = !a.plan[stepIdx].done;
+  
+  // Update progress
+  const doneCount = a.plan.filter(p => p.done).length;
+  a.progress = Math.round(doneCount / a.plan.length * 100);
+  
+  // Update status
+  if (a.progress === 100) {
+    a.status = 'completed';
+  } else if (a.progress > 0) {
+    a.status = 'in-progress';
+  } else {
+    a.status = 'pending';
+  }
+  
+  renderScreen();
+}
+
+function completeAssignment(id) {
+  const a = state.assignments.find(x => x.id === id);
+  if (!a) return;
+  a.status = 'completed';
+  a.progress = 100;
+  a.plan.forEach(p => p.done = true);
+  showXpPopup(20, '과제 완료! 🎉');
 }
 
 // ==================== RECORD ACTIVITY (R-04 창체/동아리) ====================
@@ -1811,6 +2399,31 @@ function initStudentEvents() {
       const siblings = btn.parentElement.querySelectorAll('.grid-select-btn');
       siblings.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+    });
+  });
+
+  // Assignment type buttons
+  document.querySelectorAll('.assignment-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.assignment-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Assignment filter chips
+  document.querySelectorAll('[data-afilter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      state.assignmentFilter = chip.dataset.afilter;
+      renderScreen();
+    });
+  });
+
+  // Assignment subject chips
+  document.querySelectorAll('#assignment-subject-chips .chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('#assignment-subject-chips .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
     });
   });
 

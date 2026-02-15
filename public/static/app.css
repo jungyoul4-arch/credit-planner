@@ -894,6 +894,224 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 }
 .insight-item { display:flex; gap:8px; padding:5px 0; font-size:13px; color:var(--text-secondary); line-height:1.5; }
 
+/* ==================== ASSIGNMENT RECORD ==================== */
+.assignment-intro-card {
+  display:flex; align-items:center; gap:14px; padding:16px;
+  background:linear-gradient(135deg, rgba(255,159,67,0.1), rgba(253,203,110,0.05));
+  border:1px solid rgba(255,159,67,0.25); border-radius:var(--radius-lg);
+  margin-bottom:20px;
+}
+.assignment-intro-icon { font-size:32px; flex-shrink:0; }
+.assignment-intro-card h3 { font-size:14px; font-weight:700; }
+.assignment-intro-card p { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+
+.assignment-type-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+.assignment-type-btn {
+  display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px;
+  background:var(--bg-input); border:1.5px solid var(--border); border-radius:var(--radius-md);
+  cursor:pointer; transition:all var(--transition-normal); font-family:inherit;
+  font-size:10px; font-weight:600; color:var(--text-secondary);
+}
+.assignment-type-btn span:first-child { font-size:20px; }
+.assignment-type-btn:hover, .assignment-type-btn.active {
+  border-color:rgba(255,159,67,0.6); background:rgba(255,159,67,0.12);
+  color:#FF9F43; transform:translateY(-2px);
+}
+.assignment-type-btn:active { transform:scale(0.95); }
+
+.assignment-plan-cta {
+  display:flex; align-items:center; gap:14px; padding:16px;
+  background:linear-gradient(135deg, rgba(108,92,231,0.1), rgba(162,155,254,0.05));
+  border:1.5px solid rgba(108,92,231,0.3); border-radius:var(--radius-lg);
+  margin-bottom:20px; cursor:pointer; transition:all var(--transition-normal);
+}
+.assignment-plan-cta:hover { border-color:var(--primary); transform:translateY(-2px); box-shadow:0 4px 16px rgba(108,92,231,0.15); }
+.assignment-plan-cta:active { transform:scale(0.98); }
+.plan-cta-icon { font-size:28px; flex-shrink:0; }
+.plan-cta-content { flex:1; }
+.plan-cta-content h3 { font-size:14px; font-weight:700; color:var(--primary-light); }
+.plan-cta-content p { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+
+/* ==================== ASSIGNMENT PLAN ==================== */
+.assignment-summary-card {
+  background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:16px; margin-bottom:16px;
+}
+.asm-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.asm-subject { font-size:13px; font-weight:700; }
+.asm-type { font-size:11px; color:var(--text-muted); background:var(--bg-input); padding:2px 8px; border-radius:8px; }
+.asm-title { font-size:17px; font-weight:800; margin-bottom:6px; }
+.asm-desc { font-size:13px; color:var(--text-secondary); line-height:1.5; margin-bottom:10px; }
+.asm-meta { display:flex; gap:16px; font-size:11px; color:var(--text-muted); margin-bottom:10px; }
+.asm-meta i { margin-right:4px; }
+.asm-progress-row { display:flex; align-items:center; gap:8px; }
+.asm-progress-bar { flex:1; height:6px; background:var(--bg-input); border-radius:3px; overflow:hidden; }
+.asm-progress-fill { height:100%; border-radius:3px; transition:width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+.asm-progress-text { font-size:12px; font-weight:700; color:var(--text-secondary); }
+
+.plan-section { margin-bottom:16px; }
+.plan-progress-mini { margin-bottom:12px; }
+.plan-progress-bar { height:4px; background:var(--bg-input); border-radius:2px; overflow:hidden; }
+.plan-progress-fill { height:100%; border-radius:2px; transition:width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+
+.plan-steps { display:flex; flex-direction:column; gap:0; }
+.plan-step {
+  display:flex; align-items:flex-start; gap:0; position:relative;
+  padding:2px 0; cursor:pointer; transition:all var(--transition-fast);
+}
+.plan-step:hover { transform:translateX(2px); }
+.plan-step-check {
+  width:36px; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; z-index:2; cursor:pointer; padding-top:8px;
+}
+.plan-step-line {
+  position:absolute; left:17px; top:30px; bottom:-2px; width:2px;
+  background:var(--border); z-index:1;
+}
+.plan-step-line.last { display:none; }
+.plan-step-line.done { background:var(--success); }
+.plan-step-content {
+  flex:1; padding:8px 12px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-md); margin-left:4px; margin-bottom:6px;
+  transition:all var(--transition-fast);
+}
+.plan-step-content.highlight {
+  border-color:rgba(108,92,231,0.4); background:rgba(108,92,231,0.08);
+  box-shadow:0 2px 8px rgba(108,92,231,0.1);
+}
+.plan-step.done .plan-step-content { opacity:0.6; }
+.plan-step.done .plan-step-title { text-decoration:line-through; }
+.plan-step-header { display:flex; justify-content:space-between; margin-bottom:2px; }
+.plan-step-num { font-size:10px; font-weight:700; color:var(--primary-light); }
+.plan-step-date { font-size:10px; color:var(--text-muted); }
+.plan-step-title { font-size:13px; font-weight:600; }
+
+.ai-plan-card {
+  background:linear-gradient(135deg, rgba(108,92,231,0.08), rgba(0,184,148,0.04));
+  border:1px solid rgba(108,92,231,0.2); border-radius:var(--radius-lg);
+  padding:16px; margin-bottom:16px;
+}
+
+.assignment-completed-badge {
+  text-align:center; padding:12px; margin-top:8px;
+  background:rgba(0,184,148,0.1); border:1px solid rgba(0,184,148,0.25);
+  border-radius:var(--radius-md); color:var(--success); font-size:14px; font-weight:600;
+}
+
+/* ==================== ASSIGNMENT LIST ==================== */
+.header-add-btn {
+  background:rgba(108,92,231,0.15); border:1px solid rgba(108,92,231,0.3);
+  border-radius:var(--radius-sm); color:var(--primary-light); width:32px; height:32px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  font-size:14px; transition:all var(--transition-fast);
+}
+.header-add-btn:hover { background:rgba(108,92,231,0.25); }
+
+.assignment-stats-row { display:flex; gap:8px; margin-bottom:16px; }
+.assignment-stat-card {
+  flex:1; text-align:center; padding:12px 8px; background:var(--bg-card);
+  border:1px solid var(--border); border-radius:var(--radius-md);
+}
+.assignment-stat-num { font-size:22px; font-weight:800; display:block; }
+.assignment-stat-label { font-size:10px; color:var(--text-muted); font-weight:600; }
+
+.assignment-card {
+  background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:14px; margin-bottom:10px; cursor:pointer; transition:all var(--transition-normal);
+  position:relative; overflow:hidden;
+}
+.assignment-card::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+}
+.assignment-card.urgent::before { background:var(--accent); }
+.assignment-card.warning::before { background:var(--warning); }
+.assignment-card.normal::before { background:var(--primary); }
+.assignment-card.completed::before { background:var(--success); }
+.assignment-card.completed { opacity:0.7; }
+.assignment-card:hover { border-color:var(--border-light); transform:translateY(-2px); box-shadow:var(--shadow); }
+.assignment-card:active { transform:scale(0.98); }
+
+.ac-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.ac-subject-badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; }
+.ac-type { font-size:10px; color:var(--text-muted); background:var(--bg-input); padding:2px 6px; border-radius:4px; }
+.ac-title { font-size:15px; font-weight:700; margin-bottom:4px; }
+.ac-desc { font-size:12px; color:var(--text-secondary); line-height:1.4; margin-bottom:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ac-bottom {}
+.ac-meta { display:flex; gap:12px; font-size:11px; color:var(--text-muted); margin-bottom:8px; }
+.ac-meta i { margin-right:3px; }
+.ac-progress-row { display:flex; align-items:center; gap:8px; }
+.ac-progress-bar { flex:1; height:4px; background:var(--bg-input); border-radius:2px; overflow:hidden; }
+.ac-progress-fill { height:100%; border-radius:2px; transition:width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+.ac-progress-text { font-size:11px; font-weight:700; color:var(--text-secondary); }
+.ac-plan-count { font-size:10px; color:var(--text-muted); }
+
+.add-assignment-btn {
+  width:100%; padding:14px; background:none; border:2px dashed var(--border);
+  border-radius:var(--radius-lg); color:var(--text-muted); font-size:14px; font-weight:600;
+  cursor:pointer; transition:all var(--transition-fast); font-family:inherit; margin-top:4px;
+}
+.add-assignment-btn:hover { border-color:var(--primary); color:var(--primary-light); background:rgba(108,92,231,0.05); }
+.add-assignment-btn i { margin-right:6px; }
+
+/* D-Day Badges */
+.assignment-dday {
+  font-size:11px; font-weight:700; padding:3px 8px; border-radius:8px;
+  white-space:nowrap;
+}
+.assignment-dday.urgent { background:rgba(255,107,107,0.15); color:var(--accent); animation:pulseSmall 1.5s ease-in-out infinite; }
+.assignment-dday.warning { background:rgba(243,156,18,0.15); color:var(--warning); }
+.assignment-dday.normal { background:rgba(108,92,231,0.15); color:var(--primary-light); }
+.assignment-dday.completed { background:rgba(0,184,148,0.15); color:var(--success); }
+
+/* Upcoming Assignment Cards (Home Tab) */
+.upcoming-assignments { display:flex; flex-direction:column; gap:8px; }
+.upcoming-assignment-card {
+  display:flex; align-items:center; gap:10px; padding:12px;
+  background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-md);
+  cursor:pointer; transition:all var(--transition-normal);
+}
+.upcoming-assignment-card:hover { border-color:var(--primary); transform:translateX(4px); }
+.upcoming-assignment-card:active { transform:scale(0.98); }
+.upcoming-assignment-card.urgent { border-left:3px solid var(--accent); }
+.upcoming-assignment-card.warning { border-left:3px solid var(--warning); }
+.upcoming-assignment-card.normal { border-left:3px solid var(--primary); }
+
+.ua-left { flex-shrink:0; }
+.ua-dday-badge {
+  font-size:12px; font-weight:800; padding:6px 10px; border-radius:10px;
+  text-align:center; min-width:48px;
+}
+.ua-dday-badge.urgent { background:rgba(255,107,107,0.15); color:var(--accent); }
+.ua-dday-badge.warning { background:rgba(243,156,18,0.15); color:var(--warning); }
+.ua-dday-badge.normal { background:rgba(108,92,231,0.15); color:var(--primary-light); }
+
+.ua-center { flex:1; min-width:0; }
+.ua-subject-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.ua-subject-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.ua-subject { font-size:12px; font-weight:600; color:var(--text-secondary); }
+.ua-type { font-size:10px; color:var(--text-muted); background:var(--bg-card); padding:1px 5px; border-radius:4px; }
+.ua-title { font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px; }
+.ua-progress-row { display:flex; align-items:center; gap:6px; }
+.ua-progress-bar { flex:1; height:3px; background:var(--bg-card); border-radius:2px; overflow:hidden; }
+.ua-progress-fill { height:100%; border-radius:2px; }
+.ua-progress-text { font-size:10px; color:var(--text-muted); font-weight:600; }
+.ua-right { flex-shrink:0; color:var(--text-muted); font-size:12px; }
+
+/* Assignment Mini Row (Record Tab) */
+.assignment-mini-row {
+  display:flex; align-items:center; gap:10px; padding:10px 0;
+  border-bottom:1px solid rgba(48,54,61,0.3); cursor:pointer; transition:all var(--transition-fast);
+}
+.assignment-mini-row:last-child { border-bottom:none; }
+.assignment-mini-row:hover { transform:translateX(2px); }
+.assignment-mini-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.assignment-mini-info { flex:1; min-width:0; }
+.assignment-mini-subject { font-size:11px; color:var(--text-muted); font-weight:600; display:block; }
+.assignment-mini-title { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+.assignment-mini-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
+.assignment-mini-bar { width:50px; height:3px; background:var(--bg-input); border-radius:2px; overflow:hidden; }
+.assignment-mini-bar-fill { height:100%; border-radius:2px; }
+
 /* ==================== ANIMATIONS ==================== */
 @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 @keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
