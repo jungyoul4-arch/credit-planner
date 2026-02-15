@@ -137,6 +137,46 @@ const state = {
   assignmentFilter: 'all', // 'all','in-progress','pending','completed'
   editingAssignment: null,
   viewingAssignment: null,
+  // 플래너 상태
+  plannerView: 'daily', // 'daily','weekly','monthly'
+  plannerDate: '2025-02-15', // 현재 선택 날짜
+  plannerAiOpen: false,
+  plannerAiMessages: [
+    { role:'ai', text:'안녕 민준! 👋 플래너 AI 도우미예요. 일정 추가, 과제 계획 조정, 공부 시간 배분 등 무엇이든 도와줄게요!' },
+  ],
+  plannerAddOpen: false,
+  // 통합 플래너 일정 데이터
+  plannerItems: [
+    // == 2/15 (토) ==
+    { id:'p1', date:'2025-02-15', time:'07:00', endTime:'07:30', title:'기상 & 아침 루틴', category:'routine', color:'#A29BFE', icon:'☀️', done:true, aiGenerated:false },
+    { id:'p2', date:'2025-02-15', time:'08:30', endTime:'09:20', title:'1교시 국어', category:'class', color:'#FF6B6B', icon:'📖', done:true, aiGenerated:false, detail:'윤동주 서시' },
+    { id:'p3', date:'2025-02-15', time:'09:30', endTime:'10:20', title:'2교시 수학', category:'class', color:'#6C5CE7', icon:'📐', done:true, aiGenerated:false, detail:'치환적분' },
+    { id:'p4', date:'2025-02-15', time:'10:30', endTime:'11:20', title:'3교시 영어', category:'class', color:'#00B894', icon:'🔤', done:false, aiGenerated:false, detail:'관계대명사' },
+    { id:'p5', date:'2025-02-15', time:'11:30', endTime:'12:20', title:'4교시 과학', category:'class', color:'#FDCB6E', icon:'🔬', done:false, aiGenerated:false, detail:'산화환원' },
+    { id:'p6', date:'2025-02-15', time:'13:20', endTime:'14:10', title:'5교시 한국사', category:'class', color:'#74B9FF', icon:'🏛️', done:false, aiGenerated:false },
+    { id:'p7', date:'2025-02-15', time:'14:20', endTime:'15:10', title:'6교시 체육', category:'class', color:'#A29BFE', icon:'⚽', done:false, aiGenerated:false },
+    { id:'p8', date:'2025-02-15', time:'15:30', endTime:'16:30', title:'[과제] 수학 11~15번 풀기', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'치환적분 연습문제 심화' },
+    { id:'p9', date:'2025-02-15', time:'16:30', endTime:'17:30', title:'[과제] 영어 에세이 서론/결론', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'My Future Career Plan' },
+    { id:'p10', date:'2025-02-15', time:'17:30', endTime:'18:30', title:'코딩동아리 프로젝트', category:'activity', color:'#00CEC9', icon:'💻', done:false, aiGenerated:false, detail:'Python 그래프 시각화' },
+    { id:'p11', date:'2025-02-15', time:'19:00', endTime:'20:00', title:'수학 복습 & 질문 정리', category:'study', color:'#6C5CE7', icon:'📝', done:false, aiGenerated:true, detail:'치환적분 오답노트' },
+    { id:'p12', date:'2025-02-15', time:'20:00', endTime:'20:30', title:'저녁 루틴 & 하루 마무리', category:'routine', color:'#A29BFE', icon:'🌙', done:false, aiGenerated:false },
+    // == 2/16 (일) ==
+    { id:'p13', date:'2025-02-16', time:'09:00', endTime:'10:30', title:'[과제] 영어 에세이 마무리', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
+    { id:'p14', date:'2025-02-16', time:'10:30', endTime:'12:00', title:'[탐구] 치환적분 알고리즘 탐구', category:'explore', color:'#FF6B6B', icon:'🔬', done:false, aiGenerated:true, detail:'멘토 제안 탐구 주제' },
+    { id:'p15', date:'2025-02-16', time:'14:00', endTime:'15:30', title:'자유 독서 & 메모', category:'personal', color:'#636e72', icon:'📚', done:false, aiGenerated:false, detail:'진로 관련 도서' },
+    { id:'p16', date:'2025-02-16', time:'16:00', endTime:'17:00', title:'이서연에게 수학 가르치기', category:'teach', color:'#00B894', icon:'🤝', done:false, aiGenerated:false, detail:'치환적분 복습' },
+    // == 2/17 (월) ==
+    { id:'p17', date:'2025-02-17', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
+    { id:'p18', date:'2025-02-17', time:'15:30', endTime:'17:00', title:'[과제] 과학 실험 데이터 정리', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
+    { id:'p19', date:'2025-02-17', time:'17:00', endTime:'18:00', title:'[과제] 영어 에세이 문법 체크', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
+    // == 2/18 (화) ==
+    { id:'p20', date:'2025-02-18', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
+    { id:'p21', date:'2025-02-18', time:'15:30', endTime:'16:00', title:'[과제] 영어 에세이 최종 제출 🚨', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'⚠️ 마감일!' },
+    { id:'p22', date:'2025-02-18', time:'16:00', endTime:'17:30', title:'[과제] 수학 오답정리', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1 },
+    // == 2/19~20 ==
+    { id:'p23', date:'2025-02-19', time:'15:30', endTime:'17:00', title:'[과제] 과학 그래프 작성', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
+    { id:'p24', date:'2025-02-20', time:'08:30', endTime:'09:00', title:'[과제] 수학 최종제출 🚨', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'⚠️ 마감일!' },
+  ],
 };
 
 // ==================== MAIN RENDER ====================
@@ -181,17 +221,23 @@ function renderStudentApp() {
   if (state.currentScreen === 'record-assignment') return renderRecordAssignment();
   if (state.currentScreen === 'assignment-plan') return renderAssignmentPlan();
   if (state.currentScreen === 'assignment-list') return renderAssignmentList();
+  if (state.currentScreen === 'planner-add') return renderPlannerAddItem();
 
   let content = '';
   content += renderXpBar();
   switch(state.studentTab) {
     case 'home': content += renderHomeTab(); break;
     case 'record': content += renderRecordTab(); break;
+    case 'planner': content += renderPlannerTab(); break;
     case 'growth': content += renderGrowthTab(); break;
     case 'my': content += renderMyTab(); break;
   }
   content += renderBottomNav();
   content += renderFab();
+  // AI 플로팅 어시스턴트 (플래너 탭에서 항상 노출)
+  if (state.studentTab === 'planner' && state.currentScreen === 'main') {
+    content += renderPlannerAiFloat();
+  }
   return content;
 }
 
@@ -214,6 +260,7 @@ function renderBottomNav() {
   const tabs = [
     { id:'home', icon:'fa-house', label:'홈' },
     { id:'record', icon:'fa-pen-to-square', label:'기록' },
+    { id:'planner', icon:'fa-calendar-check', label:'플래너' },
     { id:'growth', icon:'fa-chart-line', label:'성장' },
     { id:'my', icon:'fa-user', label:'마이' },
   ];
@@ -230,6 +277,8 @@ function renderBottomNav() {
 }
 
 function renderFab() {
+  // 플래너 탭에서는 AI FAB가 대신 표시됨
+  if (state.studentTab === 'planner') return '';
   return `<button class="fab" id="fab-btn"><i class="fas fa-plus"></i></button>`;
 }
 
@@ -1798,6 +1847,503 @@ function renderRecordHistory() {
   `;
 }
 
+// ==================== PLANNER TAB ====================
+
+function renderPlannerTab() {
+  return `
+    <div class="tab-content animate-in">
+      <div class="planner-header">
+        <h1>📅 플래너</h1>
+        <div class="planner-view-toggle">
+          ${['daily','weekly','monthly'].map(v => `
+            <button class="pvt-btn ${state.plannerView===v?'active':''}" data-pview="${v}">
+              ${v==='daily'?'일간':v==='weekly'?'주간':'월간'}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      ${state.plannerView === 'daily' ? renderPlannerDaily() : ''}
+      ${state.plannerView === 'weekly' ? renderPlannerWeekly() : ''}
+      ${state.plannerView === 'monthly' ? renderPlannerMonthly() : ''}
+    </div>
+  `;
+}
+
+// ---- DAILY PLANNER ----
+function renderPlannerDaily() {
+  const d = new Date(state.plannerDate);
+  const dayNames = ['일','월','화','수','목','금','토'];
+  const todayItems = state.plannerItems.filter(i => i.date === state.plannerDate).sort((a,b) => a.time.localeCompare(b.time));
+  const doneCount = todayItems.filter(i => i.done).length;
+  const aiCount = todayItems.filter(i => i.aiGenerated).length;
+
+  // 날짜 네비게이션 (5일)
+  const dateDots = [];
+  for (let offset = -2; offset <= 2; offset++) {
+    const dd = new Date(d);
+    dd.setDate(dd.getDate() + offset);
+    const dateStr = dd.toISOString().split('T')[0];
+    const itemCount = state.plannerItems.filter(i => i.date === dateStr).length;
+    dateDots.push({ date: dateStr, day: dd.getDate(), dayName: dayNames[dd.getDay()], isToday: offset===0, hasItems: itemCount > 0, itemCount });
+  }
+
+  // 시간대 블록 생성
+  const hours = [];
+  for (let h = 7; h <= 22; h++) {
+    const timeStr = `${String(h).padStart(2,'0')}:00`;
+    const itemsInHour = todayItems.filter(item => {
+      const itemH = parseInt(item.time.split(':')[0]);
+      return itemH === h;
+    });
+    hours.push({ hour: h, time: timeStr, items: itemsInHour });
+  }
+
+  return `
+    <!-- Date Navigator -->
+    <div class="planner-date-nav">
+      <button class="pdn-arrow" onclick="shiftPlannerDate(-1)"><i class="fas fa-chevron-left"></i></button>
+      <div class="pdn-dates">
+        ${dateDots.map(dd => `
+          <button class="pdn-date ${dd.isToday?'active':''} ${dd.hasItems?'has-items':''}" onclick="state.plannerDate='${dd.date}';renderScreen()">
+            <span class="pdn-dayname">${dd.dayName}</span>
+            <span class="pdn-day">${dd.day}</span>
+            ${dd.hasItems ? `<span class="pdn-dot"></span>` : ''}
+          </button>
+        `).join('')}
+      </div>
+      <button class="pdn-arrow" onclick="shiftPlannerDate(1)"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <!-- Daily Summary -->
+    <div class="planner-daily-summary">
+      <div class="pds-item"><span class="pds-num">${todayItems.length}</span><span class="pds-label">전체</span></div>
+      <div class="pds-divider"></div>
+      <div class="pds-item"><span class="pds-num" style="color:var(--success)">${doneCount}</span><span class="pds-label">완료</span></div>
+      <div class="pds-divider"></div>
+      <div class="pds-item"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">AI 배치</span></div>
+      <div class="pds-divider"></div>
+      <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="planner-timeline">
+      ${hours.map(h => `
+        <div class="pt-hour-row">
+          <div class="pt-time">${h.hour}시</div>
+          <div class="pt-content">
+            ${h.items.length > 0 ? h.items.map(item => `
+              <div class="pt-item ${item.done?'done':''} cat-${item.category}" onclick="togglePlannerItem('${item.id}')">
+                <div class="pt-item-left">
+                  <div class="pt-item-check">
+                    ${item.done
+                      ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>'
+                      : '<i class="far fa-circle"></i>'
+                    }
+                  </div>
+                  <div class="pt-item-color" style="background:${item.color}"></div>
+                </div>
+                <div class="pt-item-body">
+                  <div class="pt-item-title-row">
+                    <span class="pt-item-icon">${item.icon}</span>
+                    <span class="pt-item-title">${item.title}</span>
+                  </div>
+                  <div class="pt-item-meta">
+                    <span>${item.time} ~ ${item.endTime}</span>
+                    ${item.detail ? `<span class="pt-item-detail">· ${item.detail}</span>` : ''}
+                  </div>
+                </div>
+                <div class="pt-item-right">
+                  ${item.aiGenerated ? '<span class="pt-ai-badge">AI</span>' : ''}
+                </div>
+              </div>
+            `).join('') : `
+              <div class="pt-empty-slot" onclick="openPlannerAdd('${state.plannerDate}','${h.time}')">
+                <i class="fas fa-plus" style="font-size:10px;opacity:0.4"></i>
+              </div>
+            `}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Add Button -->
+    <div style="padding:0 16px 16px">
+      <button class="add-assignment-btn" onclick="openPlannerAdd('${state.plannerDate}','')">
+        <i class="fas fa-plus-circle"></i> 일정 추가
+      </button>
+    </div>
+  `;
+}
+
+// ---- WEEKLY PLANNER ----
+function renderPlannerWeekly() {
+  const d = new Date(state.plannerDate);
+  const dayOfWeek = d.getDay(); // 0=일 ~ 6=토
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  const dayNames = ['월','화','수','목','금','토','일'];
+
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) {
+    const dd = new Date(monday);
+    dd.setDate(monday.getDate() + i);
+    const dateStr = dd.toISOString().split('T')[0];
+    const items = state.plannerItems.filter(it => it.date === dateStr).sort((a,b) => a.time.localeCompare(b.time));
+    const assignments = items.filter(it => it.category === 'assignment');
+    // 이 날 마감인 과제
+    const deadlines = state.assignments.filter(a => a.dueDate === dateStr && a.status !== 'completed');
+    weekDays.push({ date: dateStr, day: dd.getDate(), dayName: dayNames[i], items, assignments, deadlines, isToday: dateStr === state.plannerDate });
+  }
+
+  const monthStr = `${monday.getFullYear()}.${String(monday.getMonth()+1).padStart(2,'0')}`;
+
+  return `
+    <div class="planner-week-header">
+      <button class="pdn-arrow" onclick="shiftPlannerWeek(-1)"><i class="fas fa-chevron-left"></i></button>
+      <span class="pw-month">${monthStr} · ${monday.getMonth()+1}/${monday.getDate()}~${weekDays[6].day}</span>
+      <button class="pdn-arrow" onclick="shiftPlannerWeek(1)"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <div class="planner-week-grid">
+      ${weekDays.map(wd => `
+        <div class="pw-day ${wd.isToday?'today':''}" onclick="state.plannerDate='${wd.date}';state.plannerView='daily';renderScreen()">
+          <div class="pw-day-header">
+            <span class="pw-dayname">${wd.dayName}</span>
+            <span class="pw-daynum ${wd.isToday?'today':''}">${wd.day}</span>
+          </div>
+          <div class="pw-items">
+            ${wd.deadlines.map(dl => `
+              <div class="pw-item pw-deadline">🚨 ${dl.subject} 마감</div>
+            `).join('')}
+            ${wd.items.slice(0, 4).map(item => `
+              <div class="pw-item" style="border-left:2px solid ${item.color}">
+                <span class="pw-item-time">${item.time.substring(0,5)}</span>
+                <span class="pw-item-title">${item.title.replace('[과제] ','📋').replace('[탐구] ','🔬')}</span>
+              </div>
+            `).join('')}
+            ${wd.items.length > 4 ? `<div class="pw-more">+${wd.items.length - 4}개 더</div>` : ''}
+            ${wd.items.length === 0 && wd.deadlines.length === 0 ? `<div class="pw-empty">—</div>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Weekly Assignment Overview -->
+    <div class="card" style="margin:12px 16px">
+      <div class="card-header-row">
+        <span class="card-title">📋 이번 주 과제 현황</span>
+      </div>
+      ${state.assignments.filter(a => {
+        const due = new Date(a.dueDate);
+        return due >= monday && due <= new Date(weekDays[6].date + 'T23:59:59') && a.status !== 'completed';
+      }).map(a => {
+        const dDay = getDday(a.dueDate);
+        const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+        const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+        return `
+        <div class="pw-assignment-row" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+          <span class="assignment-dday ${urgency}">${dDayText}</span>
+          <span style="font-weight:600;flex:1;margin-left:8px">${a.subject} · ${a.title}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${a.progress}%</span>
+        </div>`;
+      }).join('') || '<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px">이번 주 마감 과제 없음 ✅</p>'}
+    </div>
+  `;
+}
+
+// ---- MONTHLY PLANNER ----
+function renderPlannerMonthly() {
+  const d = new Date(state.plannerDate);
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const firstDay = new Date(year, month, 1).getDay(); // 0=일
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = state.plannerDate;
+
+  const dayNames = ['일','월','화','수','목','금','토'];
+  const cells = [];
+  
+  // 빈 셀
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const items = state.plannerItems.filter(it => it.date === dateStr);
+    const deadlines = state.assignments.filter(a => a.dueDate === dateStr && a.status !== 'completed');
+    cells.push({ day, dateStr, items, deadlines, isToday: dateStr === todayStr });
+  }
+
+  return `
+    <div class="planner-month-header">
+      <button class="pdn-arrow" onclick="shiftPlannerMonth(-1)"><i class="fas fa-chevron-left"></i></button>
+      <span class="pm-title">${year}년 ${month+1}월</span>
+      <button class="pdn-arrow" onclick="shiftPlannerMonth(1)"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <div class="planner-month-grid">
+      ${dayNames.map(dn => `<div class="pm-day-header ${dn==='일'?'sun':dn==='토'?'sat':''}">${dn}</div>`).join('')}
+      ${cells.map(cell => {
+        if (!cell) return '<div class="pm-cell empty"></div>';
+        const hasAssignment = cell.items.some(i => i.category === 'assignment');
+        const hasClass = cell.items.some(i => i.category === 'class');
+        const hasDeadline = cell.deadlines.length > 0;
+        return `
+          <div class="pm-cell ${cell.isToday?'today':''} ${hasDeadline?'deadline':''}" onclick="state.plannerDate='${cell.dateStr}';state.plannerView='daily';renderScreen()">
+            <span class="pm-day-num">${cell.day}</span>
+            <div class="pm-dots">
+              ${hasClass ? '<span class="pm-dot" style="background:var(--primary)"></span>' : ''}
+              ${hasAssignment ? '<span class="pm-dot" style="background:#FF9F43"></span>' : ''}
+              ${hasDeadline ? '<span class="pm-dot" style="background:var(--accent)"></span>' : ''}
+            </div>
+            ${cell.items.length > 0 ? `<span class="pm-count">${cell.items.length}</span>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    <!-- Legend -->
+    <div class="pm-legend">
+      <span><span class="pm-dot-lg" style="background:var(--primary)"></span>수업</span>
+      <span><span class="pm-dot-lg" style="background:#FF9F43"></span>과제</span>
+      <span><span class="pm-dot-lg" style="background:var(--accent)"></span>마감</span>
+    </div>
+
+    <!-- Upcoming Deadlines -->
+    <div class="card" style="margin:12px 16px">
+      <div class="card-title">🚨 이번 달 마감 과제</div>
+      ${state.assignments.filter(a => {
+        const due = new Date(a.dueDate);
+        return due.getMonth() === month && due.getFullYear() === year && a.status !== 'completed';
+      }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).map(a => {
+        const dDay = getDday(a.dueDate);
+        const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+        const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+        return `
+        <div class="pw-assignment-row" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+          <span class="assignment-dday ${urgency}">${dDayText}</span>
+          <span style="font-weight:600;flex:1;margin-left:8px">${a.subject} · ${a.title}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${formatDate(a.dueDate)}</span>
+        </div>`;
+      }).join('') || '<p style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px">이번 달 마감 과제 없음 ✅</p>'}
+    </div>
+  `;
+}
+
+// ---- AI FLOATING ASSISTANT ----
+function renderPlannerAiFloat() {
+  if (state.plannerAiOpen) {
+    return `
+      <div class="planner-ai-panel animate-in">
+        <div class="pai-header">
+          <div class="pai-avatar">🤖</div>
+          <div>
+            <span class="pai-title">AI 플래너 도우미</span>
+            <span class="pai-status">항상 대기 중</span>
+          </div>
+          <button class="pai-close" onclick="state.plannerAiOpen=false;renderScreen()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="pai-messages">
+          ${state.plannerAiMessages.map(m => `
+            <div class="pai-msg ${m.role}">
+              ${m.role==='ai' ? '<span class="pai-msg-avatar">🤖</span>' : ''}
+              <div class="pai-msg-bubble">${m.text}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="pai-suggestions">
+          ${[
+            '오늘 남은 일정 정리해줘',
+            '내일 공부 계획 짜줘',
+            '과제 마감 일정 확인',
+            '이번 주 비는 시간 찾아줘',
+          ].map(s => `<button class="pai-suggestion" onclick="sendAiMessage('${s}')">${s}</button>`).join('')}
+        </div>
+        <div class="pai-input-row">
+          <input class="pai-input" placeholder="AI에게 물어보세요..." id="pai-input-field" onkeypress="if(event.key==='Enter'){sendAiMessage(this.value);this.value=''}">
+          <button class="pai-send" onclick="const inp=document.getElementById('pai-input-field');sendAiMessage(inp.value);inp.value=''"><i class="fas fa-paper-plane"></i></button>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <button class="planner-ai-fab" onclick="state.plannerAiOpen=true;renderScreen()">
+      <span class="pai-fab-icon">🤖</span>
+      <span class="pai-fab-pulse"></span>
+    </button>
+  `;
+}
+
+// ---- PLANNER ADD ITEM ----
+function renderPlannerAddItem() {
+  const prefillDate = state.plannerDate || '2025-02-15';
+  const prefillTime = state._addTime || '';
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📝 일정 추가</h1>
+      </div>
+      <div class="form-body">
+        <div class="field-group">
+          <label class="field-label">📂 카테고리</label>
+          <div class="planner-cat-grid" id="planner-cat-chips">
+            ${[
+              {id:'study',icon:'📝',name:'자습/복습'},
+              {id:'assignment',icon:'📋',name:'과제'},
+              {id:'explore',icon:'🔬',name:'탐구'},
+              {id:'activity',icon:'🏫',name:'창체/동아리'},
+              {id:'personal',icon:'🎯',name:'개인 계획'},
+              {id:'routine',icon:'☀️',name:'루틴'},
+            ].map((c,i) => `
+              <button class="planner-cat-btn ${i===0?'active':''}" data-pcat="${c.id}">
+                <span>${c.icon}</span><span>${c.name}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">✏️ 제목</label>
+          <input class="input-field" id="planner-add-title" placeholder="일정 제목을 입력하세요">
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📝 상세 메모 <span class="field-hint">(선택)</span></label>
+          <textarea class="input-field" id="planner-add-detail" placeholder="추가 내용이 있다면 적어주세요" rows="2"></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <div class="field-group" style="flex:1">
+            <label class="field-label">📅 날짜</label>
+            <input class="input-field" type="date" id="planner-add-date" value="${prefillDate}" style="color:var(--text-primary)">
+          </div>
+          <div class="field-group" style="flex:1">
+            <label class="field-label">⏰ 시작</label>
+            <input class="input-field" type="time" id="planner-add-time" value="${prefillTime || '15:30'}" style="color:var(--text-primary)">
+          </div>
+          <div class="field-group" style="flex:1">
+            <label class="field-label">⏰ 종료</label>
+            <input class="input-field" type="time" id="planner-add-endtime" value="${prefillTime ? addHour(prefillTime) : '16:30'}" style="color:var(--text-primary)">
+          </div>
+        </div>
+
+        <!-- AI Suggestion -->
+        <div class="ai-plan-card">
+          <div class="ai-header">
+            <span class="ai-icon">🤖</span>
+            <span class="ai-title">AI 추천</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:8px">
+            지금 <strong style="color:var(--primary-light)">15:30~16:30</strong>이 비어있어요. 수학 과제가 D-5이니까 이 시간에 진행하면 좋겠어요! 📐
+          </p>
+        </div>
+
+        <button class="btn-primary" onclick="addPlannerItem()">
+          일정 추가 완료 ✨
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// ---- PLANNER UTILITIES ----
+
+function shiftPlannerDate(offset) {
+  const d = new Date(state.plannerDate);
+  d.setDate(d.getDate() + offset);
+  state.plannerDate = d.toISOString().split('T')[0];
+  renderScreen();
+}
+
+function shiftPlannerWeek(offset) {
+  const d = new Date(state.plannerDate);
+  d.setDate(d.getDate() + (offset * 7));
+  state.plannerDate = d.toISOString().split('T')[0];
+  renderScreen();
+}
+
+function shiftPlannerMonth(offset) {
+  const d = new Date(state.plannerDate);
+  d.setMonth(d.getMonth() + offset);
+  state.plannerDate = d.toISOString().split('T')[0];
+  renderScreen();
+}
+
+function togglePlannerItem(id) {
+  const item = state.plannerItems.find(i => i.id === id);
+  if (item) {
+    item.done = !item.done;
+    renderScreen();
+  }
+}
+
+function openPlannerAdd(date, time) {
+  state.plannerDate = date;
+  state._addTime = time;
+  goScreen('planner-add');
+}
+
+function addHour(timeStr) {
+  if (!timeStr) return '16:30';
+  const [h, m] = timeStr.split(':').map(Number);
+  return `${String(Math.min(h + 1, 23)).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function addPlannerItem() {
+  const catBtn = document.querySelector('#planner-cat-chips .planner-cat-btn.active');
+  const title = document.getElementById('planner-add-title')?.value || '';
+  const detail = document.getElementById('planner-add-detail')?.value || '';
+  const date = document.getElementById('planner-add-date')?.value || state.plannerDate;
+  const time = document.getElementById('planner-add-time')?.value || '15:30';
+  const endTime = document.getElementById('planner-add-endtime')?.value || '16:30';
+  const category = catBtn ? catBtn.dataset.pcat : 'personal';
+
+  const catMeta = {
+    study:{color:'#6C5CE7',icon:'📝'}, assignment:{color:'#FF9F43',icon:'📋'},
+    explore:{color:'#FF6B6B',icon:'🔬'}, activity:{color:'#00CEC9',icon:'🏫'},
+    personal:{color:'#636e72',icon:'🎯'}, routine:{color:'#A29BFE',icon:'☀️'},
+  };
+  const meta = catMeta[category] || catMeta.personal;
+
+  const newId = 'p' + (state.plannerItems.length + 100);
+  state.plannerItems.push({
+    id: newId, date, time, endTime,
+    title: title || '새 일정',
+    category, color: meta.color, icon: meta.icon,
+    done: false, aiGenerated: false,
+    detail: detail || undefined,
+  });
+
+  state.plannerDate = date;
+  state.plannerView = 'daily';
+  showXpPopup(5, '일정이 추가되었어요!');
+}
+
+function sendAiMessage(text) {
+  if (!text || !text.trim()) return;
+  state.plannerAiMessages.push({ role:'user', text: text.trim() });
+
+  // AI 응답 시뮬레이션
+  const responses = {
+    '오늘 남은 일정 정리해줘': '오늘 남은 일정이에요 📋\n\n• 15:30 수학 과제 (11~15번)\n• 16:30 영어 에세이 서론/결론\n• 17:30 코딩동아리\n• 19:00 수학 복습\n• 20:00 저녁 루틴\n\n수학 과제부터 시작하면 시간 배분이 딱 맞을 거예요! 💪',
+    '내일 공부 계획 짜줘': '내일(일요일) 계획을 짜봤어요 📅\n\n• 09:00~10:30 영어 에세이 마무리 (D-2!)\n• 10:30~12:00 치환적분 탐구 주제 정리\n• 14:00~15:30 자유 독서\n• 16:00~17:00 이서연 수학 가르치기\n\n영어 에세이 마감이 모레라서 오전에 끝내는 게 좋겠어요! ✅',
+    '과제 마감 일정 확인': '진행 중인 과제 마감일이에요 🚨\n\n• 영어 에세이 → <strong>D-3 (2/18)</strong> 🟡\n• 수학 문제풀이 → D-5 (2/20)\n• 과학 보고서 → D-10 (2/25)\n\n영어 에세이에 집중하는 게 좋겠어요! 내일까지 서론/결론만 끝내면 여유 생겨요 👍',
+    '이번 주 비는 시간 찾아줘': '이번 주 자유 시간이에요 ⏰\n\n• 토(오늘) 18:30~19:00 (30분)\n• 일 12:00~14:00 (2시간)\n• 일 17:00~ (자유)\n• 월 방과후 15:10~15:30\n• 화 방과후 16:00~\n\n일요일 오후가 가장 넉넉해요. 탐구 활동이나 진로 독서에 활용해보세요! 📚',
+  };
+
+  const aiReply = responses[text.trim()] || `"${text.trim()}" 에 대해 확인해볼게요! 🔍\n\n현재 ${state.assignments.filter(a=>a.status!=='completed').length}개의 진행 중 과제와 ${state.plannerItems.filter(i=>i.date===state.plannerDate&&!i.done).length}개의 오늘 일정이 있어요. 구체적으로 어떤 부분을 도와줄까요?`;
+
+  setTimeout(() => {
+    state.plannerAiMessages.push({ role:'ai', text: aiReply });
+    renderScreen();
+    // 스크롤 하단
+    const msgBox = document.querySelector('.pai-messages');
+    if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+  }, 500);
+
+  renderScreen();
+}
+
 // ==================== GROWTH TAB (G-01~G-05) ====================
 
 function renderGrowthTab() {
@@ -2398,6 +2944,22 @@ function initStudentEvents() {
     btn.addEventListener('click', () => {
       const siblings = btn.parentElement.querySelectorAll('.grid-select-btn');
       siblings.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // Planner view toggle
+  document.querySelectorAll('[data-pview]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.plannerView = btn.dataset.pview;
+      renderScreen();
+    });
+  });
+
+  // Planner category chips
+  document.querySelectorAll('.planner-cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.planner-cat-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     });
   });
