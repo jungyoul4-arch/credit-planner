@@ -295,6 +295,39 @@ app.post('/api/deep-analyze', async (c) => {
 })
 
 
+// ==================== API 라우트: 시험 대비 코칭 (Gemini) ====================
+
+app.post('/api/exam-coach', async (c) => {
+  try {
+    const { prompt } = await c.req.json()
+    if (!prompt) return c.json({ error: '프롬프트가 필요합니다' }, 400)
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        })
+      }
+    )
+
+    if (!res.ok) {
+      const err = await res.text()
+      return c.json({ error: 'Gemini API 오류', detail: err }, 500)
+    }
+
+    const data: any = await res.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    return c.json({ plan: text })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+
 // ==================== 헬스체크 ====================
 app.get('/api/health', (c) => {
   return c.json({

@@ -1947,6 +1947,183 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   50% { opacity:0.6; box-shadow:0 0 0 4px rgba(255,159,67,0); }
 }
 
+/* ==================== 시험 관리 (Exam) ==================== */
+
+/* 기록탭 시험 미니 카드 */
+.exam-mini-row {
+  display:flex; align-items:center; gap:10px; padding:10px 0;
+  border-bottom:1px solid var(--bg-input, rgba(255,255,255,0.06));
+  cursor:pointer;
+}
+.exam-mini-row:last-child { border-bottom:none; }
+.exam-mini-icon { font-size:20px; flex-shrink:0; }
+.exam-mini-info { flex:1; min-width:0; }
+.exam-mini-name { font-size:13px; font-weight:600; color:var(--text-main); display:block; }
+.exam-mini-subjects { font-size:11px; color:var(--text-muted); display:block; margin-top:2px; }
+.exam-mini-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
+.exam-mini-bar { width:48px; height:4px; background:var(--bg-input, rgba(255,255,255,0.1)); border-radius:2px; overflow:hidden; }
+.exam-mini-bar-fill { height:100%; border-radius:2px; transition:width 0.3s ease; }
+
+/* 시험 목록 카드 */
+.exam-card {
+  background:var(--bg-input, rgba(255,255,255,0.04));
+  border-radius:16px; padding:16px; margin-bottom:12px;
+  cursor:pointer; transition:all 0.2s;
+}
+.exam-card:hover { background:rgba(255,255,255,0.08); transform:translateY(-1px); }
+.exam-card.completed { opacity:0.6; }
+.exam-card-top { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.exam-card-icon { font-size:24px; flex-shrink:0; }
+.exam-card-info { flex:1; min-width:0; }
+.exam-card-name { font-size:15px; font-weight:700; color:var(--text-main); }
+.exam-card-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.exam-card-dday { flex-shrink:0; }
+
+/* 과목 칩 */
+.exam-card-subjects { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.exam-subject-chip {
+  display:flex; align-items:center; gap:8px;
+  padding:6px 10px; border-radius:8px;
+  background:rgba(255,255,255,0.03);
+}
+.exam-subj-name { font-size:12px; font-weight:600; color:var(--text-main); width:40px; flex-shrink:0; }
+.exam-subj-bar { flex:1; height:4px; background:var(--bg-input, rgba(255,255,255,0.1)); border-radius:2px; overflow:hidden; }
+.exam-subj-bar-fill { height:100%; border-radius:2px; transition:width 0.3s; }
+.exam-subj-pct { font-size:11px; font-weight:700; width:32px; text-align:right; color:var(--text-muted); flex-shrink:0; }
+
+/* 평균 준비도 바 */
+.exam-card-bottom { display:flex; align-items:center; gap:8px; }
+.exam-avg-label { font-size:11px; color:var(--text-muted); white-space:nowrap; }
+.exam-avg-bar { flex:1; height:6px; background:var(--bg-input, rgba(255,255,255,0.1)); border-radius:3px; overflow:hidden; }
+.exam-avg-bar-fill { height:100%; border-radius:3px; transition:width 0.3s; }
+.exam-avg-pct { font-size:13px; font-weight:700; width:36px; text-align:right; }
+
+/* 시험 상세 화면 */
+.exam-detail-summary {
+  display:flex; align-items:center; gap:16px;
+  padding:16px; border-radius:16px;
+  background:var(--bg-input, rgba(255,255,255,0.04));
+  margin-bottom:16px;
+}
+.exam-detail-dday { flex-shrink:0; }
+.exam-detail-meta { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--text-main); }
+.exam-detail-meta i { margin-right:6px; }
+
+/* 과목별 상세 카드 */
+.exam-subject-card {
+  background:var(--bg-input, rgba(255,255,255,0.04));
+  border-radius:14px; padding:14px; margin-bottom:10px;
+}
+.exam-subj-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.exam-subj-color-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.exam-subj-title { font-size:15px; font-weight:700; color:var(--text-main); flex:1; }
+.exam-subj-date { font-size:11px; color:var(--text-muted); }
+.exam-subj-dday { font-size:10px; font-weight:700; color:var(--primary); }
+
+.exam-subj-range {
+  font-size:12px; color:var(--text-muted); line-height:1.5;
+  padding:8px 10px; border-radius:8px;
+  background:rgba(255,255,255,0.03); margin-bottom:8px;
+}
+
+.exam-subj-readiness-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.exam-subj-readiness-label { font-size:11px; color:var(--text-muted); width:36px; flex-shrink:0; }
+.exam-subj-readiness-bar { flex:1; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden; }
+.exam-subj-readiness-fill { height:100%; border-radius:3px; transition:width 0.2s; }
+.exam-subj-readiness-pct { font-size:12px; font-weight:700; width:32px; text-align:right; }
+
+.exam-readiness-slider {
+  -webkit-appearance:none; appearance:none;
+  width:100%; height:4px; border-radius:2px; outline:none;
+  background:rgba(255,255,255,0.1); margin-top:4px;
+}
+.exam-readiness-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--primary); cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,0.3);
+}
+
+.exam-subj-notes {
+  font-size:11px; color:var(--text-muted); padding:6px 8px;
+  border-left:2px solid var(--primary); margin:6px 0;
+}
+
+.exam-subj-actions { display:flex; gap:6px; margin-top:8px; }
+.exam-subj-note-btn {
+  padding:4px 10px; border-radius:8px; font-size:11px;
+  background:rgba(255,255,255,0.06); color:var(--text-muted);
+  border:none; cursor:pointer; transition:all 0.2s;
+}
+.exam-subj-note-btn:hover { background:rgba(255,255,255,0.12); color:var(--text-main); }
+
+/* 시험 추가 화면 */
+.exam-type-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px; }
+.exam-type-btn {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:12px 4px; border-radius:12px; font-size:12px; font-weight:600;
+  background:var(--bg-input, rgba(255,255,255,0.06));
+  color:var(--text-muted); border:2px solid transparent;
+  cursor:pointer; transition:all 0.2s;
+}
+.exam-type-btn.active, .exam-type-btn:first-child {
+  border-color:var(--primary); color:var(--primary);
+  background:rgba(224,86,160,0.1);
+}
+.exam-type-btn:hover { background:rgba(255,255,255,0.1); }
+
+.exam-add-subject-row {
+  display:flex; gap:6px; align-items:center; margin-bottom:8px;
+}
+.exam-subj-input { flex:1; min-width:0; }
+.exam-range-input { flex:2; min-width:0; }
+.exam-date-input { flex:1; min-width:0; }
+.exam-remove-subj-btn {
+  width:28px; height:28px; border-radius:50%; border:none;
+  background:rgba(255,107,107,0.15); color:#FF6B6B;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+
+/* AI 학습 계획 */
+.exam-ai-plan { padding:4px 0; }
+.exam-ai-plan-header {
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:12px;
+}
+.exam-ai-plan-content {
+  font-size:13px; line-height:1.7; color:var(--text-main);
+}
+.exam-ai-plan-content h4 {
+  color:var(--primary); font-size:14px; margin:12px 0 6px;
+}
+.exam-ai-plan-content ul {
+  padding-left:18px; margin:4px 0;
+}
+.exam-ai-plan-content li {
+  margin-bottom:4px; color:var(--text-main);
+}
+.exam-ai-plan-content strong {
+  color:var(--primary);
+}
+.exam-ai-plan-content p {
+  margin:4px 0;
+}
+
+/* 섹션 라벨 */
+.section-label {
+  font-size:13px; font-weight:700; color:var(--text-muted);
+  margin-bottom:10px; padding-left:2px;
+}
+
+/* 헤더 액션 버튼 */
+.header-action-btn {
+  width:36px; height:36px; border-radius:50%; border:none;
+  background:rgba(255,255,255,0.08); color:var(--text-main);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all 0.2s;
+}
+.header-action-btn:hover { background:rgba(255,255,255,0.15); }
+
 /* ==================== AI Loading Spinner ==================== */
 .diag-loading-spinner {
   width:32px; height:32px; margin:0 auto;

@@ -247,6 +247,46 @@ const state = {
     { id:'p23', date:'2025-02-19', time:'15:30', endTime:'17:00', title:'[과제] 과학 그래프 작성', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
     { id:'p24', date:'2025-02-20', time:'08:30', endTime:'09:00', title:'[과제] 수학 최종제출 🚨', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'⚠️ 마감일!' },
   ],
+  // ==================== 시험 관리 데이터 ====================
+  exams: [
+    {
+      id: 'exam1', type: 'midterm', name: '1학기 중간고사', 
+      startDate: '2025-04-21', endDate: '2025-04-25',
+      subjects: [
+        { subject: '수학', date: '2025-04-21', time: '1교시', range: '수학Ⅱ 1~3단원 (함수의 극한, 미분법, 적분법 기초)', readiness: 35, notes: '치환적분 집중 복습 필요', color: '#6C5CE7' },
+        { subject: '국어', date: '2025-04-21', time: '2교시', range: '문학: 현대시 5작품, 비문학: 과학·기술 지문', readiness: 50, notes: '윤동주 시 감상 정리 완료', color: '#FF6B6B' },
+        { subject: '영어', date: '2025-04-22', time: '1교시', range: '3~5과 본문, 관계대명사, 분사구문, 어휘 300개', readiness: 40, notes: '관계대명사 which/that 구분 연습', color: '#00B894' },
+        { subject: '과학', date: '2025-04-22', time: '2교시', range: '화학Ⅰ 1~2단원 (원자구조, 화학결합, 산화환원)', readiness: 25, notes: '산화환원 반응식 암기', color: '#FDCB6E' },
+        { subject: '한국사', date: '2025-04-23', time: '1교시', range: '근대 이후~일제강점기', readiness: 60, notes: '연표 정리 완료', color: '#74B9FF' },
+      ],
+      status: 'upcoming', // 'upcoming','in-progress','completed'
+      aiPlan: null, // AI 생성 학습계획 저장
+    },
+    {
+      id: 'exam2', type: 'performance', name: '수학 수행평가 (탐구보고서)',
+      startDate: '2025-03-14', endDate: '2025-03-14',
+      subjects: [
+        { subject: '수학', date: '2025-03-14', time: '제출', range: '자유주제 탐구보고서 A4 5장 이상', readiness: 40, notes: '치환적분 알고리즘 주제로 진행 중', color: '#6C5CE7' },
+      ],
+      status: 'upcoming',
+      aiPlan: null,
+    },
+    {
+      id: 'exam3', type: 'mock', name: '3월 전국연합학력평가',
+      startDate: '2025-03-06', endDate: '2025-03-06',
+      subjects: [
+        { subject: '국어', date: '2025-03-06', time: '1교시', range: '전 범위 (독서+문학+언어)', readiness: 45, notes: '', color: '#FF6B6B' },
+        { subject: '수학', date: '2025-03-06', time: '2교시', range: '전 범위 (수Ⅰ+수Ⅱ)', readiness: 50, notes: '미적분 속도 연습', color: '#6C5CE7' },
+        { subject: '영어', date: '2025-03-06', time: '3교시', range: '전 범위 (듣기+독해)', readiness: 55, notes: '', color: '#00B894' },
+        { subject: '탐구', date: '2025-03-06', time: '4교시', range: '화학Ⅰ 전 범위', readiness: 30, notes: '', color: '#FDCB6E' },
+      ],
+      status: 'upcoming',
+      aiPlan: null,
+    },
+  ],
+  viewingExam: null, // 현재 보고 있는 시험 id
+  examAddMode: false, // 시험 추가 모드
+  examAiLoading: false, // AI 학습계획 생성 중
 };
 
 // ==================== MAIN RENDER ====================
@@ -296,6 +336,9 @@ function renderStudentApp() {
   if (state.currentScreen === 'academy-add') return renderAcademyAdd();
   if (state.currentScreen === 'classmate-manage') return renderClassmateManage();
   if (state.currentScreen === 'portfolio') return renderPortfolio();
+  if (state.currentScreen === 'exam-list') return renderExamList();
+  if (state.currentScreen === 'exam-detail') return renderExamDetail();
+  if (state.currentScreen === 'exam-add') return renderExamAdd();
 
   let content = '';
   content += renderXpBar();
@@ -793,6 +836,7 @@ function renderRecordTab() {
           { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 AI 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창의적 체험활동', desc:'비교과 활동 기록', xp:'+20' },
+          { screen:'exam-list', icon:'📝', bg:'rgba(116,185,255,0.15)', title:'시험 관리', desc:'중간·기말·모의·수행평가', xp:'+25' },
         ].map((item,i) => `
           <div class="record-type-card stagger-${i+1} animate-in" onclick="goScreen('${item.screen}')">
             <div class="record-type-icon" style="background:${item.bg}">${item.icon}</div>
@@ -804,6 +848,36 @@ function renderRecordTab() {
           </div>
         `).join('')}
       </div>
+
+      <!-- 다가오는 시험 -->
+      ${state.exams.filter(ex => ex.status !== 'completed').length > 0 ? `
+      <div class="card stagger-6 animate-in">
+        <div class="card-header-row">
+          <span class="card-title">🎯 다가오는 시험</span>
+          <button class="card-link" onclick="goScreen('exam-list')">전체보기 →</button>
+        </div>
+        ${state.exams.filter(ex => ex.status !== 'completed').sort((a,b) => a.startDate.localeCompare(b.startDate)).slice(0,2).map(ex => {
+          const dDay = getDday(ex.startDate);
+          const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? 'D-' + dDay : 'D+' + Math.abs(dDay);
+          const urgency = dDay <= 3 ? 'urgent' : dDay <= 7 ? 'warning' : 'normal';
+          const typeIcon = ex.type === 'midterm' ? '📘' : ex.type === 'final' ? '📕' : ex.type === 'mock' ? '📗' : '📝';
+          const avgReadiness = Math.round(ex.subjects.reduce((s,sub) => s + sub.readiness, 0) / ex.subjects.length);
+          const readColor = avgReadiness >= 60 ? '#00B894' : avgReadiness >= 30 ? '#FDCB6E' : '#FF6B6B';
+          return `
+          <div class="exam-mini-row" onclick="state.viewingExam='${ex.id}';goScreen('exam-detail')">
+            <div class="exam-mini-icon">${typeIcon}</div>
+            <div class="exam-mini-info">
+              <span class="exam-mini-name">${ex.name}</span>
+              <span class="exam-mini-subjects">${ex.subjects.map(s => s.subject).join(' · ')}</span>
+            </div>
+            <div class="exam-mini-right">
+              <span class="assignment-dday ${urgency}">${dDayText}</span>
+              <div class="exam-mini-bar"><div class="exam-mini-bar-fill" style="width:${avgReadiness}%;background:${readColor}"></div></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      ` : ''}
 
       <!-- Upcoming Assignments Mini -->
       ${state.assignments.filter(a => a.status !== 'completed').length > 0 ? `
@@ -928,6 +1002,450 @@ function renderRecordTab() {
       </div>
     </div>
   `;
+}
+
+// ==================== EXAM MANAGEMENT (시험 관리) ====================
+
+function getExamTypeLabel(type) {
+  const map = { midterm:'중간고사', final:'기말고사', mock:'모의고사', performance:'수행평가' };
+  return map[type] || type;
+}
+function getExamTypeIcon(type) {
+  const map = { midterm:'📘', final:'📕', mock:'📗', performance:'📝' };
+  return map[type] || '📝';
+}
+
+function renderExamList() {
+  const upcoming = state.exams.filter(e => e.status !== 'completed').sort((a,b) => a.startDate.localeCompare(b.startDate));
+  const completed = state.exams.filter(e => e.status === 'completed');
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <h1>🎯 시험 관리</h1>
+        <button class="header-action-btn" onclick="goScreen('exam-add')" title="시험 추가"><i class="fas fa-plus"></i></button>
+      </div>
+      <div class="form-body">
+
+        ${upcoming.length > 0 ? `
+        <div class="section-label">다가오는 시험</div>
+        ${upcoming.map((ex,i) => {
+          const dDay = getDday(ex.startDate);
+          const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? 'D-' + dDay : 'D+' + Math.abs(dDay);
+          const urgency = dDay <= 3 ? 'urgent' : dDay <= 7 ? 'warning' : 'normal';
+          const avgReadiness = Math.round(ex.subjects.reduce((s,sub) => s + sub.readiness, 0) / ex.subjects.length);
+          const dateRange = ex.startDate === ex.endDate 
+            ? ex.startDate.slice(5).replace('-','/') 
+            : ex.startDate.slice(5).replace('-','/') + ' ~ ' + ex.endDate.slice(5).replace('-','/');
+          return `
+          <div class="exam-card stagger-${i+1} animate-in" onclick="state.viewingExam='${ex.id}';goScreen('exam-detail')">
+            <div class="exam-card-top">
+              <div class="exam-card-icon">${getExamTypeIcon(ex.type)}</div>
+              <div class="exam-card-info">
+                <div class="exam-card-name">${ex.name}</div>
+                <div class="exam-card-meta">${getExamTypeLabel(ex.type)} · ${dateRange} · ${ex.subjects.length}과목</div>
+              </div>
+              <div class="exam-card-dday">
+                <span class="assignment-dday ${urgency}">${dDayText}</span>
+              </div>
+            </div>
+            <div class="exam-card-subjects">
+              ${ex.subjects.map(sub => `
+                <div class="exam-subject-chip" style="border-left:3px solid ${sub.color}">
+                  <span class="exam-subj-name">${sub.subject}</span>
+                  <div class="exam-subj-bar"><div class="exam-subj-bar-fill" style="width:${sub.readiness}%;background:${sub.color}"></div></div>
+                  <span class="exam-subj-pct">${sub.readiness}%</span>
+                </div>
+              `).join('')}
+            </div>
+            <div class="exam-card-bottom">
+              <span class="exam-avg-label">평균 준비도</span>
+              <div class="exam-avg-bar"><div class="exam-avg-bar-fill" style="width:${avgReadiness}%;background:${avgReadiness>=60?'#00B894':avgReadiness>=30?'#FDCB6E':'#FF6B6B'}"></div></div>
+              <span class="exam-avg-pct" style="color:${avgReadiness>=60?'#00B894':avgReadiness>=30?'#FDCB6E':'#FF6B6B'}">${avgReadiness}%</span>
+            </div>
+          </div>`;
+        }).join('')}
+        ` : `
+        <div class="pf-empty">
+          <div class="pf-empty-icon">🎉</div>
+          <div class="pf-empty-text">예정된 시험이 없습니다</div>
+        </div>
+        `}
+
+        ${completed.length > 0 ? `
+        <div class="section-label" style="margin-top:20px">지난 시험</div>
+        ${completed.map(ex => `
+          <div class="exam-card completed" onclick="state.viewingExam='${ex.id}';goScreen('exam-detail')">
+            <div class="exam-card-top">
+              <div class="exam-card-icon">${getExamTypeIcon(ex.type)}</div>
+              <div class="exam-card-info">
+                <div class="exam-card-name">${ex.name}</div>
+                <div class="exam-card-meta">${getExamTypeLabel(ex.type)} · ${ex.startDate.slice(5).replace('-','/')}</div>
+              </div>
+              <span style="color:var(--text-muted);font-size:12px">✅ 완료</span>
+            </div>
+          </div>
+        `).join('')}
+        ` : ''}
+
+        <button class="btn-primary" style="width:100%;margin-top:20px" onclick="goScreen('exam-add')">
+          <i class="fas fa-plus" style="margin-right:6px"></i>시험 추가
+        </button>
+
+      </div>
+    </div>
+  `;
+}
+
+
+function renderExamDetail() {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex) return '<div class="full-screen"><p>시험을 찾을 수 없습니다</p></div>';
+
+  const dDay = getDday(ex.startDate);
+  const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? 'D-' + dDay : 'D+' + Math.abs(dDay);
+  const urgency = dDay <= 3 ? 'urgent' : dDay <= 7 ? 'warning' : 'normal';
+  const avgReadiness = Math.round(ex.subjects.reduce((s,sub) => s + sub.readiness, 0) / ex.subjects.length);
+  const dateRange = ex.startDate === ex.endDate 
+    ? ex.startDate.slice(5).replace('-','/')
+    : ex.startDate.slice(5).replace('-','/') + ' ~ ' + ex.endDate.slice(5).replace('-','/');
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('exam-list')"><i class="fas fa-arrow-left"></i></button>
+        <h1>${getExamTypeIcon(ex.type)} ${ex.name}</h1>
+        <button class="header-action-btn" onclick="deleteExam('${ex.id}')" title="삭제" style="color:#FF6B6B"><i class="fas fa-trash"></i></button>
+      </div>
+      <div class="form-body">
+
+        <!-- 상단 요약 -->
+        <div class="exam-detail-summary">
+          <div class="exam-detail-dday">
+            <span class="assignment-dday ${urgency}" style="font-size:18px;padding:6px 16px">${dDayText}</span>
+          </div>
+          <div class="exam-detail-meta">
+            <div><i class="fas fa-calendar" style="width:16px;color:var(--text-muted)"></i> ${dateRange}</div>
+            <div><i class="fas fa-book" style="width:16px;color:var(--text-muted)"></i> ${ex.subjects.length}과목</div>
+            <div><i class="fas fa-chart-line" style="width:16px;color:var(--text-muted)"></i> 평균 준비도 <strong style="color:${avgReadiness>=60?'#00B894':avgReadiness>=30?'#FDCB6E':'#FF6B6B'}">${avgReadiness}%</strong></div>
+          </div>
+        </div>
+
+        <!-- 과목별 상세 -->
+        <div class="section-label">과목별 시험 범위 & 준비 상태</div>
+        ${ex.subjects.map((sub, idx) => {
+          const subDday = getDday(sub.date);
+          const subDdayText = subDday === 0 ? 'D-Day' : subDday > 0 ? 'D-' + subDday : '';
+          return `
+          <div class="exam-subject-card stagger-${idx+1} animate-in">
+            <div class="exam-subj-header">
+              <div class="exam-subj-color-dot" style="background:${sub.color}"></div>
+              <span class="exam-subj-title">${sub.subject}</span>
+              <span class="exam-subj-date">${sub.date.slice(5).replace('-','/')} ${sub.time}</span>
+              ${subDdayText ? '<span class="exam-subj-dday">' + subDdayText + '</span>' : ''}
+            </div>
+            <div class="exam-subj-range">
+              <i class="fas fa-bookmark" style="color:${sub.color};margin-right:6px;font-size:11px"></i>
+              <span>${sub.range}</span>
+            </div>
+            <div class="exam-subj-readiness-row">
+              <span class="exam-subj-readiness-label">준비도</span>
+              <div class="exam-subj-readiness-bar">
+                <div class="exam-subj-readiness-fill" style="width:${sub.readiness}%;background:${sub.color}"></div>
+              </div>
+              <span class="exam-subj-readiness-pct" style="color:${sub.color}">${sub.readiness}%</span>
+              <input type="range" min="0" max="100" value="${sub.readiness}" class="exam-readiness-slider" 
+                oninput="updateExamReadiness('${ex.id}',${idx},parseInt(this.value))">
+            </div>
+            ${sub.notes ? `
+            <div class="exam-subj-notes">
+              <i class="fas fa-sticky-note" style="color:var(--text-muted);margin-right:4px;font-size:10px"></i>
+              ${sub.notes}
+            </div>` : ''}
+            <div class="exam-subj-actions">
+              <button class="exam-subj-note-btn" onclick="editExamSubjectNote('${ex.id}',${idx})">
+                <i class="fas fa-edit"></i> 메모
+              </button>
+              <button class="exam-subj-note-btn" onclick="editExamSubjectRange('${ex.id}',${idx})">
+                <i class="fas fa-bookmark"></i> 범위수정
+              </button>
+            </div>
+          </div>`;
+        }).join('')}
+
+        <!-- AI 시험대비 코칭 -->
+        <div class="section-label" style="margin-top:20px">🤖 AI 시험대비 코칭</div>
+        <div class="card">
+          ${state.examAiLoading ? `
+            <div style="text-align:center;padding:24px">
+              <div class="diag-loading-spinner"></div>
+              <p style="color:var(--text-muted);margin-top:12px;font-size:13px">AI가 학습 계획을 분석 중...</p>
+            </div>
+          ` : ex.aiPlan ? `
+            <div class="exam-ai-plan">
+              <div class="exam-ai-plan-header">
+                <span>📋 AI 맞춤 학습 계획</span>
+                <button class="card-link" onclick="generateExamPlan('${ex.id}')">다시 생성 →</button>
+              </div>
+              <div class="exam-ai-plan-content">${ex.aiPlan}</div>
+            </div>
+          ` : `
+            <div style="text-align:center;padding:16px">
+              <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">시험 범위와 준비 상태를 분석해서<br>맞춤 학습 계획을 세워드릴게요</p>
+              <button class="btn-primary" onclick="generateExamPlan('${ex.id}')">
+                <i class="fas fa-magic" style="margin-right:6px"></i>AI 학습계획 생성
+              </button>
+            </div>
+          `}
+        </div>
+
+        <!-- 플래너 연동 -->
+        ${ex.aiPlan ? `
+        <button class="btn-secondary" style="width:100%;margin-top:12px" onclick="applyExamPlanToPlanner('${ex.id}')">
+          <i class="fas fa-calendar-plus" style="margin-right:6px"></i>학습 계획을 플래너에 반영하기
+        </button>
+        ` : ''}
+
+      </div>
+    </div>
+  `;
+}
+
+
+function renderExamAdd() {
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('exam-list')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📝 시험 추가</h1>
+      </div>
+      <div class="form-body">
+
+        <label class="form-label">시험 유형</label>
+        <div class="exam-type-grid">
+          ${[
+            { key:'midterm', icon:'📘', label:'중간고사' },
+            { key:'final', icon:'📕', label:'기말고사' },
+            { key:'mock', icon:'📗', label:'모의고사' },
+            { key:'performance', icon:'📝', label:'수행평가' },
+          ].map(t => `
+            <button class="exam-type-btn" data-type="${t.key}" onclick="selectExamType(this,'${t.key}')">
+              <span style="font-size:20px">${t.icon}</span>
+              <span>${t.label}</span>
+            </button>
+          `).join('')}
+        </div>
+
+        <label class="form-label">시험 이름</label>
+        <input type="text" id="exam-name" class="form-input" placeholder="예: 1학기 중간고사">
+
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label class="form-label">시작일</label>
+            <input type="date" id="exam-start" class="form-input" value="2025-04-21">
+          </div>
+          <div style="flex:1">
+            <label class="form-label">종료일</label>
+            <input type="date" id="exam-end" class="form-input" value="2025-04-25">
+          </div>
+        </div>
+
+        <label class="form-label" style="margin-top:16px">시험 과목 추가</label>
+        <div id="exam-subjects-container">
+          <div class="exam-add-subject-row">
+            <input type="text" class="form-input exam-subj-input" placeholder="과목명">
+            <input type="text" class="form-input exam-range-input" placeholder="시험 범위">
+            <input type="date" class="form-input exam-date-input" value="2025-04-21">
+          </div>
+        </div>
+        <button class="btn-text" onclick="addExamSubjectRow()" style="margin-top:8px;font-size:13px">
+          <i class="fas fa-plus"></i> 과목 추가
+        </button>
+
+        <button class="btn-primary" style="width:100%;margin-top:24px" onclick="saveNewExam()">
+          <i class="fas fa-check" style="margin-right:6px"></i>시험 저장
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+
+// ==================== EXAM UTILITY FUNCTIONS ====================
+
+let _selectedExamType = 'midterm';
+function selectExamType(btn, type) {
+  _selectedExamType = type;
+  document.querySelectorAll('.exam-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function addExamSubjectRow() {
+  const container = document.getElementById('exam-subjects-container');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'exam-add-subject-row';
+  row.innerHTML = `
+    <input type="text" class="form-input exam-subj-input" placeholder="과목명">
+    <input type="text" class="form-input exam-range-input" placeholder="시험 범위">
+    <input type="date" class="form-input exam-date-input" value="2025-04-21">
+    <button class="exam-remove-subj-btn" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
+  `;
+  container.appendChild(row);
+}
+
+function saveNewExam() {
+  const name = document.getElementById('exam-name')?.value?.trim();
+  const startDate = document.getElementById('exam-start')?.value;
+  const endDate = document.getElementById('exam-end')?.value;
+  if (!name) { alert('시험 이름을 입력하세요'); return; }
+
+  const subjectColors = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#E056A0','#A29BFE','#FF9F43'];
+  const rows = document.querySelectorAll('.exam-add-subject-row');
+  const subjects = [];
+  rows.forEach((row, i) => {
+    const subj = row.querySelector('.exam-subj-input')?.value?.trim();
+    const range = row.querySelector('.exam-range-input')?.value?.trim();
+    const date = row.querySelector('.exam-date-input')?.value || startDate;
+    if (subj) {
+      subjects.push({ subject:subj, date, time:'', range:range||'', readiness:0, notes:'', color:subjectColors[i % subjectColors.length] });
+    }
+  });
+
+  if (subjects.length === 0) { alert('최소 1개 과목을 추가하세요'); return; }
+
+  const newExam = {
+    id: 'exam' + Date.now(),
+    type: _selectedExamType,
+    name,
+    startDate: startDate || '2025-04-21',
+    endDate: endDate || startDate || '2025-04-21',
+    subjects,
+    status: 'upcoming',
+    aiPlan: null,
+  };
+
+  state.exams.push(newExam);
+  state.viewingExam = newExam.id;
+  goScreen('exam-detail');
+}
+
+function deleteExam(examId) {
+  if (!confirm('이 시험을 삭제하시겠습니까?')) return;
+  state.exams = state.exams.filter(e => e.id !== examId);
+  goScreen('exam-list');
+}
+
+function updateExamReadiness(examId, subIdx, value) {
+  const ex = state.exams.find(e => e.id === examId);
+  if (ex && ex.subjects[subIdx] !== undefined) {
+    ex.subjects[subIdx].readiness = value;
+    // 화면을 다시 그리면 슬라이더가 초기화되므로 수동으로 업데이트
+    const pctEl = document.querySelectorAll('.exam-subj-readiness-pct')[subIdx];
+    const fillEl = document.querySelectorAll('.exam-subj-readiness-fill')[subIdx];
+    if (pctEl) pctEl.textContent = value + '%';
+    if (fillEl) fillEl.style.width = value + '%';
+  }
+}
+
+function editExamSubjectNote(examId, subIdx) {
+  const ex = state.exams.find(e => e.id === examId);
+  if (!ex) return;
+  const note = prompt('메모 입력:', ex.subjects[subIdx].notes || '');
+  if (note !== null) {
+    ex.subjects[subIdx].notes = note;
+    renderScreen();
+  }
+}
+
+function editExamSubjectRange(examId, subIdx) {
+  const ex = state.exams.find(e => e.id === examId);
+  if (!ex) return;
+  const range = prompt('시험 범위 수정:', ex.subjects[subIdx].range || '');
+  if (range !== null) {
+    ex.subjects[subIdx].range = range;
+    renderScreen();
+  }
+}
+
+async function generateExamPlan(examId) {
+  const ex = state.exams.find(e => e.id === examId);
+  if (!ex) return;
+
+  state.examAiLoading = true;
+  renderScreen();
+
+  const dDay = getDday(ex.startDate);
+  const subjectInfo = ex.subjects.map(s => 
+    `- ${s.subject} (${s.date} ${s.time}): 범위="${s.range}", 준비도=${s.readiness}%, 메모="${s.notes}"`
+  ).join('\n');
+
+  const prompt = `너는 고등학교 시험 대비 학습 코치야. 학생의 시험 정보를 분석해서 구체적인 학습 계획을 세워줘.
+
+시험 정보:
+- 시험명: ${ex.name}
+- 유형: ${getExamTypeLabel(ex.type)}
+- 시험 기간: ${ex.startDate} ~ ${ex.endDate}
+- D-day: ${dDay > 0 ? dDay + '일 남음' : '오늘/지남'}
+
+과목별 정보:
+${subjectInfo}
+
+다음 형식으로 학습 계획을 작성해줘:
+1. 전체 전략 (2~3문장)
+2. 우선순위 분석 (준비도 낮은 과목 → 높은 과목 순)
+3. 일별 학습 계획 (남은 일수에 맞게)
+4. 과목별 핵심 공략법 (각 1~2문장)
+5. 컨디션 관리 팁 (1~2문장)
+
+HTML 태그를 사용해서 보기 좋게 포맷팅해줘. <h4>, <p>, <ul><li>, <strong> 태그 사용 가능. 한국어로 작성.`;
+
+  try {
+    const res = await fetch('/api/exam-coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, examId })
+    });
+    const data = await res.json();
+    if (data.plan) {
+      ex.aiPlan = data.plan;
+    } else if (data.error) {
+      ex.aiPlan = '<p style="color:#FF6B6B">⚠️ AI 응답 오류: ' + data.error + '</p><p>다시 시도해주세요.</p>';
+    }
+  } catch (e) {
+    ex.aiPlan = '<p style="color:#FF6B6B">⚠️ 네트워크 오류. 다시 시도해주세요.</p>';
+  }
+
+  state.examAiLoading = false;
+  renderScreen();
+}
+
+function applyExamPlanToPlanner(examId) {
+  const ex = state.exams.find(e => e.id === examId);
+  if (!ex) return;
+  alert('📅 학습 계획이 플래너에 반영되었습니다!\n플래너 탭에서 일정을 확인하세요.');
+  // 실제로는 state.plannerItems에 학습 일정 추가
+  const dDay = getDday(ex.startDate);
+  const today = new Date('2025-02-15');
+  ex.subjects.forEach((sub, i) => {
+    const studyDate = new Date(today);
+    studyDate.setDate(studyDate.getDate() + Math.min(i, dDay > 0 ? dDay : 1));
+    const dateStr = studyDate.toISOString().slice(0,10);
+    state.plannerItems.push({
+      id: 'pexam' + Date.now() + i,
+      date: dateStr,
+      time: '16:00',
+      endTime: '18:00',
+      title: '[시험대비] ' + sub.subject + ' 집중 학습',
+      category: 'study',
+      color: sub.color,
+      icon: '📖',
+      done: false,
+      aiGenerated: true,
+      detail: sub.range
+    });
+  });
 }
 
 // ==================== PORTFOLIO (나의 활동 기록부) ====================
