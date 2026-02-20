@@ -1168,62 +1168,122 @@ function renderRecordQuestion() {
           <i class="fas fa-robot"></i> AI 질문 분석하기
         </button>
 
-        <!-- AI 진단 결과 카드 -->
-        ${coachingMode !== 'diagnosis' || diagResult ? `
+        <!-- 로딩 상태 -->
+        ${coachingMode === 'loading' ? `
+        <div class="ai-diagnosis-card animate-in" style="text-align:center;padding:32px 16px">
+          <div class="loading-spinner-wrap">
+            <div class="diag-loading-spinner"></div>
+          </div>
+          <p style="margin-top:12px;font-weight:600;color:var(--text-secondary)">🧠 AI가 질문을 분석하고 있어요...</p>
+          <p style="font-size:10px;color:var(--text-muted);margin-top:4px">${state._questionImages && state._questionImages.length > 0 ? '📷 이미지 분석 → 질문 분석 2단계 진행 중' : '2축 9단계 기준으로 꼼꼼히 확인 중'}</p>
+        </div>
+        ` : ''}
+
+        <!-- 이미지 분석 결과 (있을 경우) -->
+        ${state._imageAnalysis && coachingMode === 'result' ? `
+        <div class="ai-diagnosis-card animate-in" style="margin-bottom:10px;border-left:3px solid #FDCB6E">
+          <div class="ai-header">
+            <span class="ai-icon">📷</span>
+            <span class="ai-title">이미지 분석 결과</span>
+            <span style="margin-left:auto;font-size:9px;background:var(--bg-input);padding:2px 8px;border-radius:8px">Gemini</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
+            <div style="background:var(--bg-input);padding:6px 8px;border-radius:8px">
+              <div style="font-size:8px;color:var(--text-muted)">과목</div>
+              <div style="font-size:11px;font-weight:700">${state._imageAnalysis.subject || '미지정'}</div>
+            </div>
+            <div style="background:var(--bg-input);padding:6px 8px;border-radius:8px">
+              <div style="font-size:8px;color:var(--text-muted)">단원</div>
+              <div style="font-size:11px;font-weight:700">${state._imageAnalysis.topic || '미지정'}</div>
+            </div>
+          </div>
+          ${state._imageAnalysis.extractedText ? `<div style="margin-top:8px;font-size:10px;color:var(--text-secondary);background:var(--bg-input);padding:8px;border-radius:8px;line-height:1.5"><strong>📝 인식 내용:</strong> ${state._imageAnalysis.extractedText}</div>` : ''}
+          ${state._imageAnalysis.handwritingCheck ? `<div style="margin-top:6px;font-size:10px;color:var(--text-secondary);background:var(--bg-input);padding:8px;border-radius:8px"><strong>✏️ 필기 확인:</strong> ${state._imageAnalysis.handwritingCheck}</div>` : ''}
+          ${state._imageAnalysis.analysis ? `<div style="margin-top:6px;font-size:10px;color:var(--text-secondary);background:var(--bg-input);padding:8px;border-radius:8px;line-height:1.5"><strong>🔍 분석:</strong> ${state._imageAnalysis.analysis}</div>` : ''}
+        </div>
+        ` : ''}
+
+        <!-- AI 진단 결과 카드 (동적) -->
+        ${coachingMode === 'result' && diagResult ? `
         <div class="ai-diagnosis-card animate-in">
           <div class="ai-header">
             <span class="ai-icon">📊</span>
             <span class="ai-title">질문 분석 결과</span>
+            <span style="margin-left:auto;font-size:9px;background:var(--bg-input);padding:2px 8px;border-radius:8px">${diagResult.axis === 'reflection' ? '축2 성찰' : '축1 호기심'}</span>
           </div>
           <div class="diag-question-echo">
             <span class="diag-q-label">네 질문:</span>
-            <span class="diag-q-text">"나는 which와 that이 역사적으로 같은 기능이었을 것 같은데, 왜 제한적/계속적 용법으로 나뉘게 된 건가요?"</span>
+            <span class="diag-q-text">"${(document.getElementById('question-input')?.value || '').replace(/"/g, '&quot;').substring(0,200)}"</span>
           </div>
 
+          ${diagResult.error ? `
+          <div style="background:#FFF3F3;padding:12px;border-radius:10px;margin-top:8px;border:1px solid #FFD0D0">
+            <p style="font-size:11px;color:#E74C3C;font-weight:600">⚠️ 분석 중 오류가 발생했습니다</p>
+            <p style="font-size:10px;color:var(--text-muted);margin-top:4px">${diagResult.error}</p>
+            <button class="btn-ghost" style="margin-top:8px" onclick="analyzeQuestion()">
+              <i class="fas fa-redo"></i> 다시 시도
+            </button>
+          </div>
+          ` : `
           <!-- 3대 필수조건 체크리스트 -->
+          ${diagResult.checks ? `
           <div class="diag-checklist">
-            <div class="diag-check-item pass">
-              <span class="diag-check-icon">✅</span>
+            <div class="diag-check-item ${diagResult.checks.specificTarget?.pass ? 'pass' : 'fail'}">
+              <span class="diag-check-icon">${diagResult.checks.specificTarget?.pass ? '✅' : '❌'}</span>
               <span class="diag-check-label">구체적 대상</span>
-              <span class="diag-check-detail">which·that의 용법 구분을 지목했어</span>
+              <span class="diag-check-detail">${diagResult.checks.specificTarget?.detail || '확인 불가'}</span>
             </div>
-            <div class="diag-check-item pass">
-              <span class="diag-check-icon">✅</span>
+            <div class="diag-check-item ${diagResult.checks.ownThought?.pass ? 'pass' : 'fail'}">
+              <span class="diag-check-icon">${diagResult.checks.ownThought?.pass ? '✅' : '❌'}</span>
               <span class="diag-check-label">자기 생각</span>
-              <span class="diag-check-detail">"역사적으로 같은 기능이었을 것 같다"는 네 해석이 있어</span>
+              <span class="diag-check-detail">${diagResult.checks.ownThought?.detail || '확인 불가'}</span>
             </div>
-            <div class="diag-check-item pass">
-              <span class="diag-check-icon">✅</span>
+            <div class="diag-check-item ${diagResult.checks.contextLink?.pass ? 'pass' : 'fail'}">
+              <span class="diag-check-icon">${diagResult.checks.contextLink?.pass ? '✅' : '❌'}</span>
               <span class="diag-check-label">맥락 연결</span>
-              <span class="diag-check-detail">제한적/계속적 용법이라는 수업 내용과 연결됐어</span>
+              <span class="diag-check-detail">${diagResult.checks.contextLink?.detail || '확인 불가'}</span>
             </div>
           </div>
+          ` : ''}
 
           <!-- 진단 결과 -->
           <div class="diag-result">
             <span class="diag-arrow">→</span>
-            <span class="q-level q-level-b">B-1</span>
-            <span class="diag-result-name">"왜?" 이유·원리 탐구 단계!</span>
-            <span class="diag-xp">XP +15</span>
+            <span class="q-level q-level-${(diagResult.level||'A-1').charAt(0).toLowerCase()}">${diagResult.level || '?'}</span>
+            <span class="diag-result-name">"${diagResult.levelName || ''}" ${diagResult.levelDesc || ''} 단계!</span>
+            <span class="diag-xp">XP +${diagResult.xp || 0}</span>
           </div>
 
+          <!-- AI 피드백 -->
+          ${diagResult.feedback ? `
+          <div style="background:var(--bg-input);padding:10px 12px;border-radius:10px;margin-top:8px;font-size:11px;line-height:1.6;color:var(--text-secondary)">
+            💬 ${diagResult.feedback}
+          </div>
+          ` : ''}
+
           <!-- 다음 단계 힌트 -->
+          ${diagResult.nextHint ? `
           <div class="diag-hint">
             <span class="diag-hint-icon">💡</span>
             <div class="diag-hint-text">
-              <strong>다음 단계 힌트:</strong> "만약 which가 제한적 용법에서도 쓰인다면 문장 의미가 어떻게 달라질까?" 처럼 <strong>조건을 바꿔 예측</strong>했다면 → <span class="q-level q-level-b">B-2 "만약에?"</span> 였을 거야!
+              <strong>다음 단계 목표:</strong> ${diagResult.nextHint.hint || ''}
+              → <span class="q-level q-level-${(diagResult.nextHint.targetLevel||'').charAt(0).toLowerCase()}">${diagResult.nextHint.targetLevel} "${diagResult.nextHint.targetName}"</span>
             </div>
           </div>
+          ` : ''}
 
           <!-- 도전 / 확정 버튼 -->
           <div class="diag-actions">
-            <button class="btn-challenge" onclick="state._coachingMode='challenge';renderScreen()">
-              <i class="fas fa-fire"></i> 더 좋은 질문 도전! 🔥
+            ${diagResult.nextHint ? `
+            <button class="btn-challenge" onclick="startChallenge()">
+              <i class="fas fa-fire"></i> ${diagResult.nextHint.targetLevel} 도전! 🔥
             </button>
-            <button class="btn-ghost" onclick="showXpPopup(15, 'B-1 이유·원리 탐구 완료!')">
+            ` : ''}
+            <button class="btn-ghost" onclick="showXpPopup(${diagResult.xp || 0}, '${diagResult.level || ''} ${diagResult.levelName || ''} 완료!')">
               괜찮아요 ✓
             </button>
           </div>
+          `}
         </div>
         ` : ''}
 
@@ -1233,26 +1293,45 @@ function renderRecordQuestion() {
           <div class="challenge-header">
             <span>🔥</span>
             <h3>더 좋은 질문 도전!</h3>
-            <p>B-2 "만약에?" 단계를 목표로 질문을 다시 만들어보세요</p>
+            <p>${diagResult?.nextHint ? `${diagResult.nextHint.targetLevel} "${diagResult.nextHint.targetName}" 단계를 목표로 질문을 다시 만들어보세요` : '한 단계 높은 질문을 만들어보세요'}</p>
           </div>
-          <textarea class="input-field" rows="3" placeholder="조건을 바꿔서 예측하는 질문을 만들어보세요!">만약 which가 제한적 용법에서도 쓰일 수 있다면, 'The book which I bought' 같은 문장의 의미가 달라질까요?</textarea>
+          <textarea class="input-field" rows="3" id="challenge-input" placeholder="${diagResult?.nextHint?.hint || '더 깊은 사고가 담긴 질문을 작성해보세요!'}"></textarea>
+          
+          ${state._challengeLoading ? `
+          <div style="text-align:center;padding:16px">
+            <div class="diag-loading-spinner"></div>
+            <p style="font-size:10px;color:var(--text-muted);margin-top:8px">도전 질문 분석 중...</p>
+          </div>
+          ` : ''}
+
+          ${state._challengeResult ? `
           <div class="challenge-result animate-in" style="margin-top:8px">
             <span class="diag-arrow">→</span>
-            <span class="q-level q-level-b" style="font-size:14px">B-2</span>
-            <span>"만약에?" 가능성 탐색 — 성공! 🎉</span>
-            <span class="diag-xp">XP +20 (↑+5 보너스)</span>
+            <span class="q-level q-level-${(state._challengeResult.level||'A-1').charAt(0).toLowerCase()}" style="font-size:14px">${state._challengeResult.level}</span>
+            <span>"${state._challengeResult.levelName}" ${state._challengeResult.levelDesc || ''}</span>
+            <span class="diag-xp">XP +${state._challengeResult.xp || 0}${state._challengeResult.xp > (diagResult?.xp||0) ? ' (↑+5 보너스)' : ''}</span>
           </div>
+          ${state._challengeResult.feedback ? `<div style="background:var(--bg-input);padding:8px 12px;border-radius:8px;margin-top:6px;font-size:10px;color:var(--text-secondary);line-height:1.5">💬 ${state._challengeResult.feedback}</div>` : ''}
           <div class="diag-actions" style="margin-top:8px">
-            <button class="btn-primary" onclick="showXpPopup(25, 'B-2 도전 성공! +5 성장보너스 포함')">
-              도전 완료! +25 XP 🎉
-            </button>
+            <button class="btn-primary" onclick="showXpPopup(${(state._challengeResult.xp||0) + (state._challengeResult.xp > (diagResult?.xp||0) ? 5 : 0)}, '${state._challengeResult.level} 도전 ${state._challengeResult.xp > (diagResult?.xp||0) ? '성공! +5 성장보너스 포함' : '완료!'}')">도전 완료! +${(state._challengeResult.xp||0) + (state._challengeResult.xp > (diagResult?.xp||0) ? 5 : 0)} XP ${state._challengeResult.xp > (diagResult?.xp||0) ? '🎉' : '✓'}</button>
           </div>
+          ` : `
+          ${!state._challengeLoading ? `
+          <div class="diag-actions" style="margin-top:8px">
+            <button class="btn-primary" onclick="submitChallenge()">
+              <i class="fas fa-paper-plane"></i> 도전 질문 제출!
+            </button>
+            <button class="btn-ghost" onclick="state._coachingMode='result';state._challengeResult=null;renderScreen()">돌아가기</button>
+          </div>
+          ` : ''}
+          `}
         </div>
         ` : ''}
 
         <!-- 선생님과 함께하기 모드 -->
+        ${coachingMode === 'result' || coachingMode === 'diagnosis' ? `
         <div class="socrates-entry animate-in" style="margin-top:12px">
-          <button class="btn-socrates" onclick="state._coachingMode='socrates';state._socratesStep=1;renderScreen()">
+          <button class="btn-socrates" onclick="startSocrates()">
             <span class="socrates-icon">👨‍🏫</span>
             <div class="socrates-text">
               <strong>선생님과 함께하기</strong>
@@ -1261,68 +1340,59 @@ function renderRecordQuestion() {
             <i class="fas fa-chevron-right"></i>
           </button>
         </div>
+        ` : ''}
 
         ${coachingMode === 'socrates' ? `
         <div class="socrates-mode animate-in">
           <div class="socrates-header">
             <span>👨‍🏫</span>
             <h3>선생님과 함께하기</h3>
-            <p>AI 코치가 질문으로 사고를 이끌어줄게요</p>
+            <p>AI 코치가 질문으로 사고를 이끌어줄게요 (Claude)</p>
           </div>
-          <div class="socrates-chat">
+          <div class="socrates-chat" id="socrates-chat-area">
+            ${(state._socratesMessages || []).filter(m => !m._hidden).map(m => {
+              if (m.role === 'user') {
+                return `<div class="socrates-msg student"><div class="socrates-bubble student-bubble"><p>${m.content}</p></div></div>`;
+              } else {
+                let parsed;
+                try { parsed = typeof m.content === 'string' ? JSON.parse(m.content) : m.content; } catch { parsed = { message: m.content }; }
+                return `<div class="socrates-msg ai">
+                  <div class="socrates-avatar">${parsed.emoji || '🤖'}</div>
+                  <div class="socrates-bubble">
+                    <p>${parsed.message || m.content}</p>
+                    ${parsed.questionLevel ? `<span class="socrates-stage-tag">이 질문은 ${parsed.questionLevel} "${parsed.questionLabel || ''}" 단계예요</span>` : ''}
+                    ${parsed.encouragement ? `<div style="margin-top:6px;font-size:10px;color:var(--primary);font-weight:600">${parsed.encouragement}</div>` : ''}
+                  </div>
+                </div>`;
+              }
+            }).join('')}
+            ${state._socratesLoading ? `
             <div class="socrates-msg ai">
               <div class="socrates-avatar">🤖</div>
-              <div class="socrates-bubble">
-                <p>which와 that을 나란히 놓고 봐봐. 문법적으로 뭐가 같고 뭐가 다르지?</p>
-                <span class="socrates-stage-tag">이 질문은 B-1 "왜?" 단계예요 💡</span>
-              </div>
-            </div>
-            ${socratesStep >= 1 ? `
-            <div class="socrates-msg student">
-              <div class="socrates-bubble student-bubble">
-                <p>둘 다 관계대명사인데, that은 사람/사물 모두에 쓰이고 which는 사물에만 쓰이는 것 같아요?</p>
-              </div>
-            </div>
-            <div class="socrates-msg ai">
-              <div class="socrates-avatar">🤖</div>
-              <div class="socrates-bubble">
-                <p>맞아! 그러면 <strong>만약 that만 있고 which가 없었다면</strong>, 영어 문장에서 어떤 문제가 생겼을까?</p>
-                <span class="socrates-stage-tag">이 질문은 B-2 "만약에?" 단계예요 🔀</span>
-              </div>
-            </div>
-            ` : ''}
-            ${socratesStep >= 2 ? `
-            <div class="socrates-msg student">
-              <div class="socrates-bubble student-bubble">
-                <p>that만 있으면 부가 설명과 제한을 구분할 수 없어서 의미가 모호해질 것 같아요!</p>
-              </div>
-            </div>
-            <div class="socrates-msg ai">
-              <div class="socrates-avatar">🤖</div>
-              <div class="socrates-bubble">
-                <p>훌륭해! 그러면 <strong>이 구분이 한국어에도 있을까?</strong> 한국어에서 같은 역할을 하는 게 뭔지, 왜 영어만 이렇게 나뉘었는지 생각해볼래?</p>
-                <span class="socrates-stage-tag">이 질문은 C-2 "그러면?" 단계예요 🚀</span>
-              </div>
+              <div class="socrates-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>
             </div>
             ` : ''}
           </div>
-          ${socratesStep < 2 ? `
-          <div class="socrates-input-row">
-            <input class="input-field" style="flex:1" placeholder="생각을 적어주세요...">
-            <button class="btn-primary" style="padding:10px 16px" onclick="state._socratesStep++;renderScreen()">
-              <i class="fas fa-paper-plane"></i>
+          ${state._socratesComplete ? `
+          <div class="socrates-complete animate-in">
+            <div class="socrates-complete-icon">🎉</div>
+            <p><strong>대화 완료!</strong> 사고가 확장됐어요!</p>
+            <p class="socrates-xp">🏆 소크라테스 코칭 완료 +30 XP</p>
+            <button class="btn-primary" onclick="showXpPopup(30, '소크라테스 코칭 완료!')">
+              완료! +30 XP 🏆
             </button>
           </div>
           ` : `
-          <div class="socrates-complete animate-in">
-            <div class="socrates-complete-icon">🎉</div>
-            <p><strong>대화 완료!</strong> B-1 → B-2 → C-2까지 사고가 확장됐어요!</p>
-            <p class="socrates-xp">🏆 콤보 보너스 +50 XP (사고의 심연 돌파!)</p>
-            <button class="btn-primary" onclick="showXpPopup(50, '사고의 심연 돌파! A→B→C 완주!')">
-              완료! +50 XP 🏆
+          <div class="socrates-input-row">
+            <input class="input-field" style="flex:1" id="socrates-input" placeholder="생각을 적어주세요..." onkeydown="if(event.key==='Enter'){sendSocratesMessage()}">
+            <button class="btn-primary" style="padding:10px 16px" onclick="sendSocratesMessage()">
+              <i class="fas fa-paper-plane"></i>
             </button>
           </div>
           `}
+          <button class="btn-ghost" style="margin-top:8px;width:100%" onclick="state._coachingMode='result';state._socratesMessages=null;state._socratesComplete=false;renderScreen()">
+            <i class="fas fa-arrow-left"></i> 분석 결과로 돌아가기
+          </button>
         </div>
         ` : ''}
 
@@ -1390,9 +1460,130 @@ function renderRecordQuestion() {
 }
 
 function analyzeQuestion() {
-  state._diagResult = true;
-  state._coachingMode = 'result';
+  const questionInput = document.getElementById('question-input');
+  const questionText = questionInput ? questionInput.value.trim() : '';
+  if (!questionText) { alert('질문 내용을 입력해주세요!'); return; }
+  
+  const activeChip = document.querySelector('.field-group .chip.active');
+  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const axis = state._questionAxis || 'curiosity';
+  
+  // 이미지가 있으면 먼저 이미지 분석
+  if (state._questionImages && state._questionImages.length > 0) {
+    analyzeWithImage(questionText, subject, axis);
+    return;
+  }
+  
+  state._diagLoading = true;
+  state._diagResult = null;
+  state._coachingMode = 'loading';
   renderScreen();
+  
+  fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: questionText, subject, axis })
+  })
+  .then(r => r.json())
+  .then(result => {
+    state._diagResult = result;
+    state._diagLoading = false;
+    state._coachingMode = 'result';
+    renderScreen();
+  })
+  .catch(err => {
+    state._diagLoading = false;
+    state._coachingMode = 'diagnosis';
+    alert('AI 분석 중 오류: ' + err.message);
+    renderScreen();
+  });
+}
+
+function analyzeWithImage(questionText, subject, axis) {
+  state._diagLoading = true;
+  state._coachingMode = 'loading';
+  renderScreen();
+  
+  const firstImage = state._questionImages[0];
+  const mimeMatch = firstImage.match(/^data:(image\/\w+);base64,/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  
+  // Step 1: Gemini 이미지 분석
+  fetch('/api/image-analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageBase64: firstImage, mimeType, subject })
+  })
+  .then(r => r.json())
+  .then(imageResult => {
+    state._imageAnalysis = imageResult;
+    // Step 2: 이미지 분석 결과 + 질문을 함께 OpenAI에 전달
+    const enrichedQuestion = questionText + 
+      (imageResult.extractedText ? `\n\n[이미지 분석 내용: ${imageResult.extractedText}]` : '') +
+      (imageResult.analysis ? `\n[이미지 문제 분석: ${imageResult.analysis}]` : '');
+    
+    return fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: enrichedQuestion, subject: imageResult.subject || subject, axis })
+    });
+  })
+  .then(r => r.json())
+  .then(result => {
+    state._diagResult = result;
+    state._diagLoading = false;
+    state._coachingMode = 'result';
+    renderScreen();
+  })
+  .catch(err => {
+    state._diagLoading = false;
+    state._coachingMode = 'diagnosis';
+    alert('AI 분석 중 오류: ' + err.message);
+    renderScreen();
+  });
+}
+
+function sendSocratesMessage() {
+  const input = document.getElementById('socrates-input');
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+  
+  if (!state._socratesMessages) state._socratesMessages = [];
+  state._socratesMessages.push({ role: 'user', content: text });
+  state._socratesLoading = true;
+  renderScreen();
+  
+  const activeChip = document.querySelector('.field-group .chip.active');
+  const subject = activeChip ? activeChip.textContent.trim() : '';
+  
+  // API에 보낼 때 _hidden 메시지도 포함 (대화 맥락 유지)
+  const apiMessages = state._socratesMessages.map(m => ({ role: m.role, content: m.content }));
+  
+  fetch('/api/coaching', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: apiMessages,
+      subject,
+      currentLevel: state._diagResult ? state._diagResult.level : 'A-2'
+    })
+  })
+  .then(r => r.json())
+  .then(result => {
+    state._socratesMessages.push({ role: 'assistant', content: JSON.stringify(result) });
+    state._socratesLoading = false;
+    if (result.isComplete) state._socratesComplete = true;
+    renderScreen();
+    setTimeout(() => {
+      const chat = document.getElementById('socrates-chat-area');
+      if (chat) chat.scrollTop = chat.scrollHeight;
+    }, 100);
+  })
+  .catch(err => {
+    state._socratesLoading = false;
+    alert('코칭 AI 오류: ' + err.message);
+    renderScreen();
+  });
 }
 
 function handleQuestionImageUpload(input) {
@@ -1409,6 +1600,92 @@ function handleQuestionImageUpload(input) {
     reader.readAsDataURL(file);
   });
   input.value = ''; // reset for re-upload
+}
+
+function startChallenge() {
+  state._coachingMode = 'challenge';
+  state._challengeResult = null;
+  state._challengeLoading = false;
+  renderScreen();
+}
+
+function submitChallenge() {
+  const input = document.getElementById('challenge-input');
+  const text = input ? input.value.trim() : '';
+  if (!text) { alert('도전 질문을 입력해주세요!'); return; }
+
+  const activeChip = document.querySelector('.field-group .chip.active');
+  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const axis = state._questionAxis || 'curiosity';
+
+  state._challengeLoading = true;
+  renderScreen();
+
+  fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: text, subject, axis })
+  })
+  .then(r => r.json())
+  .then(result => {
+    state._challengeResult = result;
+    state._challengeLoading = false;
+    renderScreen();
+  })
+  .catch(err => {
+    state._challengeLoading = false;
+    alert('도전 분석 중 오류: ' + err.message);
+    renderScreen();
+  });
+}
+
+function startSocrates() {
+  const questionInput = document.getElementById('question-input');
+  const questionText = questionInput ? questionInput.value.trim() : '';
+  const activeChip = document.querySelector('.field-group .chip.active');
+  const subject = activeChip ? activeChip.textContent.trim() : '';
+
+  state._coachingMode = 'socrates';
+  state._socratesComplete = false;
+  state._socratesLoading = true;
+  
+  // 시작 시 AI에게 첫 질문을 받기 위한 초기 메시지 구성
+  const currentLevel = state._diagResult ? state._diagResult.level : 'A-2';
+  const initMsg = questionText 
+    ? `학생이 "${questionText}"라는 질문을 했습니다 (${subject}). 이 학생의 현재 질문 단계는 ${currentLevel}입니다. 이 질문을 바탕으로 사고를 확장시키는 소크라테스식 첫 질문을 해주세요.`
+    : `${subject} 과목에 대해 학생과 소크라테스식 대화를 시작합니다. 학생의 현재 단계는 ${currentLevel}입니다. 사고를 자극하는 첫 질문을 해주세요.`;
+  
+  state._socratesMessages = [{ role: 'user', content: initMsg }];
+  renderScreen();
+
+  fetch('/api/coaching', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: state._socratesMessages,
+      subject,
+      currentLevel
+    })
+  })
+  .then(r => r.json())
+  .then(result => {
+    state._socratesMessages.push({ role: 'assistant', content: JSON.stringify(result) });
+    // 초기 시스템 메시지를 사용자에게 보이지 않게 처리
+    state._socratesMessages[0]._hidden = true;
+    state._socratesLoading = false;
+    renderScreen();
+    // 채팅 스크롤 하단으로
+    setTimeout(() => {
+      const chat = document.getElementById('socrates-chat-area');
+      if (chat) chat.scrollTop = chat.scrollHeight;
+    }, 100);
+  })
+  .catch(err => {
+    state._socratesLoading = false;
+    alert('코칭 AI 시작 오류: ' + err.message);
+    state._coachingMode = 'result';
+    renderScreen();
+  });
 }
 
 function openJeongyulQA() {
