@@ -1103,9 +1103,16 @@ function renderRecordQuestion() {
           </div>
         </div>
 
-        <!-- 질문 유형 선택: 호기심 vs 성찰 -->
+        <!-- 질문 유형 선택: 호기심 vs 성찰 + 정율질문방 -->
         <div class="field-group">
-          <label class="field-label">📋 질문 유형</label>
+          <div class="field-label-row">
+            <label class="field-label" style="margin-bottom:0">📋 질문 유형</label>
+            <button class="btn-jyqr" onclick="openJeongyulQA()">
+              <span class="jyqr-pulse"></span>
+              <i class="fas fa-external-link-alt"></i>
+              정율질문방 가기
+            </button>
+          </div>
           <div class="axis-selector">
             <button class="axis-btn ${!state._questionAxis || state._questionAxis==='curiosity'?'active':''}" onclick="state._questionAxis='curiosity';renderScreen()">
               <span class="axis-icon">🪜</span>
@@ -1402,6 +1409,31 @@ function handleQuestionImageUpload(input) {
     reader.readAsDataURL(file);
   });
   input.value = ''; // reset for re-upload
+}
+
+function openJeongyulQA() {
+  // 현재 선택된 과목 가져오기
+  const activeChip = document.querySelector('.chip.active');
+  const subject = activeChip ? activeChip.textContent.trim() : '';
+  
+  // 질문 내용 가져오기
+  const questionInput = document.getElementById('question-input');
+  const questionText = questionInput ? questionInput.value.trim() : '';
+  
+  // 질문 축(유형) 정보
+  const axis = state._questionAxis || 'curiosity';
+  const axisLabel = axis === 'reflection' ? '성찰질문' : '호기심질문';
+  
+  // URL 구성 — 쿼리 파라미터로 과목, 질문 내용 전달
+  const params = new URLSearchParams();
+  if (subject) params.set('subject', subject);
+  if (questionText) params.set('question', questionText);
+  params.set('type', axisLabel);
+  params.set('from', 'creditplanner');
+  
+  const url = 'https://qa-tutoring-app.pages.dev/new?' + params.toString();
+  
+  window.open(url, '_blank');
 }
 
 // ==================== RECORD TEACH (R-03) ====================

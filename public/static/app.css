@@ -1915,3 +1915,34 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   transition:all var(--transition-fast);
 }
 .q-image-remove:hover { background:var(--accent); transform:scale(1.1); }
+
+/* Field Label Row (label + button 나란히) */
+.field-label-row {
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
+}
+
+/* 정율질문방 버튼 */
+.btn-jyqr {
+  position:relative; display:inline-flex; align-items:center; gap:5px;
+  padding:6px 14px; border-radius:20px; border:1.5px solid rgba(255,159,67,0.5);
+  background:linear-gradient(135deg, rgba(255,159,67,0.12), rgba(255,107,107,0.08));
+  color:#FF9F43; font-size:11px; font-weight:700; cursor:pointer;
+  transition:all var(--transition-fast); overflow:hidden;
+}
+.btn-jyqr i { font-size:10px; }
+.btn-jyqr:hover {
+  border-color:#FF9F43; background:linear-gradient(135deg, rgba(255,159,67,0.2), rgba(255,107,107,0.15));
+  transform:scale(1.03); box-shadow:0 2px 12px rgba(255,159,67,0.3);
+}
+.btn-jyqr:active { transform:scale(0.97); }
+
+/* 펄스 애니메이션 — 살아있는 느낌 */
+.jyqr-pulse {
+  position:absolute; left:6px; top:50%; transform:translateY(-50%);
+  width:6px; height:6px; border-radius:50%; background:#FF9F43;
+  animation:jyqr-blink 2s ease-in-out infinite;
+}
+@keyframes jyqr-blink {
+  0%, 100% { opacity:1; box-shadow:0 0 0 0 rgba(255,159,67,0.6); }
+  50% { opacity:0.6; box-shadow:0 0 0 4px rgba(255,159,67,0); }
+}
