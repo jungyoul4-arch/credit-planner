@@ -1214,6 +1214,12 @@ function renderExamDetail() {
 
 
 function renderExamAdd() {
+  const types = [
+    { key:'midterm', icon:'📘', label:'중간고사' },
+    { key:'final', icon:'📕', label:'기말고사' },
+    { key:'mock', icon:'📗', label:'모의고사' },
+    { key:'performance', icon:'📝', label:'수행평가' },
+  ];
   return `
     <div class="full-screen animate-in">
       <div class="screen-header">
@@ -1224,13 +1230,8 @@ function renderExamAdd() {
 
         <label class="form-label">시험 유형</label>
         <div class="exam-type-grid">
-          ${[
-            { key:'midterm', icon:'📘', label:'중간고사' },
-            { key:'final', icon:'📕', label:'기말고사' },
-            { key:'mock', icon:'📗', label:'모의고사' },
-            { key:'performance', icon:'📝', label:'수행평가' },
-          ].map(t => `
-            <button class="exam-type-btn" data-type="${t.key}" onclick="selectExamType(this,'${t.key}')">
+          ${types.map(t => `
+            <button class="exam-type-btn ${_selectedExamType===t.key?'active':''}" data-type="${t.key}" onclick="selectExamType(this,'${t.key}')">
               <span style="font-size:20px">${t.icon}</span>
               <span>${t.label}</span>
             </button>
@@ -1253,10 +1254,12 @@ function renderExamAdd() {
 
         <label class="form-label" style="margin-top:16px">시험 과목 추가</label>
         <div id="exam-subjects-container">
-          <div class="exam-add-subject-row">
-            <input type="text" class="form-input exam-subj-input" placeholder="과목명">
-            <input type="text" class="form-input exam-range-input" placeholder="시험 범위">
-            <input type="date" class="form-input exam-date-input" value="2025-04-21">
+          <div class="exam-add-subj-card">
+            <div class="exam-add-subj-top">
+              <input type="text" class="form-input exam-subj-input" placeholder="과목명 (예: 수학)">
+              <input type="date" class="form-input exam-date-input" value="2025-04-21">
+            </div>
+            <input type="text" class="form-input exam-range-input" placeholder="시험 범위 (예: 수학Ⅱ 1~3단원)">
           </div>
         </div>
         <button class="btn-text" onclick="addExamSubjectRow()" style="margin-top:8px;font-size:13px">
@@ -1284,15 +1287,17 @@ function selectExamType(btn, type) {
 function addExamSubjectRow() {
   const container = document.getElementById('exam-subjects-container');
   if (!container) return;
-  const row = document.createElement('div');
-  row.className = 'exam-add-subject-row';
-  row.innerHTML = `
-    <input type="text" class="form-input exam-subj-input" placeholder="과목명">
-    <input type="text" class="form-input exam-range-input" placeholder="시험 범위">
-    <input type="date" class="form-input exam-date-input" value="2025-04-21">
-    <button class="exam-remove-subj-btn" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
+  const card = document.createElement('div');
+  card.className = 'exam-add-subj-card';
+  card.innerHTML = `
+    <div class="exam-add-subj-top">
+      <input type="text" class="form-input exam-subj-input" placeholder="과목명 (예: 영어)">
+      <input type="date" class="form-input exam-date-input" value="2025-04-21">
+      <button class="exam-remove-subj-btn" onclick="this.closest('.exam-add-subj-card').remove()"><i class="fas fa-times"></i></button>
+    </div>
+    <input type="text" class="form-input exam-range-input" placeholder="시험 범위 (예: 3~5과 본문, 관계대명사)">
   `;
-  container.appendChild(row);
+  container.appendChild(card);
 }
 
 function saveNewExam() {
@@ -1302,12 +1307,12 @@ function saveNewExam() {
   if (!name) { alert('시험 이름을 입력하세요'); return; }
 
   const subjectColors = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#E056A0','#A29BFE','#FF9F43'];
-  const rows = document.querySelectorAll('.exam-add-subject-row');
+  const rows = document.querySelectorAll('.exam-add-subj-card');
   const subjects = [];
-  rows.forEach((row, i) => {
-    const subj = row.querySelector('.exam-subj-input')?.value?.trim();
-    const range = row.querySelector('.exam-range-input')?.value?.trim();
-    const date = row.querySelector('.exam-date-input')?.value || startDate;
+  rows.forEach((card, i) => {
+    const subj = card.querySelector('.exam-subj-input')?.value?.trim();
+    const range = card.querySelector('.exam-range-input')?.value?.trim();
+    const date = card.querySelector('.exam-date-input')?.value || startDate;
     if (subj) {
       subjects.push({ subject:subj, date, time:'', range:range||'', readiness:0, notes:'', color:subjectColors[i % subjectColors.length] });
     }

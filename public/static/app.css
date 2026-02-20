@@ -97,6 +97,27 @@ body {
 .tab-content { padding-bottom:100px; }
 .full-screen { min-height:100%; }
 .form-body { padding:0 20px 40px; }
+.form-label {
+  display:block; font-size:13px; font-weight:700;
+  color:var(--text-muted); margin-bottom:6px; margin-top:12px;
+}
+.form-input {
+  width:100%; padding:10px 12px; border-radius:10px;
+  font-size:13px; color:var(--text-main);
+  background:var(--bg-input, rgba(255,255,255,0.06));
+  border:1px solid rgba(255,255,255,0.08);
+  outline:none; transition:border-color 0.2s;
+  box-sizing:border-box;
+}
+.form-input:focus {
+  border-color:var(--primary);
+  background:rgba(255,255,255,0.08);
+}
+.form-input::placeholder { color:var(--text-muted); opacity:0.5; }
+/* date input 다크테마 */
+.form-input[type="date"] {
+  color-scheme:dark;
+}
 
 /* Screen Header */
 .screen-header {
@@ -2066,11 +2087,24 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   color:var(--text-muted); border:2px solid transparent;
   cursor:pointer; transition:all 0.2s;
 }
-.exam-type-btn.active, .exam-type-btn:first-child {
+.exam-type-btn.active {
   border-color:var(--primary); color:var(--primary);
   background:rgba(224,86,160,0.1);
 }
 .exam-type-btn:hover { background:rgba(255,255,255,0.1); }
+
+/* 과목 추가 카드 레이아웃 */
+.exam-add-subj-card {
+  background:var(--bg-input, rgba(255,255,255,0.04));
+  border-radius:12px; padding:12px; margin-bottom:10px;
+  display:flex; flex-direction:column; gap:8px;
+}
+.exam-add-subj-top {
+  display:flex; gap:8px; align-items:center;
+}
+.exam-add-subj-top .exam-subj-input { flex:1; }
+.exam-add-subj-top .exam-date-input { flex:1; }
+.exam-add-subj-card .exam-range-input { width:100%; }
 
 .exam-add-subject-row {
   display:flex; gap:6px; align-items:center; margin-bottom:8px;
@@ -2082,7 +2116,9 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   width:28px; height:28px; border-radius:50%; border:none;
   background:rgba(255,107,107,0.15); color:#FF6B6B;
   cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  transition:all 0.2s;
 }
+.exam-remove-subj-btn:hover { background:rgba(255,107,107,0.3); }
 
 /* AI 학습 계획 */
 .exam-ai-plan { padding:4px 0; }
