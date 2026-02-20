@@ -193,9 +193,23 @@ const state = {
     { id:'cm4', name:'최윤서', grade:'2-2', memo:'' },
     { id:'cm5', name:'한도윤', grade:'2-1', memo:'' },
   ],
+  // 비교과 활동 데이터
+  extracurriculars: [
+    { id:'ec1', type:'report', title:'치환적분 알고리즘 탐구', subject:'수학', status:'in-progress', progress:40, startDate:'2025-02-10', endDate:'2025-03-10', color:'#6C5CE7', desc:'치환적분의 판별 알고리즘을 파이썬으로 구현', memo:'역함수 관점 접근법 발견' },
+    { id:'ec2', type:'report', title:'산화환원 반응속도 비교 실험', subject:'과학', status:'in-progress', progress:25, startDate:'2025-02-12', endDate:'2025-03-15', color:'#FDCB6E', desc:'다양한 조건에서 반응속도 비교 실험 및 보고서 작성', memo:'' },
+    { id:'ec3', type:'reading', title:'코스모스 (칼 세이건)', subject:'과학', status:'in-progress', progress:65, startDate:'2025-02-01', endDate:'2025-02-28', color:'#00B894', desc:'우주와 과학의 역사를 다룬 과학 교양서', memo:'3장까지 독서감상문 작성 완료' },
+    { id:'ec4', type:'reading', title:'수학의 확실성 (모리스 클라인)', subject:'수학', status:'pending', progress:0, startDate:'2025-03-01', endDate:'2025-03-31', color:'#6C5CE7', desc:'수학 철학과 역사를 다룬 교양서', memo:'' },
+    { id:'ec5', type:'activity', title:'코딩동아리 (CodingLab)', subject:'정보', status:'in-progress', progress:50, startDate:'2025-03-01', endDate:'2025-12-31', color:'#E056A0', desc:'Python matplotlib 수학 그래프 시각화 프로젝트', memo:'sin, cos 합성파 표현' },
+    { id:'ec6', type:'activity', title:'진로탐색 - 데이터사이언스 체험', subject:'진로', status:'completed', progress:100, startDate:'2025-02-05', endDate:'2025-02-05', color:'#FF9F43', desc:'대학 연계 데이터사이언스 1일 체험', memo:'머신러닝 기초 실습' },
+  ],
   // 플래너 상태
   plannerView: 'daily', // 'daily','weekly','monthly'
   plannerDate: '2025-02-15', // 현재 선택 날짜
+  // 포트폴리오 상태
+  portfolioPeriod: '1week', // '1week','2week','1month','custom'
+  portfolioTab: 'all', // 'all','class','question','assignment','report','reading','activity'
+  portfolioCustomStart: '2025-02-01',
+  portfolioCustomEnd: '2025-02-28',
   plannerAiOpen: false,
   plannerAiMessages: [
     { role:'ai', text:'안녕 민준! 👋 플래너 AI 도우미예요. 일정 추가, 과제 계획 조정, 공부 시간 배분 등 무엇이든 도와줄게요!' },
@@ -281,6 +295,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'timetable-manage') return renderTimetableManage();
   if (state.currentScreen === 'academy-add') return renderAcademyAdd();
   if (state.currentScreen === 'classmate-manage') return renderClassmateManage();
+  if (state.currentScreen === 'portfolio') return renderPortfolio();
 
   let content = '';
   content += renderXpBar();
@@ -777,7 +792,7 @@ function renderRecordTab() {
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
           { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 AI 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
-          { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창체 / 동아리', desc:'비교과 활동 기록', xp:'+20' },
+          { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창의적 체험활동', desc:'비교과 활동 기록', xp:'+20' },
         ].map((item,i) => `
           <div class="record-type-card stagger-${i+1} animate-in" onclick="goScreen('${item.screen}')">
             <div class="record-type-icon" style="background:${item.bg}">${item.icon}</div>
@@ -817,6 +832,47 @@ function renderRecordTab() {
         }).join('')}
       </div>
       ` : ''}
+
+      <!-- 진행 중인 비교과 활동 -->
+      ${state.extracurriculars.filter(e => e.status !== 'completed').length > 0 ? `
+      <div class="card stagger-7 animate-in">
+        <div class="card-header-row">
+          <span class="card-title">📚 진행 중인 비교과 활동</span>
+        </div>
+        ${state.extracurriculars.filter(e => e.status !== 'completed').slice(0, 4).map(e => {
+          const typeLabel = e.type === 'report' ? '📄 탐구보고서' : e.type === 'reading' ? '📖 독서' : '🏫 창체';
+          const statusLabel = e.status === 'in-progress' ? '진행중' : '예정';
+          return `
+          <div class="ec-mini-row">
+            <div class="ec-mini-dot" style="background:${e.color}"></div>
+            <div class="ec-mini-info">
+              <div class="ec-mini-top">
+                <span class="ec-mini-type">${typeLabel}</span>
+                <span class="ec-mini-subject">${e.subject}</span>
+              </div>
+              <span class="ec-mini-title">${e.title}</span>
+            </div>
+            <div class="ec-mini-right">
+              <span class="ec-mini-status ${e.status}">${statusLabel}</span>
+              <div class="ec-mini-bar"><div class="ec-mini-bar-fill" style="width:${e.progress}%;background:${e.color}"></div></div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+      </div>
+      ` : ''}
+
+      <!-- 생기부 포트폴리오 -->
+      <div class="card stagger-8 animate-in" onclick="goScreen('portfolio')" style="cursor:pointer">
+        <div class="portfolio-entry">
+          <div class="portfolio-icon">📊</div>
+          <div class="portfolio-text">
+            <strong>나의 활동 기록부</strong>
+            <p>기간별 수업·질문·과제·비교과 종합 리포트</p>
+          </div>
+          <i class="fas fa-chevron-right" style="color:var(--text-muted)"></i>
+        </div>
+      </div>
 
       <!-- Recent Records Timeline -->
       <div class="card stagger-7 animate-in">
@@ -872,6 +928,229 @@ function renderRecordTab() {
       </div>
     </div>
   `;
+}
+
+// ==================== PORTFOLIO (나의 활동 기록부) ====================
+
+function getPortfolioDateRange() {
+  const today = new Date('2025-02-15');
+  let start, end = today;
+  switch(state.portfolioPeriod) {
+    case '1week':
+      start = new Date(today); start.setDate(start.getDate() - 7); break;
+    case '2week':
+      start = new Date(today); start.setDate(start.getDate() - 14); break;
+    case '1month':
+      start = new Date(today); start.setMonth(start.getMonth() - 1); break;
+    case 'custom':
+      start = new Date(state.portfolioCustomStart); end = new Date(state.portfolioCustomEnd); break;
+    default:
+      start = new Date(today); start.setDate(start.getDate() - 7);
+  }
+  return { start, end };
+}
+
+function collectPortfolioItems() {
+  const { start, end } = getPortfolioDateRange();
+  const fmt = d => d.toISOString().slice(0,10);
+  const s = fmt(start), e = fmt(end);
+  const items = [];
+
+  // 1) 수업 기록 (plannerItems category='class', done)
+  state.plannerItems.filter(p => p.category === 'class' && p.date >= s && p.date <= e).forEach(p => {
+    items.push({ date:p.date, time:p.time, cat:'class', icon:'📝', title:p.title, subject:p.detail||'', desc:'수업 기록', xp:10, color:p.color });
+  });
+
+  // 2) 질문 기록 (하드코딩 예시 — 추후 실 데이터)
+  const questionRecords = [
+    { date:'2025-02-15', time:'09:40', subject:'수학', title:'치환적분과 부분적분의 선택 기준', level:'C-1', xp:25 },
+    { date:'2025-02-14', time:'14:20', subject:'국어', title:'윤동주 시의 자아성찰 관점', level:'B-2', xp:15 },
+    { date:'2025-02-13', time:'11:00', subject:'영어', title:'관계대명사 which vs that 차이', level:'A-3', xp:8 },
+    { date:'2025-02-10', time:'10:15', subject:'과학', title:'산화환원 반응에서 전자 이동 메커니즘', level:'B-1', xp:12 },
+    { date:'2025-02-08', time:'15:30', subject:'수학', title:'부정적분 상수 C의 기하학적 의미', level:'C-2', xp:30 },
+  ];
+  questionRecords.filter(q => q.date >= s && q.date <= e).forEach(q => {
+    items.push({ date:q.date, time:q.time, cat:'question', icon:'❓', title:q.title, subject:q.subject, desc:`질문 레벨 ${q.level}`, xp:q.xp, color:'#FF6B6B' });
+  });
+
+  // 3) 과제
+  state.assignments.filter(a => a.createdDate >= s && a.createdDate <= e).forEach(a => {
+    const statusText = a.status === 'completed' ? '✅ 완료' : `진행 ${a.progress}%`;
+    items.push({ date:a.createdDate, time:'00:00', cat:'assignment', icon:'📋', title:a.title, subject:a.subject, desc:`${a.teacher} · ${statusText}`, xp:15, color:a.color });
+  });
+
+  // 4) 교학상장 기록
+  const teachRecords = [
+    { date:'2025-02-14', time:'16:00', student:'이서연', subject:'수학', topic:'치환적분 역함수 관점', duration:15 },
+    { date:'2025-02-11', time:'14:30', student:'박지호', subject:'영어', topic:'관계대명사 구문 분석', duration:20 },
+  ];
+  teachRecords.filter(t => t.date >= s && t.date <= e).forEach(t => {
+    items.push({ date:t.date, time:t.time, cat:'teach', icon:'🤝', title:`${t.student}에게 ${t.topic} 설명`, subject:t.subject, desc:`${t.duration}분 멘토링`, xp:30, color:'#00B894' });
+  });
+
+  // 5) 비교과: 탐구보고서, 독서, 창체
+  state.extracurriculars.filter(ec => ec.startDate <= e && (ec.endDate >= s || !ec.endDate)).forEach(ec => {
+    const catKey = ec.type === 'report' ? 'report' : ec.type === 'reading' ? 'reading' : 'activity';
+    const icon = ec.type === 'report' ? '📄' : ec.type === 'reading' ? '📖' : '🏫';
+    const statusText = ec.status === 'completed' ? '✅ 완료' : ec.status === 'in-progress' ? `진행 ${ec.progress}%` : '예정';
+    items.push({ date:ec.startDate, time:'00:00', cat:catKey, icon, title:ec.title, subject:ec.subject, desc:`${statusText} · ${ec.desc||''}`, xp:20, color:ec.color });
+  });
+
+  // 정렬: 날짜 내림차순
+  items.sort((a,b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+
+  // 탭 필터
+  if (state.portfolioTab !== 'all') {
+    return items.filter(i => i.cat === state.portfolioTab);
+  }
+  return items;
+}
+
+function renderPortfolio() {
+  const items = collectPortfolioItems();
+  const allItems = (() => { const prev = state.portfolioTab; state.portfolioTab = 'all'; const r = collectPortfolioItems(); state.portfolioTab = prev; return r; })();
+  
+  // 통계
+  const stats = {
+    class: allItems.filter(i => i.cat === 'class').length,
+    question: allItems.filter(i => i.cat === 'question').length,
+    assignment: allItems.filter(i => i.cat === 'assignment').length,
+    extra: allItems.filter(i => ['report','reading','activity','teach'].includes(i.cat)).length,
+    totalXp: allItems.reduce((s,i) => s + (i.xp||0), 0),
+  };
+
+  // 날짜별 그룹핑
+  const grouped = {};
+  items.forEach(it => {
+    const dl = formatDateLabel(it.date);
+    if (!grouped[dl]) grouped[dl] = [];
+    grouped[dl].push(it);
+  });
+
+  const periods = [
+    { key:'1week', label:'1주' },
+    { key:'2week', label:'2주' },
+    { key:'1month', label:'1개월' },
+    { key:'custom', label:'직접 선택' },
+  ];
+
+  const tabs = [
+    { key:'all', label:'전체' },
+    { key:'class', label:'수업' },
+    { key:'question', label:'질문' },
+    { key:'assignment', label:'과제' },
+    { key:'report', label:'탐구' },
+    { key:'reading', label:'독서' },
+    { key:'activity', label:'창체' },
+    { key:'teach', label:'교학상장' },
+  ];
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <h1>📊 나의 활동 기록부</h1>
+      </div>
+      <div class="form-body" style="padding-bottom:24px">
+
+        <!-- 기간 선택 -->
+        <div class="period-selector">
+          ${periods.map(p => `
+            <button class="period-btn ${state.portfolioPeriod===p.key?'active':''}" onclick="state.portfolioPeriod='${p.key}';render()">${p.label}</button>
+          `).join('')}
+        </div>
+        ${state.portfolioPeriod === 'custom' ? `
+        <div class="custom-period-row">
+          <input type="date" value="${state.portfolioCustomStart}" onchange="state.portfolioCustomStart=this.value;render()">
+          <span>~</span>
+          <input type="date" value="${state.portfolioCustomEnd}" onchange="state.portfolioCustomEnd=this.value;render()">
+        </div>
+        ` : ''}
+
+        <!-- 통계 요약 -->
+        <div class="portfolio-stats">
+          <div class="portfolio-stat-item">
+            <span class="portfolio-stat-num">${stats.class}</span>
+            <span class="portfolio-stat-label">수업</span>
+          </div>
+          <div class="portfolio-stat-item">
+            <span class="portfolio-stat-num">${stats.question}</span>
+            <span class="portfolio-stat-label">질문</span>
+          </div>
+          <div class="portfolio-stat-item">
+            <span class="portfolio-stat-num">${stats.assignment}</span>
+            <span class="portfolio-stat-label">과제</span>
+          </div>
+          <div class="portfolio-stat-item">
+            <span class="portfolio-stat-num">${stats.extra}</span>
+            <span class="portfolio-stat-label">비교과</span>
+          </div>
+        </div>
+
+        <!-- 총 XP -->
+        <div class="card" style="margin-bottom:12px;text-align:center;padding:10px">
+          <span style="font-size:13px;color:var(--text-muted)">해당 기간 획득 XP</span>
+          <span style="font-size:22px;font-weight:800;color:var(--primary);margin-left:8px">${stats.totalXp} XP</span>
+        </div>
+
+        <!-- 카테고리 탭 -->
+        <div class="portfolio-tabs">
+          ${tabs.map(t => `
+            <button class="portfolio-tab-btn ${state.portfolioTab===t.key?'active':''}" onclick="state.portfolioTab='${t.key}';render()">${t.label}</button>
+          `).join('')}
+        </div>
+
+        <!-- 타임라인 -->
+        ${Object.keys(grouped).length > 0 ? `
+        <div class="pf-timeline">
+          ${Object.entries(grouped).map(([dateLabel, dateItems]) => `
+            <div class="pf-date-group">
+              <div class="pf-date-label">${dateLabel}</div>
+              ${dateItems.map(it => `
+                <div class="pf-item">
+                  <div class="pf-item-icon">${it.icon}</div>
+                  <div class="pf-item-body">
+                    <div class="pf-item-header">
+                      <span class="pf-item-cat cat-${it.cat}">${getPortfolioCatLabel(it.cat)}</span>
+                      <span class="pf-item-subject">${it.subject}</span>
+                    </div>
+                    <span class="pf-item-title">${it.title}</span>
+                    ${it.desc ? `<span class="pf-item-desc">${it.desc}</span>` : ''}
+                  </div>
+                  <div class="pf-item-right">
+                    ${it.time !== '00:00' ? `<span class="pf-item-time">${it.time}</span>` : ''}
+                    <span class="pf-item-xp">+${it.xp} XP</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `).join('')}
+        </div>
+        ` : `
+        <div class="pf-empty">
+          <div class="pf-empty-icon">📭</div>
+          <div class="pf-empty-text">해당 기간에 기록이 없습니다</div>
+        </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function getPortfolioCatLabel(cat) {
+  const map = { class:'수업', question:'질문', assignment:'과제', teach:'교학상장', report:'탐구보고서', reading:'독서', activity:'창체' };
+  return map[cat] || cat;
+}
+
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr);
+  const days = ['일','월','화','수','목','금','토'];
+  const m = d.getMonth()+1, dd = d.getDate(), day = days[d.getDay()];
+  const today = new Date('2025-02-15');
+  const diff = Math.round((today - d) / 86400000);
+  if (diff === 0) return `오늘 (${m}/${dd} ${day})`;
+  if (diff === 1) return `어제 (${m}/${dd} ${day})`;
+  return `${m}/${dd} (${day})`;
 }
 
 // ==================== CLASS END POPUP ====================
@@ -2307,14 +2586,14 @@ function completeAssignment(id) {
   showXpPopup(20, '과제 완료! 🎉');
 }
 
-// ==================== RECORD ACTIVITY (R-04 창체/동아리) ====================
+// ==================== RECORD ACTIVITY (R-04 창의적 체험활동) ====================
 
 function renderRecordActivity() {
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
         <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
-        <h1>창체 / 동아리 기록</h1>
+        <h1>창의적 체험활동</h1>
         <span class="xp-badge-sm">+20 XP</span>
       </div>
 
@@ -2324,9 +2603,9 @@ function renderRecordActivity() {
           <div class="activity-type-grid">
             ${[
               {type:'club', icon:'🎭', name:'동아리'},
-              {type:'volunteer', icon:'🤲', name:'봉사활동'},
               {type:'career', icon:'🎯', name:'진로활동'},
-              {type:'self', icon:'🧠', name:'자율활동'},
+              {type:'self', icon:'🧠', name:'자율자치'},
+              {type:'report', icon:'📄', name:'탐구보고서'},
             ].map((a,i) => `
               <button class="activity-type-btn ${i===0?'active':''}" data-type="${a.type}">
                 <span>${a.icon}</span><span>${a.name}</span>
@@ -2337,7 +2616,7 @@ function renderRecordActivity() {
 
         <div class="field-group">
           <label class="field-label">🏫 활동명</label>
-          <input class="input-field" placeholder="예: 코딩동아리, 봉사활동..." value="코딩동아리 (CodingLab)">
+          <input class="input-field" placeholder="예: 코딩동아리, 진로탐색..." value="코딩동아리 (CodingLab)">
         </div>
 
         <div class="field-group">
@@ -2918,8 +3197,10 @@ function renderPlannerAddItem() {
               {id:'assignment',icon:'📋',name:'과제'},
               {id:'explore',icon:'🔬',name:'탐구'},
               {id:'academy',icon:'🏢',name:'학원/과외'},
-              {id:'activity',icon:'🏫',name:'창체/동아리'},
-              {id:'personal',icon:'🎯',name:'개인 계획'},
+              {id:'activity',icon:'🏫',name:'창의적 체험활동'},
+              {id:'personal',icon:'📖',name:'개인공부'},
+              {id:'exercise',icon:'🏃',name:'운동'},
+              {id:'reading',icon:'📚',name:'독서'},
               {id:'routine',icon:'☀️',name:'루틴'},
             ].map((c,i) => `
               <button class="planner-cat-btn ${i===0?'active':''}" data-pcat="${c.id}">

@@ -2090,7 +2090,115 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   100% { width:0%; margin-left:100%; }
 }
 
+/* ==================== 비교과 활동 미니 카드 ==================== */
+.ec-mini-row {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 0;
+  border-bottom:1px solid var(--bg-input, rgba(255,255,255,0.06));
+}
+.ec-mini-row:last-child { border-bottom:none; }
+.ec-mini-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.ec-mini-info { flex:1; min-width:0; }
+.ec-mini-top { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.ec-mini-type { font-size:11px; font-weight:600; color:var(--text-muted); }
+.ec-mini-subject { font-size:11px; color:var(--text-muted); opacity:0.7; }
+.ec-mini-title { font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+.ec-mini-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
+.ec-mini-status { font-size:10px; font-weight:600; padding:2px 6px; border-radius:8px; }
+.ec-mini-status.in-progress { background:rgba(0,184,148,0.15); color:#00B894; }
+.ec-mini-status.pending { background:rgba(108,92,231,0.15); color:#6C5CE7; }
+.ec-mini-bar { width:48px; height:4px; background:var(--bg-input, rgba(255,255,255,0.1)); border-radius:2px; overflow:hidden; }
+.ec-mini-bar-fill { height:100%; border-radius:2px; transition:width 0.3s ease; }
+
+/* ==================== 포트폴리오 (활동 기록부) ==================== */
+.portfolio-entry { display:flex; align-items:center; gap:12px; }
+.portfolio-icon { font-size:28px; }
+.portfolio-text strong { display:block; font-size:14px; color:var(--text-main); }
+.portfolio-text p { font-size:12px; color:var(--text-muted); margin:2px 0 0; }
+
+/* 기간 선택 바 */
+.period-selector { display:flex; gap:8px; margin-bottom:16px; overflow-x:auto; padding-bottom:4px; }
+.period-btn {
+  padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600;
+  border:1px solid var(--bg-input, rgba(255,255,255,0.1));
+  background:transparent; color:var(--text-muted); cursor:pointer;
+  white-space:nowrap; transition:all 0.2s;
+}
+.period-btn.active {
+  background:var(--primary); color:#fff;
+  border-color:var(--primary); box-shadow:0 2px 8px rgba(224,86,160,0.3);
+}
+
+/* 커스텀 기간 입력 */
+.custom-period-row {
+  display:flex; gap:8px; align-items:center; margin-bottom:16px;
+  font-size:12px; color:var(--text-muted);
+}
+.custom-period-row input[type="date"] {
+  padding:4px 8px; border-radius:8px; font-size:12px;
+  background:var(--bg-input, rgba(255,255,255,0.06));
+  color:var(--text-main); border:1px solid rgba(255,255,255,0.1);
+}
+
+/* 통계 요약 카드 */
+.portfolio-stats {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:8px;
+  margin-bottom:16px;
+}
+.portfolio-stat-item {
+  text-align:center; padding:10px 4px; border-radius:12px;
+  background:var(--bg-input, rgba(255,255,255,0.06));
+}
+.portfolio-stat-num { font-size:20px; font-weight:700; color:var(--primary); display:block; }
+.portfolio-stat-label { font-size:10px; color:var(--text-muted); }
+
+/* 탭 필터 */
+.portfolio-tabs { display:flex; gap:4px; margin-bottom:12px; }
+.portfolio-tab-btn {
+  flex:1; padding:8px 4px; border-radius:10px; font-size:11px; font-weight:600;
+  background:transparent; color:var(--text-muted); border:none; cursor:pointer;
+  transition:all 0.2s; text-align:center;
+}
+.portfolio-tab-btn.active { background:var(--primary); color:#fff; }
+
+/* 포트폴리오 타임라인 */
+.pf-timeline { display:flex; flex-direction:column; gap:8px; }
+.pf-date-group { margin-bottom:8px; }
+.pf-date-label { font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:6px; padding-left:4px; }
+.pf-item {
+  display:flex; gap:10px; padding:10px 12px; border-radius:12px;
+  background:var(--bg-input, rgba(255,255,255,0.04));
+  transition:all 0.2s;
+}
+.pf-item:hover { background:rgba(255,255,255,0.08); }
+.pf-item-icon { font-size:18px; flex-shrink:0; line-height:1.4; }
+.pf-item-body { flex:1; min-width:0; }
+.pf-item-header { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.pf-item-cat {
+  font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;
+  display:inline-block;
+}
+.pf-item-cat.cat-class { background:rgba(108,92,231,0.15); color:#6C5CE7; }
+.pf-item-cat.cat-question { background:rgba(255,107,107,0.15); color:#FF6B6B; }
+.pf-item-cat.cat-assignment { background:rgba(255,159,67,0.15); color:#FF9F43; }
+.pf-item-cat.cat-teach { background:rgba(0,184,148,0.15); color:#00B894; }
+.pf-item-cat.cat-report { background:rgba(108,92,231,0.2); color:#A29BFE; }
+.pf-item-cat.cat-reading { background:rgba(0,184,148,0.15); color:#00B894; }
+.pf-item-cat.cat-activity { background:rgba(253,203,110,0.2); color:#FDCB6E; }
+.pf-item-subject { font-size:11px; color:var(--text-muted); }
+.pf-item-title { font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+.pf-item-desc { font-size:11px; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+.pf-item-right { display:flex; flex-direction:column; align-items:flex-end; flex-shrink:0; gap:2px; }
+.pf-item-time { font-size:10px; color:var(--text-muted); }
+.pf-item-xp { font-size:10px; font-weight:700; color:var(--primary); }
+
+/* 빈 상태 */
+.pf-empty { text-align:center; padding:32px 16px; color:var(--text-muted); }
+.pf-empty-icon { font-size:36px; margin-bottom:8px; }
+.pf-empty-text { font-size:13px; }
+
 /* 모바일 대응 */
 @media (max-width:520px) {
   .qa-panel { max-width:100%; height:95vh; border-radius:16px 16px 0 0; }
+  .portfolio-stats { grid-template-columns:repeat(2,1fr); }
 }
