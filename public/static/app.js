@@ -18,7 +18,7 @@ const state = {
   inputMode: 'keyword', // 'keyword' | 'voice' | 'photo'
   todayRecords: [
     { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B' },
-    { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', text: '치환적분과 부분적분의 선택 기준이 함수의 구조에 의존한다면, 이 구조를 미리 판별하는 일반적 방법이 있나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7' },
+    { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7' },
     { period: 3, subject: '영어', teacher: '이정민', done: false, question: null, summary: '', color:'#00B894' },
     { period: 4, subject: '과학', teacher: '최은지', done: false, question: null, summary: '', color:'#FDCB6E' },
     { period: 5, subject: '한국사', teacher: '강민수', done: false, question: null, summary: '', color:'#74B9FF' },
@@ -496,7 +496,7 @@ function renderOnboardingGuide() {
         <div class="guide-icon-circle" style="background:rgba(255,107,107,0.15)">❓</div>
         <div class="guide-content">
           <h3>질문이 있었다면 기록</h3>
-          <p>AI가 질문 수준을 7단계로 분류해줘요</p>
+          <p>AI가 2축 9단계로 질문을 코칭해줘요</p>
         </div>
       </div>
       <div class="guide-card stagger-3 animate-in">
@@ -533,7 +533,7 @@ function renderHomeTab() {
       <div class="home-greeting">
         <div>
           <h2>${greeting}, 민준! 👋</h2>
-          <p>오늘도 멋진 질문을 기대할게요</p>
+          <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
         </div>
         <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
           <span class="date-day">15</span>
@@ -651,7 +651,7 @@ function renderHomeTab() {
           </div>
           <div class="mini-stat-divider"></div>
           <div class="mini-stat">
-            <span class="mini-stat-value" style="color:var(--question-b)">52%</span>
+            <span class="mini-stat-value" style="color:var(--question-b)">82%</span>
             <span class="mini-stat-label">B+C비율</span>
           </div>
         </div>
@@ -766,7 +766,7 @@ function renderRecordTab() {
         ${[
           { screen:'record-class', icon:'📝', bg:'rgba(108,92,231,0.15)', title:'수업 기록', desc:'30초 만에 오늘 수업을 기록', xp:'+10' },
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
-          { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 로그', desc:'AI 7단계 수준 분류', xp:'+8~30' },
+          { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 AI 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창체 / 동아리', desc:'비교과 활동 기록', xp:'+20' },
         ].map((item,i) => `
@@ -913,10 +913,12 @@ function renderClassEndPopup() {
 
         <div class="popup-question-ask">
           <span>❓ 질문이 있었나요?</span>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">네! 기록할래요</button>
-            <button class="btn-ghost" style="flex:1">아니오</button>
+          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">AI가 2축 9단계로 질문을 코칭해줘요!</p>
+          <div style="display:flex;gap:8px">
+            <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">🪜 호기심 질문</button>
+            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="state._questionAxis='reflection';goScreen('record-question')">🪞 성찰 질문</button>
           </div>
+          <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:12px">질문 없어요</button>
         </div>
 
         <button class="btn-primary" onclick="completeClassRecord(${period-1})">
@@ -1037,10 +1039,11 @@ function renderRecordClass() {
         </div>
 
         <div class="question-prompt">
-          <p>❓ 질문이 있었나요?</p>
+          <p>❓ 질문이 떠올랐나요?</p>
+          <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px">2축 9단계 AI 코칭으로 사고의 깊이를 키워보세요!</p>
           <div style="display:flex;gap:12px">
-            <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">예, 질문 기록 ❓</button>
-            <button class="btn-ghost" style="flex:1">아니오</button>
+            <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">🪜 호기심 질문</button>
+            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="state._questionAxis='reflection';goScreen('record-question')">🪞 성찰 질문</button>
           </div>
         </div>
 
@@ -1054,15 +1057,45 @@ function renderRecordClass() {
 // ==================== RECORD QUESTION (R-02) ====================
 
 function renderRecordQuestion() {
+  // 2축 9단계 질문 코칭 시스템 v2.0
+  const questionLevels = {
+    curiosity: [
+      { id:'A-1', label:'뭐지?', name:'사실·정의 확인', xp:8, desc:'정해진 공식·정의를 확인하는 질문', icon:'👀', group:'A' },
+      { id:'A-2', label:'어떻게?', name:'절차·방법 확인', xp:10, desc:'풀이 방법이나 순서를 묻는 질문', icon:'🔧', group:'A' },
+      { id:'B-1', label:'왜?', name:'이유·원리 탐구', xp:15, desc:'개념의 의미와 원리를 깊이 이해하려는 질문', icon:'💡', group:'B' },
+      { id:'B-2', label:'만약에?', name:'가능성 탐색', xp:20, desc:'조건을 변경하고 결과를 예측하는 전략적 사고', icon:'🔀', group:'B' },
+      { id:'C-1', label:'뭐가 더 나아?', name:'비교·판단', xp:25, desc:'서로 다른 방법을 비교하고 자기 판단 제시', icon:'⚖️', group:'C' },
+      { id:'C-2', label:'그러면?', name:'확장·창조', xp:30, desc:'배운 것을 새로운 상황에 적용/확장', icon:'🚀', group:'C' },
+    ],
+    reflection: [
+      { id:'R-1', label:'어디서 틀렸지?', name:'오류 위치 발견', xp:15, desc:'틀린 지점을 특정하는 질문', icon:'🔍' },
+      { id:'R-2', label:'왜 틀렸지?', name:'오류 원인 분석', xp:20, desc:'개념부족·실수·해석오류 등 원인 분석', icon:'🧪' },
+      { id:'R-3', label:'다음엔 어떻게?', name:'재발 방지 전략', xp:25, desc:'구체적 다음 행동 전략 수립', icon:'🎯' },
+    ]
+  };
+
+  const coachingMode = state._coachingMode || 'diagnosis'; // 'diagnosis' | 'challenge' | 'socrates'
+  const diagResult = state._diagResult || null;
+  const socratesStep = state._socratesStep || 0;
+
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
-        <h1>질문 기록</h1>
-        <span class="header-badge">❓ 7단계</span>
+        <button class="back-btn" onclick="state._coachingMode=null;state._diagResult=null;state._socratesStep=0;goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>질문 코칭</h1>
+        <span class="header-badge">🧠 2축 9단계</span>
       </div>
 
       <div class="form-body">
+        <!-- 시스템 소개 배너 -->
+        <div class="coaching-banner animate-in">
+          <div class="coaching-banner-icon">🧠</div>
+          <div class="coaching-banner-text">
+            <strong>2축 9단계 질문 코칭 시스템</strong>
+            <p>"답이 아니라 사고의 심연으로" — 궁금함을 만드는 소크라테스 코칭</p>
+          </div>
+        </div>
+
         <div class="field-group">
           <label class="field-label">📚 과목</label>
           <div class="chip-row">
@@ -1070,67 +1103,258 @@ function renderRecordQuestion() {
           </div>
         </div>
 
+        <!-- 질문 유형 선택: 호기심 vs 성찰 -->
         <div class="field-group">
-          <label class="field-label">❓ 질문 내용</label>
-          <textarea class="input-field" rows="3" placeholder="수업 중 떠오른 질문을 적어주세요">관계대명사 which와 that이 제한적/계속적 용법으로 나뉘는 이유가 영어의 역사적 발전과 관련이 있는 건가요?</textarea>
+          <label class="field-label">📋 질문 유형</label>
+          <div class="axis-selector">
+            <button class="axis-btn ${!state._questionAxis || state._questionAxis==='curiosity'?'active':''}" onclick="state._questionAxis='curiosity';renderScreen()">
+              <span class="axis-icon">🪜</span>
+              <span>축1: 호기심 사다리</span>
+              <small>문제를 향한 질문</small>
+            </button>
+            <button class="axis-btn ${state._questionAxis==='reflection'?'active':''}" onclick="state._questionAxis='reflection';renderScreen()">
+              <span class="axis-icon">🪞</span>
+              <span>축2: 성찰 질문</span>
+              <small>내 풀이를 향한 질문</small>
+            </button>
+          </div>
         </div>
 
-        <!-- AI Classification Result -->
-        <div class="ai-classification animate-in">
+        <div class="field-group">
+          <label class="field-label">❓ 질문 내용</label>
+          <textarea class="input-field" rows="3" id="question-input" placeholder="${state._questionAxis==='reflection' ? '내가 어디서 틀렸는지, 왜 틀렸는지 생각을 적어주세요' : '수업 중 궁금한 점을 적어주세요. 자기 생각도 함께!'}">나는 관계대명사 which와 that이 역사적으로 같은 기능이었을 것 같은데, 왜 제한적/계속적 용법으로 나뉘게 된 건가요?</textarea>
+          <div class="input-hint">💡 <strong>B단계 이상</strong> 판정 조건: ① 구체적 대상 ② 자기 생각 ③ 맥락 연결</div>
+        </div>
+
+        <button class="btn-primary" style="margin-bottom:16px" onclick="analyzeQuestion()">
+          <i class="fas fa-robot"></i> AI 질문 분석하기
+        </button>
+
+        <!-- AI 진단 결과 카드 -->
+        ${coachingMode !== 'diagnosis' || diagResult ? `
+        <div class="ai-diagnosis-card animate-in">
           <div class="ai-header">
-            <span class="ai-icon">🤖</span>
-            <span class="ai-title">AI 분류 제안</span>
-            <span class="ai-analyzing">분석 완료 ✓</span>
+            <span class="ai-icon">📊</span>
+            <span class="ai-title">질문 분석 결과</span>
           </div>
-          <p class="ai-result">
-            이 질문은 <span class="q-level q-level-b">B-1 개념이해</span> 수준입니다.
-          </p>
-          <p class="ai-comment">"단순한 문법 규칙이 아닌, 그 규칙이 존재하는 이유를 묻고 있어요. 훌륭한 질문입니다!" 👏</p>
+          <div class="diag-question-echo">
+            <span class="diag-q-label">네 질문:</span>
+            <span class="diag-q-text">"나는 which와 that이 역사적으로 같은 기능이었을 것 같은데, 왜 제한적/계속적 용법으로 나뉘게 된 건가요?"</span>
+          </div>
 
-          <div class="q-level-selector">
-            <div class="q-group-label"><span class="q-group-dot" style="background:var(--question-a)"></span>사실 확인 (A)</div>
-            <div class="q-level-row" data-level="A-1">
-              <span class="q-cat">A-1</span><span class="q-name">지식확인</span><span class="q-xp">8 XP</span>
+          <!-- 3대 필수조건 체크리스트 -->
+          <div class="diag-checklist">
+            <div class="diag-check-item pass">
+              <span class="diag-check-icon">✅</span>
+              <span class="diag-check-label">구체적 대상</span>
+              <span class="diag-check-detail">which·that의 용법 구분을 지목했어</span>
             </div>
-            <div class="q-level-row" data-level="A-2">
-              <span class="q-cat">A-2</span><span class="q-name">절차확인</span><span class="q-xp">10 XP</span>
+            <div class="diag-check-item pass">
+              <span class="diag-check-icon">✅</span>
+              <span class="diag-check-label">자기 생각</span>
+              <span class="diag-check-detail">"역사적으로 같은 기능이었을 것 같다"는 네 해석이 있어</span>
             </div>
-            
-            <div class="q-group-label"><span class="q-group-dot" style="background:var(--question-b)"></span>해석 (B)</div>
-            <div class="q-level-row selected" data-level="B-1">
-              <span class="q-cat">B-1</span><span class="q-name">개념이해</span><span class="q-xp">15 XP</span>
-              <span class="ai-recommend">AI 추천 ✅</span>
+            <div class="diag-check-item pass">
+              <span class="diag-check-icon">✅</span>
+              <span class="diag-check-label">맥락 연결</span>
+              <span class="diag-check-detail">제한적/계속적 용법이라는 수업 내용과 연결됐어</span>
             </div>
-            <div class="q-level-row" data-level="B-2">
-              <span class="q-cat">B-2</span><span class="q-name">전략선택</span><span class="q-xp">20 XP</span>
+          </div>
+
+          <!-- 진단 결과 -->
+          <div class="diag-result">
+            <span class="diag-arrow">→</span>
+            <span class="q-level q-level-b">B-1</span>
+            <span class="diag-result-name">"왜?" 이유·원리 탐구 단계!</span>
+            <span class="diag-xp">XP +15</span>
+          </div>
+
+          <!-- 다음 단계 힌트 -->
+          <div class="diag-hint">
+            <span class="diag-hint-icon">💡</span>
+            <div class="diag-hint-text">
+              <strong>다음 단계 힌트:</strong> "만약 which가 제한적 용법에서도 쓰인다면 문장 의미가 어떻게 달라질까?" 처럼 <strong>조건을 바꿔 예측</strong>했다면 → <span class="q-level q-level-b">B-2 "만약에?"</span> 였을 거야!
             </div>
-            <div class="q-level-row" data-level="B-3">
-              <span class="q-cat">B-3</span><span class="q-name">오류진단</span><span class="q-xp">20 XP</span>
-            </div>
-            
-            <div class="q-group-label"><span class="q-group-dot" style="background:var(--question-c)"></span>평가 (C)</div>
-            <div class="q-level-row" data-level="C-1">
-              <span class="q-cat">C-1</span><span class="q-name">비교판단</span><span class="q-xp">25 XP</span>
-            </div>
-            <div class="q-level-row" data-level="C-2">
-              <span class="q-cat">C-2</span><span class="q-name">확장창조</span><span class="q-xp">30 XP</span>
-            </div>
+          </div>
+
+          <!-- 도전 / 확정 버튼 -->
+          <div class="diag-actions">
+            <button class="btn-challenge" onclick="state._coachingMode='challenge';renderScreen()">
+              <i class="fas fa-fire"></i> 더 좋은 질문 도전! 🔥
+            </button>
+            <button class="btn-ghost" onclick="showXpPopup(15, 'B-1 이유·원리 탐구 완료!')">
+              괜찮아요 ✓
+            </button>
           </div>
         </div>
+        ` : ''}
 
-        <div class="field-group">
-          <label class="field-label">👨‍🏫 누구에게 질문했나요?</label>
-          <div class="chip-row">
-            <button class="chip active">선생님</button>
-            <button class="chip">친구</button>
-            <button class="chip">혼자 생각</button>
+        <!-- 도전 모드 -->
+        ${coachingMode === 'challenge' ? `
+        <div class="challenge-mode animate-in">
+          <div class="challenge-header">
+            <span>🔥</span>
+            <h3>더 좋은 질문 도전!</h3>
+            <p>B-2 "만약에?" 단계를 목표로 질문을 다시 만들어보세요</p>
+          </div>
+          <textarea class="input-field" rows="3" placeholder="조건을 바꿔서 예측하는 질문을 만들어보세요!">만약 which가 제한적 용법에서도 쓰일 수 있다면, 'The book which I bought' 같은 문장의 의미가 달라질까요?</textarea>
+          <div class="challenge-result animate-in" style="margin-top:8px">
+            <span class="diag-arrow">→</span>
+            <span class="q-level q-level-b" style="font-size:14px">B-2</span>
+            <span>"만약에?" 가능성 탐색 — 성공! 🎉</span>
+            <span class="diag-xp">XP +20 (↑+5 보너스)</span>
+          </div>
+          <div class="diag-actions" style="margin-top:8px">
+            <button class="btn-primary" onclick="showXpPopup(25, 'B-2 도전 성공! +5 성장보너스 포함')">
+              도전 완료! +25 XP 🎉
+            </button>
           </div>
         </div>
+        ` : ''}
 
-        <button class="btn-primary" onclick="showXpPopup(15, '질문 기록 완료! B-1 개념이해')">완료 +15 XP ✨</button>
+        <!-- 선생님과 함께하기 모드 -->
+        <div class="socrates-entry animate-in" style="margin-top:12px">
+          <button class="btn-socrates" onclick="state._coachingMode='socrates';state._socratesStep=1;renderScreen()">
+            <span class="socrates-icon">👨‍🏫</span>
+            <div class="socrates-text">
+              <strong>선생님과 함께하기</strong>
+              <small>AI가 소크라테스식 질문으로 사고를 확장해줘요</small>
+            </div>
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+
+        ${coachingMode === 'socrates' ? `
+        <div class="socrates-mode animate-in">
+          <div class="socrates-header">
+            <span>👨‍🏫</span>
+            <h3>선생님과 함께하기</h3>
+            <p>AI 코치가 질문으로 사고를 이끌어줄게요</p>
+          </div>
+          <div class="socrates-chat">
+            <div class="socrates-msg ai">
+              <div class="socrates-avatar">🤖</div>
+              <div class="socrates-bubble">
+                <p>which와 that을 나란히 놓고 봐봐. 문법적으로 뭐가 같고 뭐가 다르지?</p>
+                <span class="socrates-stage-tag">이 질문은 B-1 "왜?" 단계예요 💡</span>
+              </div>
+            </div>
+            ${socratesStep >= 1 ? `
+            <div class="socrates-msg student">
+              <div class="socrates-bubble student-bubble">
+                <p>둘 다 관계대명사인데, that은 사람/사물 모두에 쓰이고 which는 사물에만 쓰이는 것 같아요?</p>
+              </div>
+            </div>
+            <div class="socrates-msg ai">
+              <div class="socrates-avatar">🤖</div>
+              <div class="socrates-bubble">
+                <p>맞아! 그러면 <strong>만약 that만 있고 which가 없었다면</strong>, 영어 문장에서 어떤 문제가 생겼을까?</p>
+                <span class="socrates-stage-tag">이 질문은 B-2 "만약에?" 단계예요 🔀</span>
+              </div>
+            </div>
+            ` : ''}
+            ${socratesStep >= 2 ? `
+            <div class="socrates-msg student">
+              <div class="socrates-bubble student-bubble">
+                <p>that만 있으면 부가 설명과 제한을 구분할 수 없어서 의미가 모호해질 것 같아요!</p>
+              </div>
+            </div>
+            <div class="socrates-msg ai">
+              <div class="socrates-avatar">🤖</div>
+              <div class="socrates-bubble">
+                <p>훌륭해! 그러면 <strong>이 구분이 한국어에도 있을까?</strong> 한국어에서 같은 역할을 하는 게 뭔지, 왜 영어만 이렇게 나뉘었는지 생각해볼래?</p>
+                <span class="socrates-stage-tag">이 질문은 C-2 "그러면?" 단계예요 🚀</span>
+              </div>
+            </div>
+            ` : ''}
+          </div>
+          ${socratesStep < 2 ? `
+          <div class="socrates-input-row">
+            <input class="input-field" style="flex:1" placeholder="생각을 적어주세요...">
+            <button class="btn-primary" style="padding:10px 16px" onclick="state._socratesStep++;renderScreen()">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+          ` : `
+          <div class="socrates-complete animate-in">
+            <div class="socrates-complete-icon">🎉</div>
+            <p><strong>대화 완료!</strong> B-1 → B-2 → C-2까지 사고가 확장됐어요!</p>
+            <p class="socrates-xp">🏆 콤보 보너스 +50 XP (사고의 심연 돌파!)</p>
+            <button class="btn-primary" onclick="showXpPopup(50, '사고의 심연 돌파! A→B→C 완주!')">
+              완료! +50 XP 🏆
+            </button>
+          </div>
+          `}
+        </div>
+        ` : ''}
+
+        <!-- 2축 9단계 분류표 (접이식) -->
+        <details class="classification-details" style="margin-top:16px">
+          <summary class="classification-summary">
+            <i class="fas fa-list"></i> 2축 9단계 분류표 보기
+          </summary>
+          <div class="classification-table">
+            <div class="ct-section">
+              <div class="ct-section-title">
+                <span>🪜 축1: 호기심 사다리</span>
+                <small>보기(See) → 파기(Dig) → 넓히기(Expand)</small>
+              </div>
+              <div class="ct-group-header ct-group-a">A단계 · 보기(See)</div>
+              ${questionLevels.curiosity.filter(q=>q.group==='A').map(q => `
+              <div class="ct-row">
+                <span class="ct-id">${q.id}</span>
+                <span class="ct-label">${q.icon} "${q.label}"</span>
+                <span class="ct-name">${q.name}</span>
+                <span class="ct-xp">${q.xp}XP</span>
+              </div>`).join('')}
+              <div class="ct-group-header ct-group-b">B단계 · 파기(Dig) — 3대 필수조건 필요</div>
+              ${questionLevels.curiosity.filter(q=>q.group==='B').map(q => `
+              <div class="ct-row">
+                <span class="ct-id">${q.id}</span>
+                <span class="ct-label">${q.icon} "${q.label}"</span>
+                <span class="ct-name">${q.name}</span>
+                <span class="ct-xp">${q.xp}XP</span>
+              </div>`).join('')}
+              <div class="ct-group-header ct-group-c">C단계 · 넓히기(Expand)</div>
+              ${questionLevels.curiosity.filter(q=>q.group==='C').map(q => `
+              <div class="ct-row">
+                <span class="ct-id">${q.id}</span>
+                <span class="ct-label">${q.icon} "${q.label}"</span>
+                <span class="ct-name">${q.name}</span>
+                <span class="ct-xp">${q.xp}XP</span>
+              </div>`).join('')}
+            </div>
+            <div class="ct-section" style="margin-top:12px">
+              <div class="ct-section-title">
+                <span>🪞 축2: 성찰 질문</span>
+                <small>내 풀이를 돌아보는 질문</small>
+              </div>
+              ${questionLevels.reflection.map(q => `
+              <div class="ct-row">
+                <span class="ct-id">${q.id}</span>
+                <span class="ct-label">${q.icon} "${q.label}"</span>
+                <span class="ct-name">${q.name}</span>
+                <span class="ct-xp">${q.xp}XP</span>
+              </div>`).join('')}
+            </div>
+            <div class="ct-note">
+              <strong>⚠️ B단계 이상 필수조건:</strong> ① 구체적 대상 지목 ② "나는 ~라고 생각한다" 자기 생각 ③ 맥락(지문·조건)과 연결
+            </div>
+          </div>
+        </details>
+
+        ${coachingMode !== 'challenge' && coachingMode !== 'socrates' && !diagResult ? `
+        <button class="btn-primary" style="margin-top:12px" onclick="showXpPopup(15, '질문 기록 완료! B-1 이유·원리 탐구')">완료 +15 XP ✨</button>
+        ` : ''}
       </div>
     </div>
   `;
+}
+
+function analyzeQuestion() {
+  state._diagResult = true;
+  state._coachingMode = 'result';
+  renderScreen();
 }
 
 // ==================== RECORD TEACH (R-03) ====================
@@ -1749,7 +1973,7 @@ function renderEveningRoutine() {
 
         <div class="field-group">
           <label class="field-label">📝 오늘의 한 줄 메모</label>
-          <textarea class="input-field" rows="2" placeholder="오늘 하루를 한 줄로 정리한다면?">수학 치환적분 질문이 C-1까지 올라간 날!</textarea>
+          <textarea class="input-field" rows="2" placeholder="오늘 하루를 한 줄로 정리한다면?">수학 치환적분 질문이 B-1→C-1까지 사고의 심연을 돌파한 날!</textarea>
         </div>
 
         <div class="field-group">
@@ -1803,7 +2027,7 @@ function renderWeeklyReportStudent() {
         <div class="report-stat-grid">
           ${[
             {num:'28', label:'수업 기록', sub:'/ 30수업 (93%)', color:'var(--primary-light)'},
-            {num:'8', label:'질문', sub:'A:2 B:4 C:2', color:'var(--accent)'},
+            {num:'8', label:'질문', sub:'호기심4 성찰4', color:'var(--accent)'},
             {num:'2', label:'교학상장', sub:'수학, 영어', color:'var(--teach-green)'},
             {num:'🔥18', label:'스트릭', sub:'연속 기록', color:'var(--streak-fire)'},
           ].map(s => `
@@ -1818,23 +2042,23 @@ function renderWeeklyReportStudent() {
         <div class="card" style="margin:0 0 12px">
           <div class="card-title">📈 이번 주 하이라이트</div>
           <div class="highlight-item">
-            <span class="highlight-badge" style="background:rgba(255,107,107,0.15);color:var(--accent)">질문 성장</span>
-            <p>영어에서 B-1(개념이해) 질문 첫 등장! 관계대명사의 역사적 배경을 묻는 심층 질문</p>
+            <span class="highlight-badge" style="background:rgba(255,107,107,0.15);color:var(--accent)">호기심 사다리 성장</span>
+            <p>영어에서 B-1("왜?") 단계 첫 등장! 관계대명사의 역사적 배경을 묻는 심층 질문</p>
           </div>
           <div class="highlight-item">
             <span class="highlight-badge" style="background:rgba(0,184,148,0.15);color:var(--teach-green)">교학상장</span>
             <p>수학 치환적분을 역함수 관점으로 설명하며 자신의 이해 빈틈도 발견</p>
           </div>
           <div class="highlight-item">
-            <span class="highlight-badge" style="background:rgba(108,92,231,0.15);color:var(--primary-light)">질문 콤보</span>
-            <p>수학 "치환적분" 주제 A-2→B-1→B-3→C-1 진화 완료! +50 XP</p>
+            <span class="highlight-badge" style="background:rgba(108,92,231,0.15);color:var(--primary-light)">사고의 심연 돌파</span>
+            <p>수학 "치환적분" A-2→B-1→C-1 호기심 사다리 완주! +50 XP</p>
           </div>
         </div>
 
         <div class="card" style="margin:0 0 12px">
           <div class="card-title">🎯 다음 주 목표</div>
           ${[
-            {icon:'❓', text:'영어 질문 B-2 이상 도전'},
+            {icon:'❓', text:'영어 질문 B-2 "만약에?" 단계 도전'},
             {icon:'🤝', text:'교학상장 3회 이상'},
             {icon:'📝', text:'수업 기록 100% 달성'},
           ].map(g => `
@@ -1854,13 +2078,13 @@ function renderWeeklyReportStudent() {
 function renderRecordHistory() {
   const historyData = [
     { date: '오늘 · 2월 15일 (토)', items: [
-      { type: '수업', color: 'var(--primary)', meta: '2교시 · 수학 · 김태호', text: '치환적분, 부분적분, 역함수', tags: [{q:'C-1 질문', style:'q-level q-level-c'}], xp: '+25' },
+      { type: '수업', color: 'var(--primary)', meta: '2교시 · 수학 · 김태호', text: '치환적분, 부분적분, 역함수', tags: [{q:'C-1 "뭐가 더 나아?"', style:'q-level q-level-c'}], xp: '+25' },
       { type: '수업', color: 'var(--accent)', meta: '1교시 · 국어 · 박선영', text: '윤동주 서시, 자아성찰, 저항시', tags: [], xp: '+10' },
     ]},
     { date: '어제 · 2월 14일 (금)', items: [
       { type: '교학상장', color: 'var(--teach-green)', meta: '수학 · 이서연에게', text: '치환적분 역함수 관점 설명 (15분)', tags: [], xp: '+30' },
       { type: '동아리', color: 'var(--accent-warm)', meta: '코딩동아리 CodingLab', text: 'Python matplotlib 수학 그래프 시각화', tags: [], xp: '+20' },
-      { type: '수업', color: 'var(--primary)', meta: '5교시 · 과학 · 최은지', text: '산화환원 반응, 전자 이동', tags: [{q:'B-2 질문', style:'q-level q-level-b'}], xp: '+30' },
+      { type: '수업', color: 'var(--primary)', meta: '5교시 · 과학 · 최은지', text: '산화환원 반응, 전자 이동', tags: [{q:'B-2 "만약에?"', style:'q-level q-level-b'}], xp: '+30' },
     ]},
   ];
 
@@ -2402,81 +2626,166 @@ function sendAiMessage(text) {
 // ==================== GROWTH TAB (G-01~G-05) ====================
 
 function renderGrowthTab() {
+  // 2축 9단계 기반 성장 데이터
+  const curiosityDist = [
+    {id:'A-1', label:'A-1 뭐지?', pct:10, color:'var(--question-a)'},
+    {id:'A-2', label:'A-2 어떻게?', pct:8, color:'var(--question-a)'},
+    {id:'B-1', label:'B-1 왜?', pct:30, color:'var(--question-b)'},
+    {id:'B-2', label:'B-2 만약에?', pct:22, color:'var(--question-b)'},
+    {id:'C-1', label:'C-1 뭐가 더 나아?', pct:18, color:'var(--question-c)'},
+    {id:'C-2', label:'C-2 그러면?', pct:12, color:'var(--question-c)'},
+  ];
+  const reflectionDist = [
+    {id:'R-1', label:'R-1 어디서 틀렸지?', pct:35, color:'#E056A0'},
+    {id:'R-2', label:'R-2 왜 틀렸지?', pct:40, color:'#C044CC'},
+    {id:'R-3', label:'R-3 다음엔 어떻게?', pct:25, color:'#9B59B6'},
+  ];
+  const bcPct = 30 + 22 + 18 + 12; // B+C = 82%
+  const r23Pct = 40 + 25; // R-2 + R-3 = 65%
+  const curiosityStars = bcPct >= 80 ? 5 : bcPct >= 60 ? 4 : bcPct >= 40 ? 3 : bcPct >= 20 ? 2 : 1;
+  const analysisStars = r23Pct >= 80 ? 5 : r23Pct >= 60 ? 4 : r23Pct >= 40 ? 3 : r23Pct >= 20 ? 2 : 1;
+
   return `
     <div class="tab-content animate-in">
       <div class="screen-header">
         <h1>📈 나의 성장</h1>
       </div>
 
+      <!-- 성장 카드 스탯 (2축 기반) -->
       <div class="card stagger-1 animate-in">
-        <div class="card-header-row">
-          <span class="card-title">📈 질문 성장 그래프</span>
-          <span class="card-subtitle">3월~7월</span>
-        </div>
-        <div class="chart-container"><canvas id="growth-chart"></canvas></div>
-        <div class="chart-legend">
-          <span><span class="legend-line" style="background:var(--primary)"></span>나의 성장</span>
-          <span><span class="legend-line dashed" style="background:var(--text-muted)"></span>이상적 곡선</span>
+        <div class="card-title">🃏 2축 성장 카드</div>
+        <div class="growth-stats-2axis">
+          <div class="growth-stat-box">
+            <div class="growth-stat-header">
+              <span class="growth-stat-icon">🪜</span>
+              <span>탐구력</span>
+            </div>
+            <div class="growth-stat-stars">
+              ${'★'.repeat(curiosityStars)}${'☆'.repeat(5-curiosityStars)}
+            </div>
+            <div class="growth-stat-detail">B+C 비율: ${bcPct}%</div>
+            <div class="growth-stat-sub">호기심 사다리 분포</div>
+          </div>
+          <div class="growth-stat-box">
+            <div class="growth-stat-header">
+              <span class="growth-stat-icon">🪞</span>
+              <span>분석력</span>
+            </div>
+            <div class="growth-stat-stars">
+              ${'★'.repeat(analysisStars)}${'☆'.repeat(5-analysisStars)}
+            </div>
+            <div class="growth-stat-detail">R-2+R-3 비율: ${r23Pct}%</div>
+            <div class="growth-stat-sub">성찰 질문 분포</div>
+          </div>
         </div>
       </div>
 
+      <!-- 축1: 호기심 사다리 분포 -->
       <div class="card stagger-2 animate-in">
         <div class="card-header-row">
-          <span class="card-title">📊 질문 유형 분포</span>
+          <span class="card-title">🪜 호기심 사다리 분포</span>
           <span class="card-subtitle">이번 달</span>
         </div>
-        ${[
-          {label:'A-1 지식확인', pct:12, color:'var(--question-a)'},
-          {label:'A-2 절차확인', pct:8, color:'var(--question-a)'},
-          {label:'B-1 개념이해', pct:35, color:'var(--question-b)'},
-          {label:'B-2 전략선택', pct:22, color:'var(--question-b)'},
-          {label:'B-3 오류진단', pct:10, color:'var(--question-b)'},
-          {label:'C-1 비교판단', pct:8, color:'var(--question-c)'},
-          {label:'C-2 확장창조', pct:5, color:'var(--question-c)'},
-        ].map(q => `
+        ${curiosityDist.map(q => `
           <div class="q-dist-row">
             <span class="q-dist-label">${q.label}</span>
             <div class="q-dist-bar"><div class="q-dist-fill" style="width:${q.pct}%;background:${q.color}"></div></div>
             <span class="q-dist-pct">${q.pct}%</span>
           </div>
         `).join('')}
-        <div class="success-badge">B+C 비율: 80% 🎯 (목표 40% 달성!)</div>
+        <div class="success-badge">B+C 비율: ${bcPct}% 🎯 (목표 40% 달성!)</div>
       </div>
 
+      <!-- 축2: 성찰 질문 분포 -->
       <div class="card stagger-3 animate-in">
+        <div class="card-header-row">
+          <span class="card-title">🪞 성찰 질문 분포</span>
+          <span class="card-subtitle">이번 달</span>
+        </div>
+        ${reflectionDist.map(q => `
+          <div class="q-dist-row">
+            <span class="q-dist-label">${q.label}</span>
+            <div class="q-dist-bar"><div class="q-dist-fill" style="width:${q.pct}%;background:${q.color}"></div></div>
+            <span class="q-dist-pct">${q.pct}%</span>
+          </div>
+        `).join('')}
+        <div class="success-badge" style="background:rgba(192,68,204,0.12);color:#C044CC">R-2+R-3 비율: ${r23Pct}% 🎯</div>
+      </div>
+
+      <!-- 질문 진화 콤보 (2축 기반) -->
+      <div class="card stagger-4 animate-in">
         <div class="card-title">🏆 질문 진화 콤보</div>
         <div class="combo-card">
           <div class="combo-header">
-            <span>수학 "치환적분"</span>
-            <span class="combo-complete">🎉 완료!</span>
+            <span>수학 "치환적분" — 사고의 심연 돌파! 🎉</span>
+            <span class="combo-complete">+50 XP</span>
           </div>
           <div class="combo-flow">
-            <span class="q-level q-level-a">A-2</span>
+            <span class="q-level q-level-a">A-2 어떻게?</span>
             <i class="fas fa-arrow-right combo-arrow"></i>
-            <span class="q-level q-level-b">B-1</span>
+            <span class="q-level q-level-b">B-1 왜?</span>
             <i class="fas fa-arrow-right combo-arrow"></i>
-            <span class="q-level q-level-b">B-3</span>
+            <span class="q-level q-level-c">C-1 뭐가 더 나아?</span>
+            <span class="combo-bonus">🏆 레어 뱃지!</span>
+          </div>
+        </div>
+        <div class="combo-card" style="margin-top:8px;border-color:rgba(192,68,204,0.3)">
+          <div class="combo-header">
+            <span>영어 "관계대명사" — 완벽한 성찰! 🪞</span>
+            <span class="combo-complete" style="color:#C044CC">+40 XP</span>
+          </div>
+          <div class="combo-flow">
+            <span class="q-level" style="background:rgba(224,86,160,0.15);color:#E056A0">R-1</span>
             <i class="fas fa-arrow-right combo-arrow"></i>
-            <span class="q-level q-level-c">C-1</span>
-            <span class="combo-bonus">+50 XP!</span>
+            <span class="q-level" style="background:rgba(192,68,204,0.15);color:#C044CC">R-2</span>
+            <i class="fas fa-arrow-right combo-arrow"></i>
+            <span class="q-level" style="background:rgba(155,89,182,0.15);color:#9B59B6">R-3</span>
+            <span class="combo-bonus">🔍 분석력 뱃지!</span>
           </div>
         </div>
         <div class="combo-card" style="margin-top:8px;border-color:rgba(253,203,110,0.3)">
           <div class="combo-header">
-            <span>영어 "관계대명사"</span>
-            <span class="combo-progress">진행 중...</span>
+            <span>과학 "산화환원" — 진행 중...</span>
+            <span class="combo-progress">B-1까지</span>
           </div>
           <div class="combo-flow">
             <span class="q-level q-level-a">A-1</span>
             <i class="fas fa-arrow-right combo-arrow"></i>
             <span class="q-level q-level-b">B-1</span>
             <i class="fas fa-arrow-right combo-arrow"></i>
-            <span class="combo-next">다음: B-2+</span>
+            <span class="combo-next">다음: B-2+ 도전!</span>
           </div>
         </div>
       </div>
 
-      <div class="card stagger-4 animate-in">
+      <!-- 효과 측정 지표 -->
+      <div class="card stagger-5 animate-in">
+        <div class="card-title">📊 핵심 효과 지표</div>
+        <div class="kpi-grid">
+          <div class="kpi-item">
+            <span class="kpi-value" style="color:var(--question-c)">${bcPct}%</span>
+            <span class="kpi-label">B+C 질문 비율</span>
+            <span class="kpi-target">목표 40%</span>
+          </div>
+          <div class="kpi-item">
+            <span class="kpi-value" style="color:var(--primary-light)">68%</span>
+            <span class="kpi-label">자기 생각 동반률</span>
+            <span class="kpi-target">목표 60%</span>
+          </div>
+          <div class="kpi-item">
+            <span class="kpi-value" style="color:var(--accent)">54%</span>
+            <span class="kpi-label">도전 선택률</span>
+            <span class="kpi-target">목표 50%</span>
+          </div>
+          <div class="kpi-item">
+            <span class="kpi-value" style="color:var(--teach-green)">45%</span>
+            <span class="kpi-label">자발적 B+ 비율</span>
+            <span class="kpi-target">목표 40%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card stagger-6 animate-in">
         <div class="card-title">🤝 교학상장 통계</div>
         <div class="teach-stat-grid">
           <div class="teach-stat-item">
@@ -2491,7 +2800,7 @@ function renderGrowthTab() {
         <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">주로 가르치는 과목: 수학(8), 과학(4)</p>
       </div>
 
-      <div class="card stagger-5 animate-in">
+      <div class="card stagger-7 animate-in">
         <div class="card-title">📚 과목별 기록 현황</div>
         ${[
           {subject:'수학', records:32, questions:15, bc:'72%', color:'#6C5CE7'},
@@ -2578,12 +2887,12 @@ function renderMyTab() {
             {icon:'❓', name:'첫 질문', earned:true},
             {icon:'🔥', name:'7일 스트릭', earned:true},
             {icon:'🤝', name:'첫 번째 스승', earned:true},
-            {icon:'🧬', name:'질문의 진화', earned:true},
-            {icon:'📚', name:'질문 50개', earned:true},
-            {icon:'🌟', name:'C-2 마스터', earned:false},
+            {icon:'🏆', name:'사고의 심연 돌파', earned:true, desc:'A→B→C 완주'},
+            {icon:'🔍', name:'완벽한 성찰', earned:true, desc:'R-1→R-2→R-3'},
+            {icon:'🌟', name:'완전한 사고자', earned:false, desc:'C-2 + R-3'},
             {icon:'⏰', name:'10시간 나눔', earned:false},
             {icon:'🔒', name:'30일 스트릭', earned:false, locked:true},
-            {icon:'🔒', name:'완벽한 학기', earned:false, locked:true},
+            {icon:'🔒', name:'질문 마스터', earned:false, locked:true, desc:'B+ 100개'},
           ].map(b => `
             <div class="badge-item ${b.earned?'earned':''} ${b.locked?'locked':''}">
               <span class="badge-icon">${b.icon}</span>
@@ -2638,11 +2947,11 @@ function renderMyTab() {
         <div class="card-title">🃏 성장 카드</div>
         <div class="growth-card-preview">
           ${[
-            {label:'탐구력', pct:78, color:'var(--question-c)'},
-            {label:'연결력', pct:65, color:'var(--primary)'},
+            {label:'탐구력 (B+C)', pct:82, color:'var(--question-c)'},
+            {label:'분석력 (R-2+3)', pct:65, color:'#C044CC'},
             {label:'리더십', pct:82, color:'var(--teach-green)'},
             {label:'지구력', pct:90, color:'var(--streak-fire)'},
-            {label:'벡터', pct:56, color:'var(--accent-warm)'},
+            {label:'자기생각률', pct:68, color:'var(--primary-light)'},
           ].map(s => `
             <div class="gc-stat">
               <span class="gc-label">${s.label}</span>
