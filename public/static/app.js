@@ -185,6 +185,14 @@ const state = {
   selectedTtCell: null, // {period, dayIdx}
   selectedAcSlot: null, // {day, slot} 학원 그리드 선택
   viewingAcademyDetail: null, // academy id 상세보기
+  // 급우(교학상장 대상) 목록 — 학생 관리에서 추가/삭제/편집
+  classmates: [
+    { id:'cm1', name:'이서연', grade:'2-3', memo:'수학 같이 공부' },
+    { id:'cm2', name:'박지호', grade:'2-1', memo:'' },
+    { id:'cm3', name:'정하은', grade:'2-3', memo:'' },
+    { id:'cm4', name:'최윤서', grade:'2-2', memo:'' },
+    { id:'cm5', name:'한도윤', grade:'2-1', memo:'' },
+  ],
   // 플래너 상태
   plannerView: 'daily', // 'daily','weekly','monthly'
   plannerDate: '2025-02-15', // 현재 선택 날짜
@@ -272,6 +280,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'planner-add') return renderPlannerAddItem();
   if (state.currentScreen === 'timetable-manage') return renderTimetableManage();
   if (state.currentScreen === 'academy-add') return renderAcademyAdd();
+  if (state.currentScreen === 'classmate-manage') return renderClassmateManage();
 
   let content = '';
   content += renderXpBar();
@@ -1786,7 +1795,11 @@ function closeQAPanel() {
 // ==================== RECORD TEACH (R-03) ====================
 
 function renderRecordTeach() {
-  const classmates = ['이서연 (2-3)','박지호 (2-1)','정하은 (2-3)','최윤서 (2-2)','한도윤 (2-1)'];
+  const classmates = state.classmates || [];
+  const selectedCm = state._teachSelectedCm || (classmates.length > 0 ? classmates[0].id : null);
+  const searchTerm = state._teachSearch || '';
+  const filtered = searchTerm ? classmates.filter(c => c.name.includes(searchTerm) || c.grade.includes(searchTerm)) : classmates;
+  const selectedStudent = classmates.find(c => c.id === selectedCm);
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
@@ -1805,17 +1818,26 @@ function renderRecordTeach() {
           <label class="field-label">👤 누구에게?</label>
           <div class="input-with-icon">
             <i class="fas fa-search"></i>
-            <input class="input-field" placeholder="학생 검색..." style="padding-left:40px">
+            <input class="input-field" placeholder="학생 검색..." style="padding-left:40px" value="${searchTerm}" oninput="state._teachSearch=this.value;renderScreen()">
           </div>
+          ${filtered.length === 0 ? `
+          <div style="text-align:center;padding:20px 0;color:var(--text-muted)">
+            <p style="font-size:12px">${searchTerm ? '검색 결과가 없습니다' : '등록된 학생이 없습니다'}</p>
+            <button class="btn-secondary" style="margin-top:8px;font-size:11px" onclick="goScreen('classmate-manage')">
+              <i class="fas fa-user-plus"></i> 학생 관리에서 추가하기
+            </button>
+          </div>
+          ` : `
           <div class="teach-student-list">
-            ${classmates.map((s,i) => `
-              <div class="teach-student-item ${i===0?'selected':''}">
-                <div class="teach-avatar">${s[0]}</div>
-                <span>${s}</span>
-                ${i===0?'<i class="fas fa-check-circle" style="color:var(--success);margin-left:auto"></i>':''}
+            ${filtered.map(c => `
+              <div class="teach-student-item ${selectedCm===c.id?'selected':''}" onclick="state._teachSelectedCm='${c.id}';renderScreen()">
+                <div class="teach-avatar">${c.name[0]}</div>
+                <span>${c.name} (${c.grade})</span>
+                ${selectedCm===c.id?'<i class="fas fa-check-circle" style="color:var(--success);margin-left:auto"></i>':''}
               </div>
             `).join('')}
           </div>
+          `}
         </div>
 
         <div class="field-group">
@@ -1843,10 +1865,12 @@ function renderRecordTeach() {
           <textarea class="input-field" rows="3" placeholder="설명하다 보니 내가 모르고 있었던 것...">설명하다 보니 내가 왜 특정 형태만 치환이 되는지 정확히 모르고 있었다는 걸 알게 됨</textarea>
         </div>
 
+        ${selectedStudent ? `
         <div class="teach-confirm-box">
-          📨 이서연에게 확인 요청을 보낼까요?
+          📨 ${selectedStudent.name}에게 확인 요청을 보낼까요?
           <button class="btn-secondary" style="margin-top:8px;font-size:12px">확인 요청 보내기</button>
         </div>
+        ` : ''}
 
         <button class="btn-primary" onclick="showXpPopup(30, '교학상장 기록 완료! 🏅')">기록 완료 +30 XP 🏅</button>
       </div>
@@ -3366,6 +3390,14 @@ function renderMyTab() {
             </div>
             <i class="fas fa-chevron-right" style="color:var(--text-muted)"></i>
           </div>
+          <div class="my-menu-item" onclick="goScreen('classmate-manage')">
+            <div class="my-menu-icon" style="background:rgba(0,184,148,0.15)"><i class="fas fa-users" style="color:#00B894"></i></div>
+            <div class="my-menu-text">
+              <span class="my-menu-title">👥 학생 관리</span>
+              <span class="my-menu-desc">교학상장 대상 ${state.classmates.length}명</span>
+            </div>
+            <i class="fas fa-chevron-right" style="color:var(--text-muted)"></i>
+          </div>
         </div>
       </div>
 
@@ -3389,6 +3421,151 @@ function renderMyTab() {
     </div>
   `;
 }
+
+// ==================== CLASSMATE MANAGEMENT (학생 관리) ====================
+
+function renderClassmateManage() {
+  const classmates = state.classmates || [];
+  const editing = state._editingClassmate; // null or classmate id
+  const adding = state._addingClassmate;   // boolean
+  
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state._editingClassmate=null;state._addingClassmate=false;goScreen('main');state.studentTab='my'"><i class="fas fa-arrow-left"></i></button>
+        <h1>👥 학생 관리</h1>
+        <button class="header-action-btn" onclick="state._addingClassmate=true;state._editingClassmate=null;state._cmName='';state._cmGrade='';state._cmMemo='';renderScreen()">
+          <i class="fas fa-user-plus"></i>
+        </button>
+      </div>
+
+      <div class="form-body">
+        <!-- 추가/편집 폼 -->
+        ${adding || editing ? `
+        <div class="card animate-in" style="border:2px solid var(--primary-light);margin-bottom:12px">
+          <div class="card-title">${editing ? '✏️ 학생 정보 수정' : '➕ 새 학생 추가'}</div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">이름 <span style="color:var(--primary)">*</span></label>
+            <input class="input-field" id="cm-name" placeholder="학생 이름" value="${state._cmName || ''}">
+          </div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">학년/반</label>
+            <input class="input-field" id="cm-grade" placeholder="예: 2-3" value="${state._cmGrade || ''}">
+          </div>
+          <div class="field-group" style="margin-bottom:8px">
+            <label class="field-label">메모 (선택)</label>
+            <input class="input-field" id="cm-memo" placeholder="예: 수학 같이 공부" value="${state._cmMemo || ''}">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-primary" style="flex:1" onclick="${editing ? `saveEditClassmate('${editing}')` : 'addClassmate()'}">
+              <i class="fas fa-check"></i> ${editing ? '수정 완료' : '추가'}
+            </button>
+            <button class="btn-ghost" style="flex:0 0 auto" onclick="state._addingClassmate=false;state._editingClassmate=null;renderScreen()">취소</button>
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- 학생 목록 -->
+        <div class="card">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>📋 등록된 학생 (${classmates.length}명)</span>
+          </div>
+          ${classmates.length === 0 ? `
+          <div style="text-align:center;padding:24px 0;color:var(--text-muted)">
+            <div style="font-size:32px;margin-bottom:8px">👥</div>
+            <p style="font-size:12px">등록된 학생이 없습니다</p>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px">위의 <strong>+</strong> 버튼으로 학생을 추가하세요</p>
+          </div>
+          ` : `
+          <div class="cm-list">
+            ${classmates.map((c, i) => `
+              <div class="cm-item stagger-${Math.min(i+1,6)} animate-in ${editing===c.id?'cm-item-editing':''}">
+                <div class="cm-avatar" style="background:${getAvatarColor(i)}">${c.name[0]}</div>
+                <div class="cm-info">
+                  <div class="cm-name">${c.name}</div>
+                  <div class="cm-detail">${c.grade}${c.memo ? ' · '+c.memo : ''}</div>
+                </div>
+                <div class="cm-actions">
+                  <button class="cm-action-btn" onclick="startEditClassmate('${c.id}')" title="수정">
+                    <i class="fas fa-pen"></i>
+                  </button>
+                  <button class="cm-action-btn cm-delete-btn" onclick="deleteClassmate('${c.id}','${c.name}')" title="삭제">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          `}
+        </div>
+
+        <div style="margin-top:12px;font-size:10px;color:var(--text-muted);text-align:center;line-height:1.6">
+          💡 여기서 추가한 학생은 <strong>교학상장 기록</strong>에서 선택할 수 있습니다.<br>
+          멘토 대시보드에서도 동일한 학생 목록이 표시됩니다.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getAvatarColor(index) {
+  const colors = ['#6C5CE7','#00B894','#E056A0','#FDCB6E','#FF6B6B','#74B9FF','#A29BFE','#00CEC9','#E17055','#FD79A8'];
+  return colors[index % colors.length];
+}
+
+function addClassmate() {
+  const name = document.getElementById('cm-name')?.value.trim();
+  const grade = document.getElementById('cm-grade')?.value.trim() || '';
+  const memo = document.getElementById('cm-memo')?.value.trim() || '';
+  
+  if (!name) { alert('이름을 입력해주세요!'); return; }
+  if (state.classmates.some(c => c.name === name && c.grade === grade)) {
+    alert('이미 등록된 학생입니다!'); return;
+  }
+  
+  const id = 'cm' + Date.now();
+  state.classmates.push({ id, name, grade, memo });
+  state._addingClassmate = false;
+  state._cmName = ''; state._cmGrade = ''; state._cmMemo = '';
+  renderScreen();
+}
+
+function startEditClassmate(id) {
+  const c = state.classmates.find(x => x.id === id);
+  if (!c) return;
+  state._editingClassmate = id;
+  state._addingClassmate = false;
+  state._cmName = c.name;
+  state._cmGrade = c.grade;
+  state._cmMemo = c.memo || '';
+  renderScreen();
+}
+
+function saveEditClassmate(id) {
+  const name = document.getElementById('cm-name')?.value.trim();
+  const grade = document.getElementById('cm-grade')?.value.trim() || '';
+  const memo = document.getElementById('cm-memo')?.value.trim() || '';
+  
+  if (!name) { alert('이름을 입력해주세요!'); return; }
+  
+  const c = state.classmates.find(x => x.id === id);
+  if (c) {
+    c.name = name;
+    c.grade = grade;
+    c.memo = memo;
+  }
+  state._editingClassmate = null;
+  state._cmName = ''; state._cmGrade = ''; state._cmMemo = '';
+  renderScreen();
+}
+
+function deleteClassmate(id, name) {
+  if (!confirm(`"${name}" 학생을 삭제할까요?`)) return;
+  state.classmates = state.classmates.filter(c => c.id !== id);
+  if (state._editingClassmate === id) state._editingClassmate = null;
+  renderScreen();
+}
+
 
 // ==================== TIMETABLE MANAGEMENT ====================
 
