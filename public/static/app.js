@@ -1710,7 +1710,77 @@ function openJeongyulQA() {
   
   const url = 'https://qa-tutoring-app.pages.dev/new?' + params.toString();
   
-  window.open(url, '_blank');
+  // 인앱 오버레이 패널로 열기
+  openQAPanel(url);
+}
+
+function openQAPanel(url) {
+  // 이미 열려있으면 URL만 변경
+  let overlay = document.getElementById('qa-overlay');
+  if (overlay) {
+    const iframe = overlay.querySelector('iframe');
+    if (iframe) iframe.src = url;
+    overlay.classList.add('qa-overlay-visible');
+    return;
+  }
+  
+  // 오버레이 생성
+  overlay = document.createElement('div');
+  overlay.id = 'qa-overlay';
+  overlay.className = 'qa-overlay';
+  overlay.innerHTML = `
+    <div class="qa-panel">
+      <div class="qa-panel-header">
+        <div class="qa-panel-title">
+          <span class="qa-panel-icon">💬</span>
+          <span>정율질문방</span>
+        </div>
+        <div class="qa-panel-actions">
+          <button class="qa-panel-btn" onclick="window.open(document.getElementById('qa-iframe').src, '_blank')" title="새 탭에서 열기">
+            <i class="fas fa-external-link-alt"></i>
+          </button>
+          <button class="qa-panel-btn qa-panel-close" onclick="closeQAPanel()" title="닫기">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="qa-panel-body">
+        <div class="qa-loading-bar">
+          <div class="qa-loading-progress"></div>
+        </div>
+        <iframe id="qa-iframe" src="${url}" allow="camera;microphone"></iframe>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  
+  // iframe 로드 완료 시 로딩바 숨김
+  const iframe = overlay.querySelector('iframe');
+  iframe.addEventListener('load', () => {
+    overlay.querySelector('.qa-loading-bar').style.opacity = '0';
+  });
+  
+  // 약간의 딜레이 후 visible 클래스 추가 (애니메이션)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      overlay.classList.add('qa-overlay-visible');
+    });
+  });
+  
+  // 배경 클릭으로 닫기
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeQAPanel();
+  });
+}
+
+function closeQAPanel() {
+  const overlay = document.getElementById('qa-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('qa-overlay-visible');
+  setTimeout(() => {
+    overlay.remove();
+  }, 300);
 }
 
 // ==================== RECORD TEACH (R-03) ====================
