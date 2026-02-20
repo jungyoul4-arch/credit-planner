@@ -1122,7 +1122,38 @@ function renderRecordQuestion() {
 
         <div class="field-group">
           <label class="field-label">❓ 질문 내용</label>
-          <textarea class="input-field" rows="3" id="question-input" placeholder="${state._questionAxis==='reflection' ? '내가 어디서 틀렸는지, 왜 틀렸는지 생각을 적어주세요' : '수업 중 궁금한 점을 적어주세요. 자기 생각도 함께!'}">나는 관계대명사 which와 that이 역사적으로 같은 기능이었을 것 같은데, 왜 제한적/계속적 용법으로 나뉘게 된 건가요?</textarea>
+          <div class="question-input-wrap">
+            <textarea class="input-field" rows="3" id="question-input" placeholder="${state._questionAxis==='reflection' ? '내가 어디서 틀렸는지, 왜 틀렸는지 생각을 적어주세요' : '수업 중 궁금한 점을 적어주세요. 자기 생각도 함께!'}">나는 관계대명사 which와 that이 역사적으로 같은 기능이었을 것 같은데, 왜 제한적/계속적 용법으로 나뉘게 된 건가요?</textarea>
+            
+            <!-- 이미지 첨부 미리보기 -->
+            ${state._questionImages && state._questionImages.length > 0 ? `
+            <div class="q-image-preview-row">
+              ${state._questionImages.map((img, idx) => `
+                <div class="q-image-preview-item">
+                  <img src="${img}" alt="첨부 이미지 ${idx+1}">
+                  <button class="q-image-remove" onclick="state._questionImages.splice(${idx},1);renderScreen()">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+            ` : ''}
+
+            <!-- 이미지 첨부 버튼 바 -->
+            <div class="q-attach-bar">
+              <button class="q-attach-btn" onclick="document.getElementById('q-image-upload').click()">
+                <i class="fas fa-image"></i>
+                <span>사진 첨부</span>
+              </button>
+              <button class="q-attach-btn" onclick="document.getElementById('q-camera-capture').click()">
+                <i class="fas fa-camera"></i>
+                <span>촬영</span>
+              </button>
+              <span class="q-attach-hint">문제지, 풀이 과정 등을 찍어 올려보세요</span>
+            </div>
+            <input type="file" id="q-image-upload" accept="image/*" multiple style="display:none" onchange="handleQuestionImageUpload(this)">
+            <input type="file" id="q-camera-capture" accept="image/*" capture="environment" style="display:none" onchange="handleQuestionImageUpload(this)">
+          </div>
           <div class="input-hint">💡 <strong>B단계 이상</strong> 판정 조건: ① 구체적 대상 ② 자기 생각 ③ 맥락 연결</div>
         </div>
 
@@ -1355,6 +1386,22 @@ function analyzeQuestion() {
   state._diagResult = true;
   state._coachingMode = 'result';
   renderScreen();
+}
+
+function handleQuestionImageUpload(input) {
+  if (!input.files || input.files.length === 0) return;
+  if (!state._questionImages) state._questionImages = [];
+  
+  Array.from(input.files).forEach(file => {
+    if (state._questionImages.length >= 3) return; // 최대 3장
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      state._questionImages.push(e.target.result);
+      renderScreen();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = ''; // reset for re-upload
 }
 
 // ==================== RECORD TEACH (R-03) ====================
