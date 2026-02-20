@@ -327,8 +327,8 @@ function renderBottomNav() {
 }
 
 function renderFab() {
-  // 플래너 탭에서는 AI FAB가 대신 표시됨
-  if (state.studentTab === 'planner') return '';
+  // 플래너 탭에서는 AI FAB가 대신 표시됨, 기록 탭에서는 이미 메뉴가 있으므로 불필요
+  if (state.studentTab === 'planner' || state.studentTab === 'record') return '';
   return `<button class="fab" id="fab-btn"><i class="fas fa-plus"></i></button>`;
 }
 
