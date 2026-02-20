@@ -1439,7 +1439,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 /* Academy grid layout: 7 days (월~일) + period column */
 .ac-grid {
   display:grid;
-  grid-template-columns:32px repeat(7, 1fr);
+  grid-template-columns:16px repeat(7, 1fr);
   gap:2px;
   font-size:10px;
   margin-top:8px;
@@ -1450,9 +1450,9 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 }
 .ac-grid-header.weekend { color:#E056A0; }
 .ac-grid-period {
-  font-size:10px; font-weight:700; color:var(--text-muted);
+  font-size:9px; font-weight:700; color:var(--text-muted);
   display:flex; align-items:center; justify-content:center;
-  padding:4px 0;
+  padding:2px 0;
 }
 
 /* Academy grid cells */
