@@ -170,17 +170,21 @@ const state = {
       {start:'14:20',end:'15:10'}, // 6교시
       {start:'15:20',end:'16:10'}, // 7교시
     ],
-    // 학원 스케줄 (커스텀)
+    // 학원 스케줄 (그리드: 요일별 슬롯, 평일2/주말4 → 4칸 통일 표시)
     academy: [
-      { id:'ac1', name:'수학 심화반', academy:'대치 수학학원', day:'월', startTime:'18:00', endTime:'20:00', color:'#E056A0', subject:'수학', memo:'미적분 심화 과정' },
-      { id:'ac2', name:'영어 독해반', academy:'YBM 어학원', day:'수', startTime:'18:00', endTime:'19:30', color:'#00B894', subject:'영어', memo:'수능 독해 유형 분석' },
-      { id:'ac3', name:'과학 실험반', academy:'메가스터디 과학관', day:'금', startTime:'17:00', endTime:'19:00', color:'#FDCB6E', subject:'과학', memo:'물리 실험 + 보고서' },
+      { id:'ac1', name:'수학 심화반', academy:'대치 수학학원', day:'월', slot:1, startTime:'18:00', endTime:'20:00', color:'#E056A0', subject:'수학', memo:'미적분 심화 과정' },
+      { id:'ac2', name:'영어 독해반', academy:'YBM 어학원', day:'수', slot:1, startTime:'18:00', endTime:'19:30', color:'#00B894', subject:'영어', memo:'수능 독해 유형 분석' },
+      { id:'ac3', name:'과학 실험반', academy:'메가스터디 과학관', day:'금', slot:1, startTime:'17:00', endTime:'19:00', color:'#FDCB6E', subject:'과학', memo:'물리 실험 + 보고서' },
+      { id:'ac4', name:'국어 논술반', academy:'대성학원', day:'토', slot:1, startTime:'10:00', endTime:'12:00', color:'#FF6B6B', subject:'국어', memo:'수능 비문학 집중' },
+      { id:'ac5', name:'수학 문제풀이', academy:'대치 수학학원', day:'토', slot:2, startTime:'13:00', endTime:'15:00', color:'#6C5CE7', subject:'수학', memo:'모의고사 기출 풀이' },
     ],
   },
   // 시간표 편집 상태
   editingTimetable: false,
   editingAcademy: null, // null or academy id
   selectedTtCell: null, // {period, dayIdx}
+  selectedAcSlot: null, // {day, slot} 학원 그리드 선택
+  viewingAcademyDetail: null, // academy id 상세보기
   // 플래너 상태
   plannerView: 'daily', // 'daily','weekly','monthly'
   plannerDate: '2025-02-15', // 현재 선택 날짜
@@ -2655,15 +2659,17 @@ function renderMyTab() {
 
 function renderTimetableManage() {
   const days = ['월','화','수','목','금'];
+  const acDays = ['월','화','수','목','금','토','일'];
   const tt = state.timetable;
   const subjectList = ['국어','수학','영어','과학','한국사','체육','미술','동아리','창체',''];
+  const maxSlots = 4;
 
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="state.editingTimetable=false;state.selectedTtCell=null;goScreen('main');state.studentTab='my'"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="state.editingTimetable=false;state.selectedTtCell=null;state.selectedAcSlot=null;state.viewingAcademyDetail=null;goScreen('main');state.studentTab='my'"><i class="fas fa-arrow-left"></i></button>
         <h1>📋 시간표 관리</h1>
-        <button class="header-action-btn" onclick="state.editingTimetable=!state.editingTimetable;renderScreen()">
+        <button class="header-action-btn" onclick="state.editingTimetable=!state.editingTimetable;state.selectedTtCell=null;state.selectedAcSlot=null;renderScreen()">
           <i class="fas ${state.editingTimetable ? 'fa-check' : 'fa-edit'}"></i>
           ${state.editingTimetable ? '완료' : '편집'}
         </button>
@@ -2719,49 +2725,46 @@ function renderTimetableManage() {
           ` : ''}
         </div>
 
-        <!-- 학원 스케줄 섹션 -->
+        <!-- 학원 시간표 그리드 섹션 -->
         <div class="card animate-in" style="margin-bottom:16px">
           <div class="card-header-row">
-            <span class="card-title">🏢 학원 스케줄</span>
-            <button class="card-link" onclick="state.editingAcademy=null;goScreen('academy-add')">
-              <i class="fas fa-plus"></i> 추가
-            </button>
+            <span class="card-title">🏢 학원 시간표</span>
+            ${state.editingTimetable ? '<span class="card-subtitle" style="color:#E056A0">빈 칸을 터치하여 추가</span>' : '<span class="card-subtitle">클릭하여 상세보기</span>'}
           </div>
-          
-          ${tt.academy.length === 0 ? `
-            <div style="text-align:center;padding:24px;color:var(--text-muted)">
-              <span style="font-size:32px">🏢</span>
-              <p style="margin-top:8px">등록된 학원 일정이 없습니다</p>
-              <p style="font-size:12px;margin-top:4px">학원 스케줄을 추가하면 플래너에 자동 반영됩니다</p>
-            </div>
-          ` : `
-            <div class="academy-list">
-              ${tt.academy.map((ac, i) => `
-                <div class="academy-card stagger-${i+1} animate-in">
-                  <div class="academy-card-left" style="border-left:3px solid ${ac.color}">
-                    <div class="academy-day-badge">${ac.day}</div>
-                    <div class="academy-info">
-                      <div class="academy-name">${ac.name}</div>
-                      <div class="academy-detail">
-                        <span>🏢 ${ac.academy}</span>
-                        <span>⏰ ${ac.startTime}~${ac.endTime}</span>
-                      </div>
-                      ${ac.memo ? `<div class="academy-memo">${ac.memo}</div>` : ''}
-                    </div>
-                  </div>
-                  <div class="academy-card-actions">
-                    <button class="academy-edit-btn" onclick="state.editingAcademy='${ac.id}';goScreen('academy-add')">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="academy-del-btn" onclick="deleteAcademy('${ac.id}')">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `}
+          <div class="ac-grid">
+            <!-- 헤더 -->
+            <div class="ac-grid-header"></div>
+            ${acDays.map(d => `<div class="ac-grid-header ${d==='토'||d==='일'?'weekend':''}">${d}</div>`).join('')}
+            <!-- 슬롯 rows -->
+            ${Array.from({length: maxSlots}, (_, slotIdx) => `
+              <div class="ac-grid-period">${slotIdx+1}</div>
+              ${acDays.map(day => {
+                const ac = tt.academy.find(a => a.day === day && a.slot === slotIdx + 1);
+                const isSelected = state.selectedAcSlot && state.selectedAcSlot.day === day && state.selectedAcSlot.slot === slotIdx + 1;
+                if (ac) {
+                  return `
+                  <div class="ac-grid-cell filled ${isSelected?'selected':''}" 
+                    style="background:${ac.color}18;border-color:${ac.color}44"
+                    onclick="${state.editingTimetable 
+                      ? `state.editingAcademy='${ac.id}';goScreen('academy-add')` 
+                      : `showAcademyDetail('${ac.id}')`}">
+                    <div class="ac-cell-name" style="color:${ac.color}">${ac.name}</div>
+                    <div class="ac-cell-time-ribbon" style="background:${ac.color}">${ac.startTime}~${ac.endTime}</div>
+                  </div>`;
+                } else {
+                  return `
+                  <div class="ac-grid-cell empty ${isSelected?'selected':''} ${state.editingTimetable?'editable':''}"
+                    ${state.editingTimetable ? `onclick="addAcademyAtSlot('${day}',${slotIdx+1})"` : ''}>
+                    ${state.editingTimetable ? '<i class="fas fa-plus" style="font-size:9px;opacity:0.3"></i>' : ''}
+                  </div>`;
+                }
+              }).join('')}
+            `).join('')}
+          </div>
         </div>
+
+        <!-- 학원 상세보기 패널 -->
+        ${state.viewingAcademyDetail ? renderAcademyDetailPanel() : ''}
 
         <!-- 플래너 연동 안내 -->
         <div class="ai-plan-card animate-in">
@@ -2779,16 +2782,82 @@ function renderTimetableManage() {
   `;
 }
 
+// 학원 상세보기 패널
+function renderAcademyDetailPanel() {
+  const ac = state.timetable.academy.find(a => a.id === state.viewingAcademyDetail);
+  if (!ac) return '';
+
+  return `
+    <div class="ac-detail-panel animate-in" style="border-left:4px solid ${ac.color}">
+      <div class="ac-detail-header">
+        <div class="ac-detail-title-row">
+          <span class="ac-detail-title" style="color:${ac.color}">${ac.name}</span>
+          <button class="ac-detail-close" onclick="state.viewingAcademyDetail=null;renderScreen()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="ac-detail-subtitle">${ac.academy}</div>
+      </div>
+      <div class="ac-detail-body">
+        <div class="ac-detail-row">
+          <span class="ac-detail-icon">📅</span>
+          <span class="ac-detail-label">요일</span>
+          <span class="ac-detail-value">${ac.day}요일</span>
+        </div>
+        <div class="ac-detail-row">
+          <span class="ac-detail-icon">⏰</span>
+          <span class="ac-detail-label">시간</span>
+          <span class="ac-detail-value">${ac.startTime} ~ ${ac.endTime}</span>
+        </div>
+        <div class="ac-detail-row">
+          <span class="ac-detail-icon">📚</span>
+          <span class="ac-detail-label">관련 과목</span>
+          <span class="ac-detail-value">${ac.subject}</span>
+        </div>
+        ${ac.memo ? `
+        <div class="ac-detail-row">
+          <span class="ac-detail-icon">📝</span>
+          <span class="ac-detail-label">메모</span>
+          <span class="ac-detail-value">${ac.memo}</span>
+        </div>
+        ` : ''}
+      </div>
+      <div class="ac-detail-actions">
+        <button class="btn-secondary" style="flex:1" onclick="state.editingAcademy='${ac.id}';state.viewingAcademyDetail=null;goScreen('academy-add')">
+          <i class="fas fa-edit"></i> 수정
+        </button>
+        <button class="btn-ghost" style="flex:1;color:var(--accent)" onclick="deleteAcademy('${ac.id}');state.viewingAcademyDetail=null;renderScreen()">
+          <i class="fas fa-trash"></i> 삭제
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function showAcademyDetail(id) {
+  state.viewingAcademyDetail = state.viewingAcademyDetail === id ? null : id;
+  renderScreen();
+}
+
+function addAcademyAtSlot(day, slot) {
+  state.editingAcademy = null;
+  state._prefillDay = day;
+  state._prefillSlot = slot;
+  goScreen('academy-add');
+}
+
 // 학원 추가/수정 화면
 function renderAcademyAdd() {
   const editing = state.editingAcademy;
   const isEdit = editing !== null;
   const ac = isEdit ? state.timetable.academy.find(a => a.id === editing) : null;
+  const prefillDay = state._prefillDay || '월';
+  const prefillSlot = state._prefillSlot || 1;
 
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="state.editingAcademy=null;goScreen('timetable-manage')"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="state.editingAcademy=null;state._prefillDay=null;state._prefillSlot=null;goScreen('timetable-manage')"><i class="fas fa-arrow-left"></i></button>
         <h1>${isEdit ? '🏢 학원 수정' : '🏢 학원 추가'}</h1>
       </div>
 
@@ -2797,7 +2866,7 @@ function renderAcademyAdd() {
           <span style="font-size:32px">🏢</span>
           <div>
             <h3>${isEdit ? '학원 정보를 수정하세요' : '학원 일정을 등록하세요'}</h3>
-            <p>등록한 학원 일정은 플래너에 자동으로 표시됩니다</p>
+            <p>등록한 학원 일정은 시간표와 플래너에 자동 표시됩니다</p>
           </div>
         </div>
 
@@ -2824,7 +2893,16 @@ function renderAcademyAdd() {
           <label class="field-label">📅 요일</label>
           <div class="chip-row" id="ac-day-chips">
             ${['월','화','수','목','금','토','일'].map(d => 
-              `<button class="chip ${(isEdit && ac.day===d) || (!isEdit && d==='월') ? 'active' : ''}" data-day="${d}">${d}</button>`
+              `<button class="chip ${(isEdit && ac.day===d) || (!isEdit && d===prefillDay) ? 'active' : ''}" data-day="${d}">${d}</button>`
+            ).join('')}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">🔢 슬롯 (시간표 칸 위치)</label>
+          <div class="chip-row" id="ac-slot-chips">
+            ${[1,2,3,4].map(s => 
+              `<button class="chip ${(isEdit && ac.slot===s) || (!isEdit && s===prefillSlot) ? 'active' : ''}" data-slot="${s}">${s}번째</button>`
             ).join('')}
           </div>
         </div>
@@ -2938,12 +3016,14 @@ function saveAcademy() {
   const academy = document.getElementById('ac-academy')?.value || '';
   const subjectChip = document.querySelector('#ac-subject-chips .chip.active');
   const dayChip = document.querySelector('#ac-day-chips .chip.active');
+  const slotChip = document.querySelector('#ac-slot-chips .chip.active');
   const startTime = document.getElementById('ac-start')?.value || '18:00';
   const endTime = document.getElementById('ac-end')?.value || '20:00';
   const colorBtn = document.querySelector('#ac-color-picker .color-pick-btn.active');
   const memo = document.getElementById('ac-memo')?.value || '';
   const subject = subjectChip ? subjectChip.dataset.subject : '수학';
   const day = dayChip ? dayChip.dataset.day : '월';
+  const slot = slotChip ? parseInt(slotChip.dataset.slot) : 1;
   const color = colorBtn ? colorBtn.dataset.color : '#E056A0';
 
   if (state.editingAcademy) {
@@ -2953,6 +3033,7 @@ function saveAcademy() {
       ac.academy = academy || ac.academy;
       ac.subject = subject;
       ac.day = day;
+      ac.slot = slot;
       ac.startTime = startTime;
       ac.endTime = endTime;
       ac.color = color;
@@ -2960,12 +3041,15 @@ function saveAcademy() {
     }
     state.editingAcademy = null;
   } else {
-    const newId = 'ac' + (state.timetable.academy.length + 10);
+    const newId = 'ac' + (Date.now() % 100000);
     state.timetable.academy.push({
       id: newId, name: name || '학원 수업', academy: academy || '',
-      day, startTime, endTime, color, subject, memo
+      day, slot, startTime, endTime, color, subject, memo
     });
   }
+
+  state._prefillDay = null;
+  state._prefillSlot = null;
 
   // 플래너에 학원 일정 자동 추가
   syncAcademyToPlanner();
