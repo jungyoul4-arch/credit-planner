@@ -328,6 +328,137 @@ app.post('/api/exam-coach', async (c) => {
 })
 
 
+// ==================== API 라우트: 탐구보고서 질문 진단 (Gemini Flash) ====================
+
+const REPORT_DIAGNOSIS_PROMPT = `당신은 2축 9단계 질문 진단 전문가입니다.
+학생의 탐구보고서 과정에서 나온 질문을 분석하여 수준을 판정하세요.
+
+[2축 9단계]
+호기심 축: A-1(뭐지? 8XP), A-2(어떻게? 10XP), B-1(왜? 15XP), B-2(만약에? 20XP), C-1(뭐가더나아? 25XP), C-2(그러면? 30XP)
+성찰 축: R-1(어디서틀렸지? 15XP), R-2(왜틀렸지? 20XP), R-3(다음엔어떻게? 25XP)
+
+[3대 필수조건 - B-1 이상 판정 시 모두 충족 필수]
+① 구체적 대상: 어떤 부분에 대한 질문인지 특정
+② 자기 생각: "나는 ~라고 생각하는데" 존재
+③ 맥락 연결: 조건/지문/풀이와 구체적 연결
+
+하나라도 빠지면 A 수준으로 하향. 애매하면 낮은 쪽.
+"왜요?" → 자기생각 없으면 A. "만약 다르면?" → 뭐가 다른지 없으면 A.
+
+반드시 JSON만 출력:
+{
+  "level": "B-1",
+  "axis": "curiosity",
+  "xp": 15,
+  "diag": {
+    "specific_target": {"met": true, "detail": "..."},
+    "own_thinking": {"met": true, "detail": "..."},
+    "context_connection": {"met": false, "detail": "..."}
+  },
+  "coaching_comment": "친근한 말투로 2~3문장. 칭찬+업그레이드 힌트",
+  "upgrade_hint": "한 단계 올리려면 이렇게: '...'"
+}`;
+
+app.post('/api/report-diagnose', async (c) => {
+  try {
+    const { question, phase, projectTitle, subject } = await c.req.json()
+    if (!question) return c.json({ error: '질문 내용이 필요합니다' }, 400)
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: REPORT_DIAGNOSIS_PROMPT + `\n\n학생의 질문:\n"${question}"\n\n현재 탐구 단계: ${phase || '주제 선정'}\n탐구 주제: ${projectTitle || '미정'}\n과목: ${subject || '미지정'}\n\nJSON만 출력:` }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            responseMimeType: 'application/json'
+          }
+        })
+      }
+    )
+
+    if (!res.ok) {
+      const err = await res.text()
+      return c.json({ error: 'Gemini API 오류', detail: err }, 500)
+    }
+
+    const data: any = await res.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+    try {
+      return c.json(JSON.parse(text))
+    } catch {
+      return c.json({ level: 'A-1', axis: 'curiosity', xp: 8, coaching_comment: text })
+    }
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+
+// ==================== API 라우트: 탐구보고서 AI 멘토 (Perplexity) ====================
+
+app.post('/api/report-mentor', async (c) => {
+  try {
+    const { question, phase, projectTitle, subject, questionHistory } = await c.req.json()
+    if (!question) return c.json({ error: '질문 내용이 필요합니다' }, 400)
+
+    const histSummary = (questionHistory || []).slice(-5).map((q: any) =>
+      `[${q.level}] ${q.text}`
+    ).join('\n') || '(아직 없음)'
+
+    const systemPrompt = `당신은 고등학생의 탐구 보고서를 돕는 AI 멘토입니다.
+
+현재 탐구 단계: ${phase || '주제 선정'}
+탐구 주제: ${projectTitle || '(아직 설정 안 됨)'}
+과목: ${subject || '미지정'}
+
+이 학생의 최근 질문 이력 (수준 포함):
+${histSummary}
+
+[규칙]
+1. 답을 바로 주지 말고 학생이 스스로 생각하도록 질문을 던져주세요.
+2. 학생의 질문 수준이 올라가도록 유도하세요.
+3. 자료를 언급할 때는 출처를 반드시 밝혀주세요. (URL 포함)
+4. 한국어로, 친근하지만 학술적으로 답변하세요.
+5. 검색된 최신 자료가 있으면 활용하세요.
+6. 관련 논문이나 연구가 있으면 소개해주세요.`
+
+    const res = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${c.env.PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question }
+        ],
+        max_tokens: 1500,
+        temperature: 0.5,
+      })
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      return c.json({ error: 'Perplexity API 오류', detail: err }, 500)
+    }
+
+    const data: any = await res.json()
+    const text = data.choices?.[0]?.message?.content || '응답을 생성하지 못했습니다.'
+    const citations = data.citations || []
+    return c.json({ answer: text, citations })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+
 // ==================== 헬스체크 ====================
 app.get('/api/health', (c) => {
   return c.json({

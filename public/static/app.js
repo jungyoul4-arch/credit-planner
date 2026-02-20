@@ -195,8 +195,43 @@ const state = {
   ],
   // 비교과 활동 데이터
   extracurriculars: [
-    { id:'ec1', type:'report', title:'치환적분 알고리즘 탐구', subject:'수학', status:'in-progress', progress:40, startDate:'2025-02-10', endDate:'2025-03-10', color:'#6C5CE7', desc:'치환적분의 판별 알고리즘을 파이썬으로 구현', memo:'역함수 관점 접근법 발견' },
-    { id:'ec2', type:'report', title:'산화환원 반응속도 비교 실험', subject:'과학', status:'in-progress', progress:25, startDate:'2025-02-12', endDate:'2025-03-15', color:'#FDCB6E', desc:'다양한 조건에서 반응속도 비교 실험 및 보고서 작성', memo:'' },
+    { id:'ec1', type:'report', title:'치환적분 알고리즘 탐구', subject:'수학', status:'in-progress', progress:40, startDate:'2025-02-10', endDate:'2025-03-10', color:'#6C5CE7', desc:'치환적분의 판별 알고리즘을 파이썬으로 구현', memo:'역함수 관점 접근법 발견',
+      // 탐구보고서 Phase 데이터
+      report: {
+        currentPhase: 1, // 0~4 (5 phases)
+        phases: [
+          { id:'p1', name:'주제 선정', status:'completed' },
+          { id:'p2', name:'탐구 설계', status:'in-progress' },
+          { id:'p3', name:'자료 수집', status:'locked' },
+          { id:'p4', name:'분석/작성', status:'locked' },
+          { id:'p5', name:'회고', status:'locked' },
+        ],
+        questions: [
+          { text:'항생제 내성이 뭐지?', level:'A-1', axis:'curiosity', xp:8, phaseId:'p1', time:'2025-02-10T09:00:00', diag:{ specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} } },
+          { text:'내성 유전자는 어떻게 전달돼?', level:'A-2', axis:'curiosity', xp:10, phaseId:'p1', time:'2025-02-11T14:00:00', diag:{ specific_target:{met:true}, own_thinking:{met:false}, context_connection:{met:false} } },
+          { text:'왜 플라스미드가 주요 전달 매체인 거지? 교과서에서는 형질전환만 나오는데 실제로는 접합이 더 빈번한 것 같거든요', level:'B-1', axis:'curiosity', xp:15, phaseId:'p2', time:'2025-02-13T10:30:00', diag:{ specific_target:{met:true}, own_thinking:{met:true}, context_connection:{met:true} } },
+        ],
+        timeline: [],
+        totalXp: 33,
+      }
+    },
+    { id:'ec2', type:'report', title:'산화환원 반응속도 비교 실험', subject:'과학', status:'in-progress', progress:25, startDate:'2025-02-12', endDate:'2025-03-15', color:'#FDCB6E', desc:'다양한 조건에서 반응속도 비교 실험 및 보고서 작성', memo:'',
+      report: {
+        currentPhase: 0,
+        phases: [
+          { id:'p1', name:'주제 선정', status:'in-progress' },
+          { id:'p2', name:'탐구 설계', status:'locked' },
+          { id:'p3', name:'자료 수집', status:'locked' },
+          { id:'p4', name:'분석/작성', status:'locked' },
+          { id:'p5', name:'회고', status:'locked' },
+        ],
+        questions: [
+          { text:'산화환원 반응에서 왜 반응속도가 달라지는 거지?', level:'A-1', axis:'curiosity', xp:8, phaseId:'p1', time:'2025-02-12T11:00:00', diag:{ specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} } },
+        ],
+        timeline: [],
+        totalXp: 8,
+      }
+    },
     { id:'ec3', type:'reading', title:'코스모스 (칼 세이건)', subject:'과학', status:'in-progress', progress:65, startDate:'2025-02-01', endDate:'2025-02-28', color:'#00B894', desc:'우주와 과학의 역사를 다룬 과학 교양서', memo:'3장까지 독서감상문 작성 완료' },
     { id:'ec4', type:'reading', title:'수학의 확실성 (모리스 클라인)', subject:'수학', status:'pending', progress:0, startDate:'2025-03-01', endDate:'2025-03-31', color:'#6C5CE7', desc:'수학 철학과 역사를 다룬 교양서', memo:'' },
     { id:'ec5', type:'activity', title:'코딩동아리 (CodingLab)', subject:'정보', status:'in-progress', progress:50, startDate:'2025-03-01', endDate:'2025-12-31', color:'#E056A0', desc:'Python matplotlib 수학 그래프 시각화 프로젝트', memo:'sin, cos 합성파 표현' },
@@ -287,6 +322,13 @@ const state = {
   viewingExam: null, // 현재 보고 있는 시험 id
   examAddMode: false, // 시험 추가 모드
   examAiLoading: false, // AI 학습계획 생성 중
+  // 탐구보고서 상태
+  viewingReport: null, // 현재 보고 있는 탐구보고서 ec id
+  reportPhaseTab: 0, // 현재 선택된 Phase 탭 (0~4)
+  reportViewMode: 'question', // 'question','timeline','growth','report'
+  reportAiLoading: false,
+  reportDiagResult: null, // 최근 질문 진단 결과
+  reportAiResponse: null, // 최근 AI 멘토/검색 응답
 };
 
 // ==================== MAIN RENDER ====================
@@ -339,6 +381,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'exam-list') return renderExamList();
   if (state.currentScreen === 'exam-detail') return renderExamDetail();
   if (state.currentScreen === 'exam-add') return renderExamAdd();
+  if (state.currentScreen === 'report-project') return renderReportProject();
 
   let content = '';
   content += renderXpBar();
@@ -917,7 +960,7 @@ function renderRecordTab() {
           const typeLabel = e.type === 'report' ? '📄 탐구보고서' : e.type === 'reading' ? '📖 독서' : '🏫 창체';
           const statusLabel = e.status === 'in-progress' ? '진행중' : '예정';
           return `
-          <div class="ec-mini-row">
+          <div class="ec-mini-row" onclick="${e.type === 'report' && e.report ? `state.viewingReport='${e.id}';state.reportPhaseTab=${e.report.currentPhase};goScreen('report-project')` : ''}" style="${e.type === 'report' ? 'cursor:pointer' : ''}">
             <div class="ec-mini-dot" style="background:${e.color}"></div>
             <div class="ec-mini-info">
               <div class="ec-mini-top">
@@ -1675,6 +1718,696 @@ function formatDateLabel(dateStr) {
   if (diff === 1) return `어제 (${m}/${dd} ${day})`;
   return `${m}/${dd} (${day})`;
 }
+
+// ==================== REPORT PROJECT (탐구보고서 5단계 시스템) ====================
+
+const REPORT_PHASES = [
+  { id:'p1', name:'주제 선정', icon:'🔍', color:'#818cf8', aiRole:'가이드', desc:'궁금한 것에서 출발하여 탐구 질문 만들기', expectedLevel:'A-1 ~ A-2', tip:'"이게 궁금해!"에서 시작해봐' },
+  { id:'p2', name:'탐구 설계', icon:'📐', color:'#34d399', aiRole:'가이드', desc:'어떻게 조사/실험할 건지 계획 세우기', expectedLevel:'A-2 ~ B-1', tip:'"어떻게 알아볼 수 있을까?"를 고민해봐' },
+  { id:'p3', name:'자료 수집', icon:'📊', color:'#fbbf24', aiRole:'피드백', desc:'자료를 모으고 AI에게 물어보기', expectedLevel:'B-1 ~ B-2', tip:'"왜 이런 결과가 나올까?"를 물어봐' },
+  { id:'p4', name:'분석/작성', icon:'📝', color:'#f87171', aiRole:'검토', desc:'발견한 것을 정리하고 보고서 작성', expectedLevel:'B-2 ~ C-1', tip:'"만약 조건이 달랐다면?"을 생각해봐' },
+  { id:'p5', name:'회고', icon:'🪞', color:'#a78bfa', aiRole:'성찰', desc:'질문 성장을 돌아보고 성찰하기', expectedLevel:'R-1 ~ R-3', tip:'"내가 뭘 배웠지?"를 되돌아봐' },
+];
+
+const REPORT_LEVEL_META = {
+  'A-1': { n:1, name:'뭐지?', icon:'🔍', color:'#9ca3af', xp:8 },
+  'A-2': { n:2, name:'어떻게?', icon:'🔧', color:'#60a5fa', xp:10 },
+  'B-1': { n:3, name:'왜?', icon:'💡', color:'#34d399', xp:15 },
+  'B-2': { n:4, name:'만약에?', icon:'🔀', color:'#2dd4bf', xp:20 },
+  'C-1': { n:5, name:'뭐가 더 나아?', icon:'⚖️', color:'#fbbf24', xp:25 },
+  'C-2': { n:6, name:'그러면?', icon:'🚀', color:'#f87171', xp:30 },
+  'R-1': { n:3, name:'어디서 틀렸지?', icon:'🔬', color:'#a78bfa', xp:15 },
+  'R-2': { n:4, name:'왜 틀렸지?', icon:'🧠', color:'#c084fc', xp:20 },
+  'R-3': { n:5, name:'다음엔 어떻게?', icon:'🛡️', color:'#e879f9', xp:25 },
+};
+
+function renderReportProject() {
+  // 프로젝트 선택 화면 또는 개별 프로젝트 화면
+  const reportProjects = state.extracurriculars.filter(e => e.type === 'report' && e.report);
+
+  // viewingReport가 없으면 프로젝트 목록 표시
+  if (!state.viewingReport) {
+    return renderReportProjectList(reportProjects);
+  }
+
+  const ec = state.extracurriculars.find(e => e.id === state.viewingReport);
+  if (!ec || !ec.report) {
+    state.viewingReport = null;
+    return renderReportProjectList(reportProjects);
+  }
+
+  const rpt = ec.report;
+  const phase = REPORT_PHASES[state.reportPhaseTab] || REPORT_PHASES[0];
+  const phaseQuestions = rpt.questions.filter(q => q.phaseId === phase.id);
+  const allQuestions = rpt.questions;
+  const totalXp = allQuestions.reduce((s, q) => s + (q.xp || 0), 0);
+
+  // 성장 그래프 SVG 데이터
+  const growthSvg = buildGrowthSvg(allQuestions.filter(q => q.axis === 'curiosity'));
+
+  // 언락 상태 계산
+  const hasB1 = phaseQuestions.some(q => (REPORT_LEVEL_META[q.level]?.n || 0) >= 3);
+  const unlocked = hasB1 && phaseQuestions.length >= 2;
+
+  // 최고 수준
+  const highest = allQuestions.reduce((h, q) => {
+    const n = REPORT_LEVEL_META[q.level]?.n || 0;
+    return n > (REPORT_LEVEL_META[h]?.n || 0) ? q.level : h;
+  }, 'A-1');
+  const highestMeta = REPORT_LEVEL_META[highest];
+
+  return `
+    <div class="full-screen animate-slide">
+      <!-- 헤더 -->
+      <div class="rpt-header">
+        <div class="rpt-header-top">
+          <button class="back-btn" onclick="state.viewingReport=null;goScreen('report-project')"><i class="fas fa-arrow-left"></i></button>
+          <div class="rpt-header-title">
+            <div class="rpt-title">${ec.title}</div>
+            <div class="rpt-subtitle">${ec.subject} · ${ec.desc || ''}</div>
+          </div>
+          <div class="rpt-xp-badge">⚡ ${totalXp} XP</div>
+        </div>
+
+        <!-- 미니 성장 그래프 (질문 2개 이상일 때) -->
+        ${allQuestions.filter(q => q.axis === 'curiosity').length >= 2 ? `
+        <div class="rpt-mini-growth">
+          <div class="rpt-mini-growth-label">📈 질문 성장</div>
+          <svg width="100%" height="50" viewBox="0 0 300 50" preserveAspectRatio="none">
+            <defs><linearGradient id="rptGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#34d399"/></linearGradient></defs>
+            ${growthSvg}
+          </svg>
+        </div>
+        ` : ''}
+
+        <!-- 요약 통계 -->
+        <div class="rpt-stats-row">
+          <div class="rpt-stat-item">
+            <span class="rpt-stat-icon">⚡</span>
+            <span class="rpt-stat-value" style="color:#fbbf24">${totalXp}</span>
+            <span class="rpt-stat-label">총 XP</span>
+          </div>
+          <div class="rpt-stat-item">
+            <span class="rpt-stat-icon">💬</span>
+            <span class="rpt-stat-value" style="color:#818cf8">${allQuestions.length}</span>
+            <span class="rpt-stat-label">질문 수</span>
+          </div>
+          <div class="rpt-stat-item">
+            <span class="rpt-stat-icon">${highestMeta?.icon || '🔍'}</span>
+            <span class="rpt-stat-value" style="color:${highestMeta?.color || '#888'}">${highest}</span>
+            <span class="rpt-stat-label">최고 수준</span>
+          </div>
+        </div>
+
+        <!-- Phase 탭 (가로 스크롤) -->
+        <div class="rpt-phase-tabs">
+          ${REPORT_PHASES.map((p, i) => {
+            const pQs = allQuestions.filter(q => q.phaseId === p.id);
+            const isActive = state.reportPhaseTab === i;
+            const phaseStatus = rpt.phases[i]?.status || 'locked';
+            return `
+            <button class="rpt-phase-tab ${isActive ? 'active' : ''} ${phaseStatus}"
+              onclick="state.reportPhaseTab=${i};state.reportViewMode='question';state.reportDiagResult=null;state.reportAiResponse=null;renderScreen()"
+              style="${isActive ? `--phase-color:${p.color};border-color:${p.color}44;background:${p.color}15;color:${p.color}` : ''}">
+              ${phaseStatus === 'locked' ? '🔒' : p.icon} ${p.name}
+              ${pQs.length > 0 ? `<span class="rpt-phase-badge" style="background:${p.color}25;color:${p.color}">${pQs.length}</span>` : ''}
+            </button>
+            `;
+          }).join('')}
+          <!-- 추가 탭: 전체기록, 리포트 -->
+          <button class="rpt-phase-tab ${state.reportViewMode === 'all-timeline' ? 'active' : ''}"
+            onclick="state.reportViewMode='all-timeline';renderScreen()"
+            style="${state.reportViewMode === 'all-timeline' ? '--phase-color:#34d399;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.12);color:#34d399' : ''}">
+            📜 전체기록
+          </button>
+          <button class="rpt-phase-tab ${state.reportViewMode === 'report' ? 'active' : ''}"
+            onclick="state.reportViewMode='report';renderScreen()"
+            style="${state.reportViewMode === 'report' ? '--phase-color:#fbbf24;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.12);color:#fbbf24' : ''}">
+            📈 리포트
+          </button>
+        </div>
+      </div>
+
+      <!-- 컨텐츠 영역 -->
+      <div class="rpt-content">
+        ${state.reportViewMode === 'all-timeline' ? renderReportAllTimeline(allQuestions, rpt.timeline) :
+          state.reportViewMode === 'report' ? renderReportGrowthReport(allQuestions) :
+          renderReportPhaseView(phase, state.reportPhaseTab, phaseQuestions, allQuestions, rpt, ec, unlocked)}
+      </div>
+    </div>
+  `;
+}
+
+// 프로젝트 목록 화면
+function renderReportProjectList(projects) {
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📄 탐구보고서</h1>
+        <span class="xp-badge-sm">질문이 성장하면 보고서가 됩니다</span>
+      </div>
+      <div class="form-body">
+        ${projects.length === 0 ? `
+          <div style="text-align:center;padding:40px 0;color:var(--text-muted)">
+            <div style="font-size:48px;margin-bottom:12px">📝</div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:8px">아직 탐구보고서 프로젝트가 없어요</div>
+            <div style="font-size:13px;color:#666">창의적 체험활동에서 탐구보고서를 추가해보세요!</div>
+          </div>
+        ` : projects.map((ec, i) => {
+          const rpt = ec.report;
+          const totalXp = rpt.questions.reduce((s, q) => s + (q.xp || 0), 0);
+          const highest = rpt.questions.reduce((h, q) => (REPORT_LEVEL_META[q.level]?.n || 0) > (REPORT_LEVEL_META[h]?.n || 0) ? q.level : h, 'A-1');
+          const hMeta = REPORT_LEVEL_META[highest];
+          const currentPhaseName = REPORT_PHASES[rpt.currentPhase]?.name || '주제 선정';
+          const currentPhaseIcon = REPORT_PHASES[rpt.currentPhase]?.icon || '🔍';
+          const currentPhaseColor = REPORT_PHASES[rpt.currentPhase]?.color || '#818cf8';
+          return `
+          <div class="rpt-project-card stagger-${i+1} animate-in" onclick="state.viewingReport='${ec.id}';state.reportPhaseTab=${rpt.currentPhase};state.reportViewMode='question';state.reportDiagResult=null;state.reportAiResponse=null;renderScreen()">
+            <div class="rpt-project-top">
+              <div class="rpt-project-color" style="background:${ec.color}"></div>
+              <div class="rpt-project-info">
+                <div class="rpt-project-name">${ec.title}</div>
+                <div class="rpt-project-meta">${ec.subject} · ${ec.startDate?.slice(5)} ~ ${ec.endDate?.slice(5)}</div>
+              </div>
+              <div class="rpt-project-phase" style="background:${currentPhaseColor}15;color:${currentPhaseColor}">
+                ${currentPhaseIcon} ${currentPhaseName}
+              </div>
+            </div>
+            <div class="rpt-project-bottom">
+              <div class="rpt-project-stat">💬 ${rpt.questions.length}개 질문</div>
+              <div class="rpt-project-stat">⚡ ${totalXp} XP</div>
+              <div class="rpt-project-stat" style="color:${hMeta?.color}">${hMeta?.icon} ${highest}</div>
+              <div class="rpt-project-progress">
+                <div class="rpt-project-progress-fill" style="width:${ec.progress}%;background:${ec.color}"></div>
+              </div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Phase 뷰 (질문하기 / 기록 / 성장)
+function renderReportPhaseView(phase, phaseIdx, phaseQuestions, allQuestions, rpt, ec, unlocked) {
+  const phaseStatus = rpt.phases[phaseIdx]?.status || 'locked';
+
+  return `
+    <!-- Phase 헤더 -->
+    <div class="rpt-phase-header" style="background:linear-gradient(135deg, ${phase.color}10, transparent);border-color:${phase.color}22">
+      <div class="rpt-phase-header-top">
+        <span style="font-size:28px">${phase.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:800;color:${phase.color}">${phase.name}</div>
+          <div style="font-size:11px;color:#888">${phase.desc}</div>
+        </div>
+        <div class="rpt-ai-role" style="background:${phase.color}15;color:${phase.color}">🤖 ${phase.aiRole}</div>
+      </div>
+      <div class="rpt-phase-hint">
+        예상 질문 수준: <span style="color:${phase.color};font-weight:700">${phase.expectedLevel}</span>
+        &nbsp;·&nbsp; 💡 ${phase.tip}
+      </div>
+    </div>
+
+    ${phaseStatus === 'locked' ? `
+      <div class="rpt-locked-msg">
+        <div style="font-size:36px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:600;color:#888;margin-bottom:6px">이 단계는 아직 잠겨있어요</div>
+        <div style="font-size:12px;color:#555">이전 단계를 완료하면 열려요!</div>
+      </div>
+    ` : `
+      <!-- 언락 상태 -->
+      <div class="rpt-unlock-status ${unlocked ? 'unlocked' : ''}">
+        <div class="rpt-unlock-title">${unlocked ? '🔓 AI 초안 보조 활성화!' : '🔒 AI 초안 보조 잠김'}</div>
+        <div class="rpt-unlock-checks">
+          <span style="color:${phaseQuestions.length >= 2 ? '#34d399' : '#f87171'}">${phaseQuestions.length >= 2 ? '✅' : '❌'} 질문 2회 이상 (${phaseQuestions.length}/2)</span>
+          <span style="color:${phaseQuestions.some(q => (REPORT_LEVEL_META[q.level]?.n || 0) >= 3) ? '#34d399' : '#f87171'}">${phaseQuestions.some(q => (REPORT_LEVEL_META[q.level]?.n || 0) >= 3) ? '✅' : '❌'} B-1 이상 질문 달성</span>
+        </div>
+      </div>
+
+      <!-- 모드 탭 -->
+      <div class="rpt-mode-tabs">
+        ${[
+          { id:'question', label:'💬 질문하기', c:'#818cf8' },
+          { id:'timeline', label:'📜 기록', c:'#34d399', badge: rpt.timeline.filter(t => t.phaseId === phase.id).length },
+          { id:'growth', label:'📈 성장', c:'#fbbf24' },
+        ].map(tab => `
+          <button class="rpt-mode-tab ${state.reportViewMode === tab.id ? 'active' : ''}"
+            onclick="state.reportViewMode='${tab.id}';renderScreen()"
+            style="${state.reportViewMode === tab.id ? `color:${tab.c};border-bottom-color:${tab.c}` : ''}">
+            ${tab.label}
+            ${tab.badge > 0 ? `<span class="rpt-mode-badge">${tab.badge}</span>` : ''}
+          </button>
+        `).join('')}
+      </div>
+
+      ${state.reportViewMode === 'question' ? renderReportQuestionMode(phase, phaseQuestions, allQuestions, ec) : ''}
+      ${state.reportViewMode === 'timeline' ? renderReportTimelineMode(phase, rpt) : ''}
+      ${state.reportViewMode === 'growth' ? renderReportGrowthMode(phase, phaseQuestions) : ''}
+    `}
+  `;
+}
+
+// 질문하기 모드
+function renderReportQuestionMode(phase, phaseQuestions, allQuestions, ec) {
+  // 추천 질문
+  const suggestions = {
+    'p1': ['내가 관심 있는 분야에서 탐구할 만한 주제가 뭐가 있을까?', '이 주제를 어떤 각도에서 접근할 수 있을까?'],
+    'p2': ['이 주제를 탐구하려면 어떤 방법이 좋을까?', '비슷한 연구에서는 어떤 방법을 썼어?'],
+    'p3': ['이 주제에 대한 최신 연구가 있을까?', '이 데이터를 어떻게 해석하면 좋을까?'],
+    'p4': ['내 분석이 논리적인지 검토해줘', '결론과 근거가 잘 연결되는지 봐줘'],
+    'p5': ['이 탐구에서 내가 가장 성장한 점은 뭘까?', '다음 탐구를 한다면 뭘 다르게 할까?'],
+  };
+
+  return `
+    <!-- 추천 질문 (아직 질문 없을 때) -->
+    ${phaseQuestions.length === 0 ? `
+      <div class="rpt-suggestions">
+        <div style="font-size:11px;color:#888;margin-bottom:6px">💡 이런 것부터 물어봐:</div>
+        ${(suggestions[phase.id] || []).map(s => `
+          <button class="rpt-suggestion-btn" onclick="document.getElementById('rpt-question-input').value='${s.replace(/'/g, "\\'")}'">
+            ${s}
+          </button>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <!-- 질문 입력 -->
+    <div class="rpt-input-area">
+      <textarea id="rpt-question-input" class="rpt-input" rows="2" placeholder="${phase.name} 단계에서 궁금한 것을 물어봐!"></textarea>
+      <button class="rpt-send-btn" style="background:${state.reportAiLoading ? '#444' : phase.color}"
+        onclick="submitReportQuestion('${ec.id}', ${REPORT_PHASES.indexOf(phase)})"
+        ${state.reportAiLoading ? 'disabled' : ''}>
+        ${state.reportAiLoading ? '<div class="rpt-btn-spinner"></div>' : '전송'}
+      </button>
+    </div>
+
+    <!-- 로딩 -->
+    ${state.reportAiLoading ? `
+      <div class="rpt-loading">
+        <div class="rpt-loading-pulse">🔍 질문 분석 중... → 📚 자료 검색 중...</div>
+      </div>
+    ` : ''}
+
+    <!-- 진단 결과 -->
+    ${state.reportDiagResult ? renderReportDiagBadge(state.reportDiagResult) : ''}
+
+    <!-- AI 멘토 응답 (Perplexity) -->
+    ${state.reportAiResponse ? `
+      <div class="rpt-ai-response">
+        <div class="rpt-ai-response-header">
+          <span>🤖 AI 멘토 (${phase.aiRole})</span>
+          <span class="rpt-ai-source">📚 Perplexity 검색 기반</span>
+        </div>
+        <div class="rpt-ai-response-body">${formatReportAiText(state.reportAiResponse.answer || '')}</div>
+        ${state.reportAiResponse.citations && state.reportAiResponse.citations.length > 0 ? `
+          <div class="rpt-ai-citations">
+            <div style="font-size:10px;color:#888;margin-bottom:4px">📎 출처:</div>
+            ${state.reportAiResponse.citations.map((c, i) => `
+              <a href="${c}" target="_blank" class="rpt-citation-link">[${i+1}] ${c.length > 50 ? c.slice(0, 50) + '...' : c}</a>
+            `).join('')}
+          </div>
+        ` : ''}
+        <div style="margin-top:8px;font-size:9px;color:#555">💾 이 대화는 자동으로 탐구 기록에 저장되었습니다</div>
+      </div>
+    ` : ''}
+
+    <!-- 이전 질문 이력 -->
+    ${phaseQuestions.length > 0 ? `
+      <div class="rpt-prev-questions">
+        <div style="font-size:11px;color:#888;margin-bottom:8px">이 단계의 질문 이력 (${phaseQuestions.length}개)</div>
+        ${phaseQuestions.slice().reverse().map(q => {
+          const m = REPORT_LEVEL_META[q.level];
+          return `
+          <div class="rpt-q-history-item">
+            <span class="rpt-q-level" style="background:${m?.color}15;color:${m?.color}">${q.level}</span>
+            <span class="rpt-q-text">${q.text.length > 60 ? q.text.slice(0, 60) + '...' : q.text}</span>
+            <span class="rpt-q-xp">+${q.xp}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    ` : ''}
+  `;
+}
+
+// 진단 배지 렌더링
+function renderReportDiagBadge(result) {
+  const m = REPORT_LEVEL_META[result.level] || REPORT_LEVEL_META['A-1'];
+  const diag = result.diag || {};
+  return `
+    <div class="rpt-diag-badge" style="background:${m.color}08;border-color:${m.color}22">
+      <div class="rpt-diag-top">
+        <span style="font-size:20px">${m.icon}</span>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:${m.color}">${result.level} "${m.name}"</div>
+          <div style="font-size:11px;color:#888">${result.axis === 'curiosity' ? '호기심 사다리' : '성찰 질문'} · +${result.xp || m.xp} XP</div>
+        </div>
+      </div>
+      <div class="rpt-diag-checks">
+        ${[
+          { key:'specific_target', label:'①대상' },
+          { key:'own_thinking', label:'②생각' },
+          { key:'context_connection', label:'③맥락' },
+        ].map(c => {
+          const d = diag[c.key];
+          return `
+          <div class="rpt-diag-check ${d?.met ? 'pass' : 'fail'}">
+            <div style="font-size:12px">${d?.met ? '✅' : '❌'}</div>
+            <div class="rpt-diag-check-label">${c.label}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${result.coaching_comment ? `<div class="rpt-diag-coaching">💬 ${result.coaching_comment}</div>` : ''}
+      ${result.upgrade_hint ? `<div class="rpt-diag-hint">⬆️ ${result.upgrade_hint}</div>` : ''}
+    </div>
+  `;
+}
+
+// 타임라인 모드
+function renderReportTimelineMode(phase, rpt) {
+  const entries = rpt.timeline.filter(t => t.phaseId === phase.id);
+  if (entries.length === 0) {
+    return `
+      <div class="rpt-empty">
+        <div style="font-size:28px;margin-bottom:6px">📭</div>
+        <div style="font-size:13px">이 단계의 기록이 아직 없어요</div>
+        <div style="font-size:11px;margin-top:4px;color:#555">💬 질문하기 탭에서 AI에게 물어보면 자동 기록됩니다</div>
+      </div>
+    `;
+  }
+  return entries.slice().reverse().map(entry => {
+    const phaseMeta = REPORT_PHASES.find(p => p.id === entry.phaseId);
+    const diagMeta = entry.diagResult ? REPORT_LEVEL_META[entry.diagResult.level] : null;
+    return `
+    <div class="rpt-timeline-entry">
+      <div class="rpt-tl-icon ${entry.type}">
+        ${entry.type === 'question' ? '💬' : entry.type === 'ai_response' ? '🤖' : '✏️'}
+      </div>
+      <div class="rpt-tl-body">
+        <div class="rpt-tl-meta">
+          <span class="rpt-tl-phase" style="background:${phaseMeta?.color || '#888'}15;color:${phaseMeta?.color || '#888'}">${phaseMeta?.name || ''}</span>
+          ${entry.diagResult ? `<span class="rpt-tl-level" style="background:${diagMeta?.color}15;color:${diagMeta?.color}">${diagMeta?.icon} ${entry.diagResult.level} +${entry.diagResult.xp || diagMeta?.xp}XP</span>` : ''}
+          <span class="rpt-tl-time">${new Date(entry.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+        <div class="rpt-tl-text">${entry.text}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 성장 모드
+function renderReportGrowthMode(phase, phaseQuestions) {
+  if (phaseQuestions.length === 0) {
+    return `<div class="rpt-empty" style="padding:30px"><div style="font-size:13px;color:#555">아직 이 단계에서 질문한 적이 없어요</div></div>`;
+  }
+  const curiosityQs = phaseQuestions.filter(q => q.axis === 'curiosity');
+  const growthSvg = buildGrowthSvg(curiosityQs);
+  return `
+    ${curiosityQs.length >= 2 ? `
+    <div class="rpt-growth-chart">
+      <div style="font-size:11px;color:#888;margin-bottom:6px">📈 이 단계의 질문 성장 그래프</div>
+      <svg width="100%" height="100" viewBox="0 0 300 100" preserveAspectRatio="none">
+        <defs><linearGradient id="rptGrad2" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#34d399"/></linearGradient></defs>
+        ${buildGrowthSvg(curiosityQs, 100)}
+      </svg>
+    </div>` : ''}
+    <div style="margin-top:12px">
+      <div style="font-size:11px;color:#888;margin-bottom:8px">이 단계의 질문 이력</div>
+      ${phaseQuestions.map(q => {
+        const m = REPORT_LEVEL_META[q.level];
+        return `
+        <div class="rpt-q-history-item">
+          <span class="rpt-q-level" style="background:${m?.color}15;color:${m?.color}">${q.level}</span>
+          <span class="rpt-q-text">${q.text.length > 50 ? q.text.slice(0, 50) + '...' : q.text}</span>
+          <span class="rpt-q-xp" style="color:#fbbf24">+${q.xp}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+// 전체 기록 뷰
+function renderReportAllTimeline(allQuestions, timeline) {
+  const totalXp = allQuestions.reduce((s, q) => s + (q.xp || 0), 0);
+  const highest = allQuestions.reduce((h, q) => (REPORT_LEVEL_META[q.level]?.n || 0) > (REPORT_LEVEL_META[h]?.n || 0) ? q.level : h, 'A-1');
+  return `
+    <div style="font-size:14px;font-weight:800;color:#34d399;margin-bottom:12px">📜 전체 탐구 기록 (${timeline.length}건)</div>
+    <div class="rpt-stats-row" style="margin-bottom:12px">
+      <div class="rpt-stat-item"><span class="rpt-stat-icon">⚡</span><span class="rpt-stat-value" style="color:#fbbf24">${totalXp}</span><span class="rpt-stat-label">총 XP</span></div>
+      <div class="rpt-stat-item"><span class="rpt-stat-icon">💬</span><span class="rpt-stat-value" style="color:#818cf8">${allQuestions.length}</span><span class="rpt-stat-label">질문 수</span></div>
+      <div class="rpt-stat-item"><span class="rpt-stat-icon">${REPORT_LEVEL_META[highest]?.icon}</span><span class="rpt-stat-value" style="color:${REPORT_LEVEL_META[highest]?.color}">${highest}</span><span class="rpt-stat-label">최고 수준</span></div>
+    </div>
+    ${timeline.length === 0 ? `<div class="rpt-empty" style="padding:40px"><div style="font-size:13px;color:#555">각 단계에서 AI에게 질문하면 여기에 자동 기록됩니다</div></div>` :
+    timeline.slice().reverse().map(entry => {
+      const phaseMeta = REPORT_PHASES.find(p => p.id === entry.phaseId);
+      const diagMeta = entry.diagResult ? REPORT_LEVEL_META[entry.diagResult.level] : null;
+      return `
+      <div class="rpt-timeline-entry">
+        <div class="rpt-tl-icon ${entry.type}">${entry.type === 'question' ? '💬' : entry.type === 'ai_response' ? '🤖' : '✏️'}</div>
+        <div class="rpt-tl-body">
+          <div class="rpt-tl-meta">
+            <span class="rpt-tl-phase" style="background:${phaseMeta?.color || '#888'}15;color:${phaseMeta?.color || '#888'}">${phaseMeta?.name || ''}</span>
+            ${entry.diagResult ? `<span class="rpt-tl-level" style="background:${diagMeta?.color}15;color:${diagMeta?.color}">${diagMeta?.icon} ${entry.diagResult.level}</span>` : ''}
+            <span class="rpt-tl-time">${new Date(entry.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</span>
+          </div>
+          <div class="rpt-tl-text">${entry.text.length > 100 ? entry.text.slice(0,100) + '...' : entry.text}</div>
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
+// 성장 리포트 뷰
+function renderReportGrowthReport(allQuestions) {
+  if (allQuestions.length === 0) {
+    return `<div class="rpt-empty" style="padding:40px"><div style="font-size:32px;margin-bottom:8px">📊</div><div style="font-size:14px;color:#555">질문을 시작하면 성장 리포트가 생성됩니다</div></div>`;
+  }
+  const curiosityQs = allQuestions.filter(q => q.axis === 'curiosity');
+  const reflectQs = allQuestions.filter(q => q.axis === 'reflection');
+  const totalXp = allQuestions.reduce((s, q) => s + (q.xp || 0), 0);
+  const highest = allQuestions.reduce((h, q) => (REPORT_LEVEL_META[q.level]?.n || 0) > (REPORT_LEVEL_META[h]?.n || 0) ? q.level : h, 'A-1');
+  const first = allQuestions[0];
+  const last = allQuestions[allQuestions.length - 1];
+  const firstB1 = curiosityQs.find(q => (REPORT_LEVEL_META[q.level]?.n || 0) >= 3);
+
+  // 수준 분포
+  const levelDist = {};
+  allQuestions.forEach(q => { levelDist[q.level] = (levelDist[q.level] || 0) + 1; });
+
+  const growthSvg = buildGrowthSvg(curiosityQs, 100);
+
+  return `
+    <div class="rpt-report-card">
+      <div style="font-size:16px;font-weight:900;color:#fff;margin-bottom:12px">📈 나의 질문 성장 리포트</div>
+
+      <!-- 탐구 여정 -->
+      ${first && last ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;color:#888;margin-bottom:6px">🎯 탐구 여정</div>
+        <div class="rpt-journey">
+          <div>시작: <span style="color:${REPORT_LEVEL_META[first.level]?.color}">${first.level}</span> "${first.text.length > 40 ? first.text.slice(0,40)+'...' : first.text}"</div>
+          <div style="text-align:center;color:#555;font-size:16px;margin:4px 0">⬇️</div>
+          <div>현재: <span style="color:${REPORT_LEVEL_META[last.level]?.color}">${last.level}</span> "${last.text.length > 40 ? last.text.slice(0,40)+'...' : last.text}"</div>
+        </div>
+      </div>` : ''}
+
+      <!-- 성장 그래프 -->
+      ${curiosityQs.length >= 2 ? `
+      <div class="rpt-growth-chart">
+        <div style="font-size:11px;color:#888;margin-bottom:6px">📈 질문 성장 그래프</div>
+        <svg width="100%" height="100" viewBox="0 0 300 100" preserveAspectRatio="none">
+          <defs><linearGradient id="rptGrad3" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#34d399"/></linearGradient></defs>
+          ${growthSvg}
+        </svg>
+      </div>` : ''}
+
+      <!-- 통계 -->
+      <div class="rpt-stats-row" style="margin-top:8px">
+        <div class="rpt-stat-item"><div style="font-size:14px">💬</div><div style="font-size:14px;font-weight:800;color:#818cf8">${allQuestions.length}</div><div style="font-size:9px;color:#666">총 질문</div></div>
+        <div class="rpt-stat-item"><div style="font-size:14px">⚡</div><div style="font-size:14px;font-weight:800;color:#fbbf24">${totalXp}</div><div style="font-size:9px;color:#666">총 XP</div></div>
+        <div class="rpt-stat-item"><div style="font-size:14px">🏆</div><div style="font-size:14px;font-weight:800;color:${REPORT_LEVEL_META[highest]?.color}">${highest}</div><div style="font-size:9px;color:#666">최고 수준</div></div>
+      </div>
+
+      <!-- 첫 B-1 달성 -->
+      ${firstB1 ? `
+      <div class="rpt-highlight">
+        <div style="font-size:11px;font-weight:700;color:#34d399;margin-bottom:4px">🎉 첫 B-1 달성!</div>
+        <div style="font-size:12px;color:#b0b0b0;line-height:1.6">"${firstB1.text.length > 80 ? firstB1.text.slice(0,80)+'...' : firstB1.text}"</div>
+      </div>` : ''}
+
+      <!-- 수준 분포 -->
+      <div style="margin-top:12px">
+        <div style="font-size:11px;color:#888;margin-bottom:6px">질문 수준 분포</div>
+        <div class="rpt-level-dist">
+          ${Object.entries(levelDist).sort().map(([lv, cnt]) => {
+            const m = REPORT_LEVEL_META[lv];
+            return `<div class="rpt-level-dist-item" style="flex:${cnt};background:${m?.color}20"><div style="font-size:10px;font-weight:700;color:${m?.color}">${lv}</div><div style="font-size:9px;color:#888">${cnt}회</div></div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// SVG 성장 그래프 빌더
+function buildGrowthSvg(curiosityQs, height) {
+  height = height || 50;
+  const levels = ['A-1','A-2','B-1','B-2','C-1','C-2'];
+  const padL = 36;
+  const chartW = 300 - padL;
+  const chartH = height - 10;
+
+  if (curiosityQs.length === 0) return '';
+
+  // 그리드 라인 (호기심 축만)
+  let svg = levels.map((lv, i) => {
+    const y = chartH - (i / 5) * chartH;
+    return `<line x1="${padL}" y1="${y}" x2="300" y2="${y}" stroke="rgba(255,255,255,.06)"/>
+    <text x="${padL - 4}" y="${y + 3}" text-anchor="end" fill="#555" font-size="8">${lv}</text>`;
+  }).join('');
+
+  // 포인트 계산
+  const points = curiosityQs.map((q, i) => {
+    const lvlIdx = levels.indexOf(q.level);
+    const x = padL + (i / Math.max(curiosityQs.length - 1, 1)) * chartW;
+    const y = chartH - (lvlIdx / 5) * chartH;
+    return { x, y, q };
+  });
+
+  // 선
+  if (points.length > 1) {
+    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    svg += `<path d="${pathD}" fill="none" stroke="url(#rptGrad)" stroke-width="2" stroke-linecap="round"/>`;
+  }
+
+  // 점
+  points.forEach((p, i) => {
+    const m = REPORT_LEVEL_META[p.q.level];
+    const r = i === points.length - 1 ? 4 : 2.5;
+    svg += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${m?.color || '#888'}" stroke="#08080f" stroke-width="1"/>`;
+  });
+
+  // 마지막 라벨
+  if (points.length > 0) {
+    const last = points[points.length - 1];
+    const lastMeta = REPORT_LEVEL_META[last.q.level];
+    svg += `<text x="${last.x}" y="${last.y - 8}" text-anchor="middle" fill="${lastMeta?.color}" font-size="9" font-weight="700">${last.q.level}</text>`;
+  }
+
+  return svg;
+}
+
+// AI 텍스트 포맷팅
+function formatReportAiText(text) {
+  return text
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" style="color:#60a5fa">$1</a>');
+}
+
+// 질문 제출 함수 (이중 파이프라인: Gemini 진단 → Perplexity 답변)
+async function submitReportQuestion(ecId, phaseIdx) {
+  const input = document.getElementById('rpt-question-input');
+  if (!input || !input.value.trim()) return;
+
+  const question = input.value.trim();
+  input.value = '';
+  state.reportAiLoading = true;
+  state.reportDiagResult = null;
+  state.reportAiResponse = null;
+  renderScreen();
+
+  const ec = state.extracurriculars.find(e => e.id === ecId);
+  if (!ec || !ec.report) { state.reportAiLoading = false; renderScreen(); return; }
+
+  const rpt = ec.report;
+  const phase = REPORT_PHASES[phaseIdx];
+
+  try {
+    // Step 1: 질문 진단 (Gemini Flash - 경량, 빠름)
+    const diagRes = await fetch('/api/report-diagnose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question,
+        phase: phase.name,
+        projectTitle: ec.title,
+        subject: ec.subject,
+      })
+    });
+    const diagData = await diagRes.json();
+
+    if (diagData.level) {
+      state.reportDiagResult = diagData;
+
+      // 질문 로그 추가
+      const qEntry = {
+        text: question,
+        level: diagData.level,
+        axis: diagData.axis || 'curiosity',
+        xp: diagData.xp || (REPORT_LEVEL_META[diagData.level]?.xp || 8),
+        phaseId: phase.id,
+        time: new Date().toISOString(),
+        diag: diagData.diag || {},
+      };
+      rpt.questions.push(qEntry);
+      rpt.totalXp = rpt.questions.reduce((s, q) => s + (q.xp || 0), 0);
+
+      // 타임라인에 추가
+      rpt.timeline.push({
+        type: 'question',
+        text: question,
+        phaseId: phase.id,
+        time: qEntry.time,
+        diagResult: diagData,
+      });
+
+      // XP 추가
+      state.xp += qEntry.xp;
+    }
+    renderScreen();
+
+    // Step 2: AI 멘토 답변 (Perplexity - 자료 검색 기반)
+    const mentorRes = await fetch('/api/report-mentor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question,
+        phase: phase.name,
+        projectTitle: ec.title,
+        subject: ec.subject,
+        questionHistory: rpt.questions.slice(-5).map(q => ({ level: q.level, text: q.text })),
+      })
+    });
+    const mentorData = await mentorRes.json();
+
+    if (mentorData.answer) {
+      state.reportAiResponse = mentorData;
+
+      // 타임라인에 AI 응답 추가
+      rpt.timeline.push({
+        type: 'ai_response',
+        text: (mentorData.answer || '').slice(0, 200) + '...',
+        phaseId: phase.id,
+        time: new Date().toISOString(),
+      });
+    }
+  } catch (e) {
+    state.reportAiResponse = { answer: '⚠️ 오류가 발생했습니다: ' + e.message, citations: [] };
+  }
+
+  state.reportAiLoading = false;
+  renderScreen();
+
+  // 스크롤 조정
+  setTimeout(() => {
+    const content = document.querySelector('.rpt-content');
+    if (content) content.scrollTop = content.scrollHeight;
+  }, 100);
+}
+
 
 // ==================== CLASS END POPUP ====================
 
@@ -3130,7 +3863,8 @@ function renderRecordActivity() {
               {type:'self', icon:'🧠', name:'자율자치'},
               {type:'report', icon:'📄', name:'탐구보고서'},
             ].map((a,i) => `
-              <button class="activity-type-btn ${i===0?'active':''}" data-type="${a.type}">
+              <button class="activity-type-btn ${i===0?'active':''}" data-type="${a.type}"
+                ${a.type === 'report' ? `onclick="goScreen('report-project')"` : ''}>
                 <span>${a.icon}</span><span>${a.name}</span>
               </button>
             `).join('')}
