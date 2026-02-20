@@ -1056,14 +1056,14 @@ function renderPortfolio() {
         <!-- 기간 선택 -->
         <div class="period-selector">
           ${periods.map(p => `
-            <button class="period-btn ${state.portfolioPeriod===p.key?'active':''}" onclick="state.portfolioPeriod='${p.key}';render()">${p.label}</button>
+            <button class="period-btn ${state.portfolioPeriod===p.key?'active':''}" onclick="state.portfolioPeriod='${p.key}';renderScreen()">${p.label}</button>
           `).join('')}
         </div>
         ${state.portfolioPeriod === 'custom' ? `
         <div class="custom-period-row">
-          <input type="date" value="${state.portfolioCustomStart}" onchange="state.portfolioCustomStart=this.value;render()">
+          <input type="date" value="${state.portfolioCustomStart}" onchange="state.portfolioCustomStart=this.value;renderScreen()">
           <span>~</span>
-          <input type="date" value="${state.portfolioCustomEnd}" onchange="state.portfolioCustomEnd=this.value;render()">
+          <input type="date" value="${state.portfolioCustomEnd}" onchange="state.portfolioCustomEnd=this.value;renderScreen()">
         </div>
         ` : ''}
 
@@ -1096,7 +1096,7 @@ function renderPortfolio() {
         <!-- 카테고리 탭 -->
         <div class="portfolio-tabs">
           ${tabs.map(t => `
-            <button class="portfolio-tab-btn ${state.portfolioTab===t.key?'active':''}" onclick="state.portfolioTab='${t.key}';render()">${t.label}</button>
+            <button class="portfolio-tab-btn ${state.portfolioTab===t.key?'active':''}" onclick="state.portfolioTab='${t.key}';renderScreen()">${t.label}</button>
           `).join('')}
         </div>
 
