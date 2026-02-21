@@ -6590,13 +6590,62 @@ function renderDirMentors() {
 
 // ==================== UTILITIES ====================
 
+// ==================== NAVIGATION HISTORY ====================
+// 브라우저 뒤로가기(스와이프 포함) 지원을 위한 History API 통합
+const _screenHistory = ['onboarding-welcome'];
+let _isPopState = false;
+
 function goScreen(screen) {
+  // 화면 히스토리에 push (뒤로가기 지원)
+  if (!_isPopState) {
+    _screenHistory.push(screen);
+    try {
+      history.pushState({ screen, tab: state.studentTab }, '', '');
+    } catch(e) { /* ignore */ }
+  }
+  _isPopState = false;
+
   state.currentScreen = screen;
   renderScreen();
+
   // Scroll to top on screen change
   const appContent = document.getElementById('app-content');
   if (appContent) appContent.scrollTop = 0;
+  const tabletContent = document.getElementById('tablet-content');
+  if (tabletContent) tabletContent.scrollTop = 0;
 }
+
+// 브라우저 뒤로가기 / 제스처 뒤로가기 처리
+window.addEventListener('popstate', (e) => {
+  if (_screenHistory.length > 1) {
+    _screenHistory.pop(); // 현재 화면 제거
+    const prevScreen = _screenHistory[_screenHistory.length - 1] || 'main';
+
+    _isPopState = true;
+
+    // 메인 탭 화면이면 탭도 복원
+    if (prevScreen === 'main') {
+      state.currentScreen = 'main';
+      // 기본 홈 탭으로
+      if (!['home','record','planner','growth','my'].includes(state.studentTab)) {
+        state.studentTab = 'home';
+      }
+    } else {
+      state.currentScreen = prevScreen;
+    }
+
+    renderScreen();
+    const tabletContent = document.getElementById('tablet-content');
+    if (tabletContent) tabletContent.scrollTop = 0;
+    const appContent = document.getElementById('app-content');
+    if (appContent) appContent.scrollTop = 0;
+  }
+});
+
+// 초기 히스토리 상태 설정
+try {
+  history.replaceState({ screen: state.currentScreen, tab: state.studentTab }, '', '');
+} catch(e) { /* ignore */ }
 
 function completeClassRecord(idx) {
   if (idx >= 0 && idx < state.todayRecords.length) {
