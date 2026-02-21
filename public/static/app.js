@@ -2606,7 +2606,7 @@ async function submitReportQuestion(ecId, phaseIdx) {
   const phase = REPORT_PHASES[phaseIdx];
 
   try {
-    // Step 1: 질문 진단 (Gemini Flash - 경량, 빠름)
+    // Step 1: 질문 진단 (Gemini Flash → OpenAI 자동 폴백)
     const diagRes = await fetch('/api/report-diagnose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2618,6 +2618,14 @@ async function submitReportQuestion(ecId, phaseIdx) {
       })
     });
     const diagData = await diagRes.json();
+
+    // 에러 응답 처리
+    if (diagData.error) {
+      state.reportAiResponse = { answer: '⚠️ AI 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', citations: [] };
+      state.reportAiLoading = false;
+      renderScreen();
+      return;
+    }
 
     if (diagData.level) {
       state.reportDiagResult = diagData;
@@ -3310,6 +3318,13 @@ function analyzeQuestion() {
   })
   .then(r => r.json())
   .then(result => {
+    if (result.error) {
+      state._diagLoading = false;
+      state._coachingMode = 'diagnosis';
+      alert('AI 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      renderScreen();
+      return;
+    }
     state._diagResult = result;
     state._diagLoading = false;
     state._coachingMode = 'result';
@@ -3318,7 +3333,7 @@ function analyzeQuestion() {
   .catch(err => {
     state._diagLoading = false;
     state._coachingMode = 'diagnosis';
-    alert('AI 분석 중 오류: ' + err.message);
+    alert('AI 분석 중 오류가 발생했습니다. 네트워크를 확인해주세요.');
     renderScreen();
   });
 }
@@ -3354,6 +3369,13 @@ function analyzeWithImage(questionText, subject, axis) {
   })
   .then(r => r.json())
   .then(result => {
+    if (result.error) {
+      state._diagLoading = false;
+      state._coachingMode = 'diagnosis';
+      alert('AI 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      renderScreen();
+      return;
+    }
     state._diagResult = result;
     state._diagLoading = false;
     state._coachingMode = 'result';
@@ -3362,7 +3384,7 @@ function analyzeWithImage(questionText, subject, axis) {
   .catch(err => {
     state._diagLoading = false;
     state._coachingMode = 'diagnosis';
-    alert('AI 분석 중 오류: ' + err.message);
+    alert('AI 분석 중 오류가 발생했습니다. 네트워크를 확인해주세요.');
     renderScreen();
   });
 }

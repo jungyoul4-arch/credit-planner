@@ -14,6 +14,78 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('/api/*', cors())
 app.get('/static/*', serveStatic())
 
+// ==================== Gemini → OpenAI 폴백 헬퍼 ====================
+// Gemini API가 할당량 초과(429) 등으로 실패할 경우 OpenAI gpt-4o-mini로 자동 폴백
+
+async function callGeminiWithFallback(opts: {
+  geminiKey: string,
+  openaiKey: string,
+  prompt: string,
+  jsonMode?: boolean,
+  temperature?: number,
+  inlineData?: { mime_type: string, data: string },
+}) {
+  const { geminiKey, openaiKey, prompt, jsonMode = true, temperature = 0.3, inlineData } = opts
+
+  // Step 1: Gemini 시도
+  try {
+    const parts: any[] = [{ text: prompt }]
+    if (inlineData) parts.push({ inline_data: inlineData })
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature,
+            ...(jsonMode ? { responseMimeType: 'application/json' } : { maxOutputTokens: 2048 })
+          }
+        })
+      }
+    )
+
+    if (geminiRes.ok) {
+      const data: any = await geminiRes.json()
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+      return { text, source: 'gemini' }
+    }
+
+    // Gemini 실패 → 폴백으로 진행
+    console.log(`Gemini API 실패 (${geminiRes.status}), OpenAI로 폴백`)
+  } catch (e) {
+    console.log('Gemini API 에러, OpenAI로 폴백:', e)
+  }
+
+  // Step 2: OpenAI 폴백 (이미지가 있는 경우 이미지 없이 텍스트만 전송)
+  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      temperature,
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
+    })
+  })
+
+  if (!openaiRes.ok) {
+    const err = await openaiRes.text()
+    throw new Error(`OpenAI 폴백도 실패: ${err}`)
+  }
+
+  const openaiData: any = await openaiRes.json()
+  const text = openaiData.choices[0].message.content
+  return { text, source: 'openai' }
+}
+
 // ==================== 2축 9단계 시스템 프롬프트 ====================
 
 const SYSTEM_PROMPT_ANALYZE = `당신은 정율고교학점데이터센터의 "2축 9단계 질문 코칭 시스템 v2.0"에 따라 학생 질문을 분석하는 AI 코치입니다.
@@ -200,34 +272,17 @@ app.post('/api/image-analyze', async (c) => {
 
     // base64 데이터에서 prefix 제거
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
+    const fullPrompt = SYSTEM_PROMPT_IMAGE + `\n\n과목 힌트: ${subject || '미지정'}\n\n위 형식에 맞게 JSON으로만 응답하세요.`
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: SYSTEM_PROMPT_IMAGE + `\n\n과목 힌트: ${subject || '미지정'}\n\n위 형식에 맞게 JSON으로만 응답하세요.` },
-              { inline_data: { mime_type: mimeType || 'image/jpeg', data: cleanBase64 } }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.3,
-            responseMimeType: 'application/json'
-          }
-        })
-      }
-    )
-
-    if (!res.ok) {
-      const err = await res.text()
-      return c.json({ error: 'Gemini API 오류', detail: err }, 500)
-    }
-
-    const data: any = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+    // Gemini 우선 시도 (이미지 지원) → 실패 시 OpenAI 폴백 (이미지 없이 텍스트만)
+    const { text } = await callGeminiWithFallback({
+      geminiKey: c.env.GEMINI_API_KEY,
+      openaiKey: c.env.OPENAI_API_KEY,
+      prompt: fullPrompt,
+      jsonMode: true,
+      temperature: 0.3,
+      inlineData: { mime_type: mimeType || 'image/jpeg', data: cleanBase64 },
+    })
 
     try {
       return c.json(JSON.parse(text))
@@ -302,25 +357,14 @@ app.post('/api/exam-coach', async (c) => {
     const { prompt } = await c.req.json()
     if (!prompt) return c.json({ error: '프롬프트가 필요합니다' }, 400)
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-        })
-      }
-    )
+    const { text } = await callGeminiWithFallback({
+      geminiKey: c.env.GEMINI_API_KEY,
+      openaiKey: c.env.OPENAI_API_KEY,
+      prompt,
+      jsonMode: false,
+      temperature: 0.7,
+    })
 
-    if (!res.ok) {
-      const err = await res.text()
-      return c.json({ error: 'Gemini API 오류', detail: err }, 500)
-    }
-
-    const data: any = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
     return c.json({ plan: text })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
@@ -364,30 +408,16 @@ app.post('/api/report-diagnose', async (c) => {
     const { question, phase, projectTitle, subject } = await c.req.json()
     if (!question) return c.json({ error: '질문 내용이 필요합니다' }, 400)
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: REPORT_DIAGNOSIS_PROMPT + `\n\n학생의 질문:\n"${question}"\n\n현재 탐구 단계: ${phase || '주제 선정'}\n탐구 주제: ${projectTitle || '미정'}\n과목: ${subject || '미지정'}\n\nJSON만 출력:` }]
-          }],
-          generationConfig: {
-            temperature: 0.3,
-            responseMimeType: 'application/json'
-          }
-        })
-      }
-    )
+    const fullPrompt = REPORT_DIAGNOSIS_PROMPT + `\n\n학생의 질문:\n"${question}"\n\n현재 탐구 단계: ${phase || '주제 선정'}\n탐구 주제: ${projectTitle || '미정'}\n과목: ${subject || '미지정'}\n\nJSON만 출력:`
 
-    if (!res.ok) {
-      const err = await res.text()
-      return c.json({ error: 'Gemini API 오류', detail: err }, 500)
-    }
+    const { text } = await callGeminiWithFallback({
+      geminiKey: c.env.GEMINI_API_KEY,
+      openaiKey: c.env.OPENAI_API_KEY,
+      prompt: fullPrompt,
+      jsonMode: true,
+      temperature: 0.3,
+    })
 
-    const data: any = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
     try {
       return c.json(JSON.parse(text))
     } catch {
