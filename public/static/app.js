@@ -382,6 +382,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'exam-detail') return renderExamDetail();
   if (state.currentScreen === 'exam-add') return renderExamAdd();
   if (state.currentScreen === 'report-project') return renderReportProject();
+  if (state.currentScreen === 'report-add') return renderReportAdd();
 
   let content = '';
   content += renderXpBar();
@@ -1865,14 +1866,26 @@ function renderReportProjectList(projects) {
       <div class="screen-header">
         <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
         <h1>📄 탐구보고서</h1>
-        <span class="xp-badge-sm">질문이 성장하면 보고서가 됩니다</span>
+        <button class="header-add-btn" onclick="goScreen('report-add')"><i class="fas fa-plus"></i></button>
       </div>
       <div class="form-body">
+        <!-- 슬로건 배너 -->
+        <div class="rpt-banner stagger-1 animate-in">
+          <span style="font-size:20px">💡</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#e0e0e0">질문이 성장하면 보고서가 됩니다</div>
+            <div style="font-size:11px;color:#888;margin-top:2px">궁금한 것에서 시작해, 탐구 역량을 키워봐요</div>
+          </div>
+        </div>
+
         ${projects.length === 0 ? `
           <div style="text-align:center;padding:40px 0;color:var(--text-muted)">
             <div style="font-size:48px;margin-bottom:12px">📝</div>
             <div style="font-size:15px;font-weight:600;margin-bottom:8px">아직 탐구보고서 프로젝트가 없어요</div>
-            <div style="font-size:13px;color:#666">창의적 체험활동에서 탐구보고서를 추가해보세요!</div>
+            <div style="font-size:13px;color:#666;margin-bottom:16px">아래 버튼을 눌러 첫 탐구를 시작해보세요!</div>
+            <button class="btn-primary" onclick="goScreen('report-add')" style="display:inline-flex;align-items:center;gap:6px;padding:12px 24px">
+              <i class="fas fa-plus"></i> 새 탐구보고서 만들기
+            </button>
           </div>
         ` : projects.map((ec, i) => {
           const rpt = ec.report;
@@ -1905,9 +1918,177 @@ function renderReportProjectList(projects) {
           </div>
           `;
         }).join('')}
+        <!-- 추가 버튼 (하단 고정) -->
+        <button class="rpt-add-float-btn" onclick="goScreen('report-add')">
+          <i class="fas fa-plus" style="margin-right:6px"></i> 새 탐구보고서
+        </button>
       </div>
     </div>
   `;
+}
+
+// 탐구보고서 추가 화면
+function renderReportAdd() {
+  const subjects = ['수학','국어','영어','과학','한국사','사회','정보','기술가정','음악','미술','체육'];
+  const colors = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#A29BFE','#E056A0','#FF9F43','#00CEC9','#FD79A8','#E17055'];
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('report-project')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📄 새 탐구보고서</h1>
+      </div>
+      <div class="form-body">
+        <!-- Step 1: 궁금한 것 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">1</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">💡 뭐가 궁금해?</label>
+            <div style="font-size:11px;color:#888;margin-bottom:8px">탐구의 출발점이 되는 궁금증을 자유롭게 적어봐!</div>
+            <textarea id="rpt-add-curiosity" class="input-field form-input" rows="3" placeholder="예: 왜 항생제를 오래 쓰면 안 듣게 되는 걸까?"></textarea>
+          </div>
+        </div>
+
+        <!-- Step 2: 과목 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">2</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📚 관련 과목</label>
+            <div class="rpt-add-subject-grid" id="rpt-add-subjects">
+              ${subjects.map((s, i) => `
+                <button class="rpt-add-subject-btn" data-subject="${s}" data-color="${colors[i]}" onclick="selectReportSubject(this)">
+                  <span class="rpt-add-subject-dot" style="background:${colors[i]}"></span>${s}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: 제목 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">3</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📝 탐구 주제 (제목)</label>
+            <div style="font-size:11px;color:#888;margin-bottom:8px">나중에 수정할 수 있어요. 지금은 대략적으로 적어도 OK!</div>
+            <input id="rpt-add-title" class="input-field form-input" placeholder="예: 항생제 내성 확산 메커니즘 탐구">
+          </div>
+        </div>
+
+        <!-- Step 4: 기간 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">4</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📅 탐구 기간</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="rpt-add-start" type="date" class="input-field form-input" value="${new Date().toISOString().slice(0,10)}" style="flex:1">
+              <span style="color:#666">~</span>
+              <input id="rpt-add-end" type="date" class="input-field form-input" value="${new Date(Date.now()+30*86400000).toISOString().slice(0,10)}" style="flex:1">
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: 설명 (선택) -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">5</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📖 간단 설명 <span class="field-hint">(선택)</span></label>
+            <input id="rpt-add-desc" class="input-field form-input" placeholder="예: 다양한 조건에서 반응속도 비교 실험">
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="saveNewReport()" style="margin-top:16px">
+          🚀 탐구 시작하기!
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function selectReportSubject(btn) {
+  document.querySelectorAll('#rpt-add-subjects .rpt-add-subject-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function saveNewReport() {
+  const curiosity = document.getElementById('rpt-add-curiosity')?.value?.trim();
+  const title = document.getElementById('rpt-add-title')?.value?.trim();
+  const startDate = document.getElementById('rpt-add-start')?.value;
+  const endDate = document.getElementById('rpt-add-end')?.value;
+  const desc = document.getElementById('rpt-add-desc')?.value?.trim() || '';
+  const subjectBtn = document.querySelector('#rpt-add-subjects .rpt-add-subject-btn.active');
+  const subject = subjectBtn?.dataset?.subject || '기타';
+  const color = subjectBtn?.dataset?.color || '#818cf8';
+
+  if (!title) {
+    alert('탐구 주제(제목)를 입력해주세요!');
+    return;
+  }
+
+  // 새 ID 생성
+  const newId = 'ec' + (Date.now() % 100000);
+
+  // extracurriculars에 추가
+  const newEntry = {
+    id: newId,
+    type: 'report',
+    title: title,
+    subject: subject,
+    status: 'in-progress',
+    progress: 0,
+    startDate: startDate || new Date().toISOString().slice(0,10),
+    endDate: endDate || new Date(Date.now()+30*86400000).toISOString().slice(0,10),
+    color: color,
+    desc: desc,
+    memo: curiosity || '',
+    report: {
+      currentPhase: 0,
+      phases: [
+        { id:'p1', name:'주제 선정', status:'in-progress' },
+        { id:'p2', name:'탐구 설계', status:'locked' },
+        { id:'p3', name:'자료 수집', status:'locked' },
+        { id:'p4', name:'분석/작성', status:'locked' },
+        { id:'p5', name:'회고', status:'locked' },
+      ],
+      questions: [],
+      timeline: [],
+      totalXp: 0,
+    }
+  };
+
+  // 초기 궁금증이 있으면 첫 질문으로 자동 등록
+  if (curiosity) {
+    newEntry.report.questions.push({
+      text: curiosity,
+      level: 'A-1',
+      axis: 'curiosity',
+      xp: 8,
+      phaseId: 'p1',
+      time: new Date().toISOString(),
+      diag: { specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} },
+    });
+    newEntry.report.timeline.push({
+      type: 'question',
+      text: curiosity,
+      phaseId: 'p1',
+      time: new Date().toISOString(),
+      diagResult: { level:'A-1', axis:'curiosity', xp:8 },
+    });
+    newEntry.report.totalXp = 8;
+    state.xp += 8;
+  }
+
+  state.extracurriculars.push(newEntry);
+
+  // 바로 새 프로젝트로 진입
+  state.viewingReport = newId;
+  state.reportPhaseTab = 0;
+  state.reportViewMode = 'question';
+  state.reportDiagResult = null;
+  state.reportAiResponse = null;
+  goScreen('report-project');
+
+  // XP 팝업
+  showXpPopup(curiosity ? 8 : 0, '새 탐구보고서가 생성되었어요! 🎉');
 }
 
 // Phase 뷰 (질문하기 / 기록 / 성장)

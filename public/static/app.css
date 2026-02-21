@@ -2710,3 +2710,70 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   .rpt-stats-row { gap:4px; }
   .rpt-stat-item { padding:6px 4px; }
 }
+
+/* 헤더 + 버튼 */
+.header-add-btn {
+  width:34px; height:34px; border-radius:50%;
+  background:rgba(108,92,231,.2); border:1px solid rgba(108,92,231,.3);
+  color:#6C5CE7; font-size:14px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .2s;
+}
+.header-add-btn:hover { background:rgba(108,92,231,.35); transform:scale(1.05); }
+
+/* 슬로건 배너 */
+.rpt-banner {
+  display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-radius:12px; margin-bottom:14px;
+  background:linear-gradient(135deg, rgba(99,102,241,.08), rgba(52,211,153,.06));
+  border:1px solid rgba(99,102,241,.12);
+}
+
+/* 플로팅 추가 버튼 */
+.rpt-add-float-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:100%; padding:14px; margin-top:16px;
+  border-radius:12px; cursor:pointer;
+  background:rgba(108,92,231,.1); border:1.5px dashed rgba(108,92,231,.3);
+  color:#6C5CE7; font-size:14px; font-weight:700;
+  transition:all .2s;
+}
+.rpt-add-float-btn:hover {
+  background:rgba(108,92,231,.18); border-color:rgba(108,92,231,.5);
+  transform:translateY(-1px);
+}
+
+/* 추가 화면 스텝 */
+.rpt-add-step {
+  display:flex; gap:12px; margin-bottom:18px;
+}
+.rpt-add-step-num {
+  width:28px; height:28px; border-radius:50%; flex-shrink:0;
+  background:rgba(108,92,231,.15); color:#818cf8;
+  font-size:13px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  margin-top:2px;
+}
+.rpt-add-step-content { flex:1; min-width:0; }
+
+/* 과목 선택 그리드 */
+.rpt-add-subject-grid {
+  display:flex; flex-wrap:wrap; gap:6px;
+}
+.rpt-add-subject-btn {
+  display:flex; align-items:center; gap:5px;
+  padding:7px 12px; border-radius:8px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06);
+  color:#aaa; font-size:12px; font-weight:600; cursor:pointer;
+  transition:all .15s;
+}
+.rpt-add-subject-btn:hover {
+  background:rgba(255,255,255,.06); color:#ddd;
+}
+.rpt-add-subject-btn.active {
+  background:rgba(108,92,231,.12); border-color:rgba(108,92,231,.35);
+  color:#c4b5fd;
+}
+.rpt-add-subject-dot {
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+}
