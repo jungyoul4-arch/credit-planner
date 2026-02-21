@@ -348,6 +348,8 @@ const state = {
   activityFilter: 'all', // 'all','club','career','self','report','reading'
   viewingActivity: null, // 현재 보고 있는 활동 ec id
   activityLogInput: {}, // 활동 기록 입력 임시 저장
+  // 질문 코칭 과목 선택 상태
+  _questionSubject: '영어', // 기본 선택 과목
 };
 
 // ==================== MAIN RENDER ====================
@@ -2930,8 +2932,8 @@ function renderRecordQuestion() {
 
         <div class="field-group">
           <label class="field-label">📚 과목</label>
-          <div class="chip-row">
-            ${['국어','수학','영어','과학','한국사'].map((s,i) => `<button class="chip ${i===2?'active':''}">${s}</button>`).join('')}
+          <div class="chip-row" id="question-subject-chips">
+            ${['국어','수학','영어','과학','한국사'].map((s) => `<button class="chip ${state._questionSubject===s?'active':''}" data-qsubject="${s}">${s}</button>`).join('')}
           </div>
         </div>
 
@@ -3296,8 +3298,7 @@ function analyzeQuestion() {
   const questionText = questionInput ? questionInput.value.trim() : '';
   if (!questionText) { alert('질문 내용을 입력해주세요!'); return; }
   
-  const activeChip = document.querySelector('.field-group .chip.active');
-  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const subject = state._questionSubject || '미지정';
   const axis = state._questionAxis || 'curiosity';
   
   // 이미지가 있으면 먼저 이미지 분석
@@ -3402,8 +3403,7 @@ function sendSocratesMessage() {
   state._socratesLoading = true;
   renderScreen();
   
-  const activeChip = document.querySelector('.field-group .chip.active');
-  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const subject = state._questionSubject || '미지정';
   
   // API에 보낼 때 _hidden 메시지도 포함 (대화 맥락 유지)
   const apiMessages = state._socratesMessages.map(m => ({ role: m.role, content: m.content }));
@@ -3463,8 +3463,7 @@ function submitChallenge() {
   const text = input ? input.value.trim() : '';
   if (!text) { alert('도전 질문을 입력해주세요!'); return; }
 
-  const activeChip = document.querySelector('.field-group .chip.active');
-  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const subject = state._questionSubject || '미지정';
   const axis = state._questionAxis || 'curiosity';
 
   state._challengeLoading = true;
@@ -3491,8 +3490,7 @@ function submitChallenge() {
 function startSocrates() {
   const questionInput = document.getElementById('question-input');
   const questionText = questionInput ? questionInput.value.trim() : '';
-  const activeChip = document.querySelector('.field-group .chip.active');
-  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const subject = state._questionSubject || '미지정';
 
   state._coachingMode = 'socrates';
   state._socratesComplete = false;
@@ -3539,8 +3537,7 @@ function startSocrates() {
 
 function openJeongyulQA() {
   // 현재 선택된 과목 가져오기
-  const activeChip = document.querySelector('.chip.active');
-  const subject = activeChip ? activeChip.textContent.trim() : '';
+  const subject = state._questionSubject || '미지정';
   
   // 질문 내용 가져오기
   const questionInput = document.getElementById('question-input');
@@ -6777,6 +6774,11 @@ function initStudentEvents(root) {
       const siblings = chip.parentElement.querySelectorAll('.chip');
       siblings.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
+      
+      // 질문 코칭 과목 chip 선택 시 state 업데이트
+      if (chip.dataset.qsubject) {
+        state._questionSubject = chip.dataset.qsubject;
+      }
     });
   });
 
