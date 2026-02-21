@@ -3017,15 +3017,15 @@ function renderRecordQuestion() {
           <div class="ai-header">
             <span class="ai-icon">📷</span>
             <span class="ai-title">이미지 분석 결과</span>
-            <span style="margin-left:auto;font-size:9px;background:var(--bg-input);padding:2px 8px;border-radius:8px">Gemini</span>
+            <span style="margin-left:auto;font-size:9px;background:var(--bg-input);padding:2px 8px;border-radius:8px">AI</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
             <div style="background:var(--bg-input);padding:6px 8px;border-radius:8px">
-              <div style="font-size:8px;color:var(--text-muted)">과목</div>
-              <div style="font-size:11px;font-weight:700">${state._imageAnalysis.subject || '미지정'}</div>
+              <div style="font-size:8px;color:var(--text-muted)">선택 과목</div>
+              <div style="font-size:11px;font-weight:700">${state._selectedSubject || '미지정'}</div>
             </div>
             <div style="background:var(--bg-input);padding:6px 8px;border-radius:8px">
-              <div style="font-size:8px;color:var(--text-muted)">단원</div>
+              <div style="font-size:8px;color:var(--text-muted)">AI 인식 단원</div>
               <div style="font-size:11px;font-weight:700">${state._imageAnalysis.topic || '미지정'}</div>
             </div>
           </div>
@@ -3309,6 +3309,7 @@ function analyzeQuestion() {
   state._diagLoading = true;
   state._diagResult = null;
   state._coachingMode = 'loading';
+  state._selectedSubject = subject; // 사용자 선택 과목 저장
   renderScreen();
   
   fetch('/api/analyze', {
@@ -3341,6 +3342,7 @@ function analyzeQuestion() {
 function analyzeWithImage(questionText, subject, axis) {
   state._diagLoading = true;
   state._coachingMode = 'loading';
+  state._selectedSubject = subject; // 사용자 선택 과목 저장
   renderScreen();
   
   const firstImage = state._questionImages[0];
@@ -3361,10 +3363,11 @@ function analyzeWithImage(questionText, subject, axis) {
       (imageResult.extractedText ? `\n\n[이미지 분석 내용: ${imageResult.extractedText}]` : '') +
       (imageResult.analysis ? `\n[이미지 문제 분석: ${imageResult.analysis}]` : '');
     
+    // 사용자가 선택한 과목을 항상 우선 사용 (이미지 분석 결과로 덮어쓰지 않음)
     return fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: enrichedQuestion, subject: imageResult.subject || subject, axis })
+      body: JSON.stringify({ question: enrichedQuestion, subject: subject, axis })
     });
   })
   .then(r => r.json())
