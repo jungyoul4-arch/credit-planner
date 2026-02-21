@@ -429,6 +429,7 @@ function renderXpBar() {
   const pct = Math.min((state.xp / nextLevelXp * 100), 100).toFixed(0);
   return `
     <div class="xp-bar-container">
+      <img src="/static/logo.png" alt="" class="xp-bar-logo">
       <span class="xp-level">Lv.${state.level}</span>
       <div class="xp-bar"><div class="xp-bar-fill" style="width:${pct}%"></div></div>
       <span class="xp-text">${state.xp.toLocaleString()}/${nextLevelXp.toLocaleString()}</span>
@@ -481,9 +482,7 @@ function renderOnboardingWelcome() {
     <div class="onboarding-screen animate-in">
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
         <div class="onboarding-logo">
-          <div class="logo-circle">
-            <i class="fas fa-graduation-cap"></i>
-          </div>
+          <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
           <h2>학점플래너</h2>
           <p>CreditPlanner</p>
         </div>
@@ -5520,6 +5519,9 @@ function renderMyTab() {
       </div>
 
       <div class="card profile-card stagger-1 animate-in">
+        <div class="profile-academy-badge">
+          <img src="/static/logo.png" alt="정율사관학원" class="profile-academy-logo">
+        </div>
         <div class="profile-avatar">
           <span>🎓</span>
         </div>
@@ -6266,9 +6268,12 @@ function initAcademySync() {
 function renderMentorDashboard() {
   return `
     <div class="desk-header">
-      <div>
-        <h1>🏫 학점플래너 <span style="color:var(--primary-light)">멘토</span></h1>
-        <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">박진수 멘토 | 담당 학생 20명</p>
+      <div style="display:flex;align-items:center;gap:14px">
+        <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
+        <div>
+          <h1>학점플래너 <span style="color:var(--primary-light)">멘토</span></h1>
+          <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">박진수 멘토 | 담당 학생 20명</p>
+        </div>
       </div>
       <div class="desk-header-right">
         <span style="font-size:13px;color:var(--text-muted)">2025-02-15</span>
@@ -6401,9 +6406,12 @@ function renderMentorNetwork() {
 function renderDirectorDashboard() {
   return `
     <div class="desk-header">
-      <div>
-        <h1>🏢 학점플래너 <span style="color:var(--accent)">원장</span></h1>
-        <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">정율고교학점데이터센터 | 498/500명</p>
+      <div style="display:flex;align-items:center;gap:14px">
+        <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
+        <div>
+          <h1>학점플래너 <span style="color:var(--accent)">원장</span></h1>
+          <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">정율고교학점데이터센터 | 498/500명</p>
+        </div>
       </div>
       <div class="desk-header-right"><span style="font-size:13px;color:var(--text-muted)">2025-02-15</span></div>
     </div>

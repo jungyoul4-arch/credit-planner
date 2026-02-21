@@ -57,6 +57,68 @@ body {
 #prototype-wrapper { width: 100%; max-width: 1400px; }
 
 /* ==================== MODE SELECTOR ==================== */
+/* ==================== LOGO STYLES ==================== */
+
+/* Mode selector header logo */
+#mode-header {
+  display:flex; justify-content:center; margin-bottom:16px; padding-top:8px;
+}
+.mode-logo-row {
+  display:flex; align-items:center; gap:12px;
+  background:rgba(255,255,255,.95); padding:8px 20px; border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.15);
+}
+.mode-logo-img {
+  height:32px; width:auto; object-fit:contain;
+}
+.mode-logo-text {
+  display:flex; flex-direction:column;
+}
+.mode-logo-title {
+  font-size:14px; font-weight:800; color:#1a1a2e;
+  letter-spacing:-0.5px; line-height:1.2;
+}
+.mode-logo-sub {
+  font-size:9px; color:#888; font-weight:600;
+  letter-spacing:1px; text-transform:uppercase;
+}
+
+/* Onboarding logo - real image */
+.onboarding-logo-img {
+  width:200px; height:auto; object-fit:contain;
+  margin:0 auto 20px; display:block;
+  background:rgba(255,255,255,.95); padding:12px 24px; border-radius:16px;
+  box-shadow:0 4px 24px rgba(0,0,0,.15);
+  animation:logoFloat 3s ease-in-out infinite;
+}
+
+/* XP bar mini logo */
+.xp-bar-logo {
+  height:18px; width:auto; object-fit:contain;
+  margin-right:6px; flex-shrink:0;
+  background:rgba(255,255,255,.92); padding:2px 6px; border-radius:5px;
+}
+
+/* Profile academy badge */
+.profile-academy-badge {
+  display:flex; justify-content:center; margin-bottom:14px; padding-top:4px;
+}
+.profile-academy-logo {
+  height:26px; width:auto; object-fit:contain;
+  background:rgba(255,255,255,.92); padding:4px 14px; border-radius:8px;
+  box-shadow:0 1px 6px rgba(0,0,0,.1);
+}
+
+/* Desk header logo (mentor/director) */
+.desk-header-logo {
+  height:38px; width:auto; object-fit:contain;
+  flex-shrink:0;
+  background:rgba(255,255,255,.95); padding:5px 12px; border-radius:10px;
+  box-shadow:0 2px 8px rgba(0,0,0,.1);
+}
+
+/* ==================== END LOGO STYLES ==================== */
+
 #mode-selector { display:flex; gap:8px; margin-bottom:16px; justify-content:center; flex-wrap:wrap; }
 .mode-btn {
   padding:10px 20px; border:2px solid var(--border); background:var(--bg-card);
@@ -309,6 +371,8 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   display:flex; align-items:center; justify-content:center; font-size:36px; color:white;
   box-shadow:0 8px 32px rgba(108,92,231,0.4);
   animation:logoFloat 3s ease-in-out infinite;
+  /* Hidden by default - replaced by real logo image */
+  display:none;
 }
 .onboarding-logo h2 {
   font-size:28px; font-weight:900;
