@@ -426,11 +426,13 @@ function renderScreen() {
       tabletContainer.style.display = 'block';
       tabletContent.innerHTML = renderStudentApp();
       initStudentEvents(tabletContent);
+      setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
     } else {
       phoneContainer.style.display = 'flex';
       tabletContainer.style.display = 'none';
       container.innerHTML = renderStudentApp();
       initStudentEvents(container);
+      setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
     }
   } else if (state.mode === 'mentor') {
     phoneContainer.style.display = 'none';
@@ -481,6 +483,9 @@ function renderStudentApp() {
   if (state.currentScreen === 'exam-list') return renderExamList();
   if (state.currentScreen === 'exam-detail') return renderExamDetail();
   if (state.currentScreen === 'exam-add') return renderExamAdd();
+  if (state.currentScreen === 'exam-result-input') return renderExamResultInput();
+  if (state.currentScreen === 'exam-report') return renderExamReport();
+  if (state.currentScreen === 'growth-analysis') return renderGrowthAnalysis();
   if (state.currentScreen === 'report-project') return renderReportProject();
   if (state.currentScreen === 'report-add') return renderReportAdd();
   if (state.currentScreen === 'activity-detail') return renderActivityDetail();
@@ -1310,6 +1315,13 @@ function renderExamList() {
           <i class="fas fa-plus" style="margin-right:6px"></i>시험 추가
         </button>
 
+        <!-- 성장 분석 버튼 -->
+        ${state.exams.some(e => e.result) ? `
+        <button class="btn-secondary" style="width:100%;margin-top:8px;border-color:rgba(108,92,231,0.4);color:#A29BFE" onclick="goScreen('growth-analysis')">
+          <i class="fas fa-chart-line" style="margin-right:6px"></i>📈 시간축 성장 분석 보기
+        </button>
+        ` : ''}
+
       </div>
     </div>
   `;
@@ -1424,6 +1436,32 @@ function renderExamDetail() {
         </button>
         ` : ''}
 
+        <!-- 시험 결과 입력/보고서 -->
+        <div class="section-label" style="margin-top:20px">📊 시험 결과</div>
+        ${ex.result ? `
+        <div class="card" style="border:1px solid rgba(108,92,231,0.3)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span style="font-size:14px;font-weight:700;color:var(--text-primary)">✅ 결과 입력 완료</span>
+            <span style="font-size:20px;font-weight:800;color:var(--primary-light)">${ex.result.totalScore}점</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-primary" style="flex:1;font-size:12px" onclick="state.viewingExam='${ex.id}';goScreen('exam-report')">
+              <i class="fas fa-chart-bar" style="margin-right:4px"></i>결과 보고서
+            </button>
+            <button class="btn-secondary" style="flex:1;font-size:12px" onclick="state.viewingExam='${ex.id}';goScreen('exam-result-input')">
+              <i class="fas fa-edit" style="margin-right:4px"></i>결과 수정
+            </button>
+          </div>
+        </div>
+        ` : `
+        <div class="card" style="text-align:center">
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">시험이 끝나면 결과를 입력하고<br>오답 분석 보고서를 만들어보세요</p>
+          <button class="btn-primary" onclick="state.viewingExam='${ex.id}';goScreen('exam-result-input')">
+            <i class="fas fa-pen" style="margin-right:6px"></i>결과 입력하기
+          </button>
+        </div>
+        `}
+
       </div>
     </div>
   `;
@@ -1491,6 +1529,725 @@ function renderExamAdd() {
   `;
 }
 
+
+// ==================== EXAM RESULT INPUT ====================
+
+function renderExamResultInput() {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex) return '<div class="full-screen"><p>시험을 찾을 수 없습니다</p></div>';
+
+  // 기존 결과가 있으면 편집 모드
+  const r = ex.result || {};
+  const subjResults = r.subjects || ex.subjects.map(s => ({
+    subject: s.subject, score: '', grade: '', avg: '', color: s.color,
+    wrongAnswers: []
+  }));
+
+  // 현재 편집 중인 과목 인덱스
+  const activeSubj = state._examResultActiveSubj || 0;
+  const sr = subjResults[activeSubj] || subjResults[0];
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('exam-detail')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📝 결과 입력</h1>
+        <button class="header-action-btn" onclick="saveExamResult()" title="저장" style="color:var(--primary-light)"><i class="fas fa-save"></i></button>
+      </div>
+      <div class="form-body">
+
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:12px">${ex.name}</div>
+
+        <!-- 전체 총점/등급 -->
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <div style="flex:1">
+            <label class="field-label">총점 (100점 환산)</label>
+            <input class="input-field" type="number" id="exam-total-score" placeholder="82" value="${r.totalScore || ''}" min="0" max="100" style="text-align:center;font-size:18px;font-weight:700">
+          </div>
+          <div style="flex:1">
+            <label class="field-label">전체 등급</label>
+            <select class="input-field" id="exam-total-grade" style="text-align:center;font-size:18px;font-weight:700">
+              <option value="">-</option>
+              ${[1,2,3,4,5,6,7,8,9].map(g => `<option value="${g}" ${r.grade==g?'selected':''}>${g}등급</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <!-- 과목 탭 -->
+        <div class="chip-row" style="margin-bottom:12px;flex-wrap:wrap">
+          ${subjResults.map((s,i) => `
+            <button class="chip ${i===activeSubj?'active':''}" onclick="state._examResultActiveSubj=${i};renderScreen()" style="${i===activeSubj?'background:'+s.color+';border-color:'+s.color:''}">
+              ${s.subject}
+              ${s.score ? ' ✅' : ''}
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- 선택 과목 입력 -->
+        <div class="card" style="border-left:3px solid ${sr.color || 'var(--primary-light)'}">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:12px">${sr.subject}</div>
+          
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <div style="flex:1">
+              <label class="field-label">점수</label>
+              <input class="input-field exam-subj-score" type="number" data-idx="${activeSubj}" placeholder="78" value="${sr.score || ''}" min="0" max="100">
+            </div>
+            <div style="flex:1">
+              <label class="field-label">등급</label>
+              <select class="input-field exam-subj-grade" data-idx="${activeSubj}">
+                <option value="">-</option>
+                ${[1,2,3,4,5,6,7,8,9].map(g => `<option value="${g}" ${sr.grade==g?'selected':''}>${g}등급</option>`).join('')}
+              </select>
+            </div>
+            <div style="flex:1">
+              <label class="field-label">평균</label>
+              <input class="input-field exam-subj-avg" type="number" data-idx="${activeSubj}" placeholder="65" value="${sr.avg || ''}" min="0" max="100">
+            </div>
+          </div>
+
+          <!-- 오답 분석 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:13px;font-weight:700;color:var(--text-primary)">❌ 오답 분석</span>
+            <button class="card-link" onclick="addWrongAnswer(${activeSubj})">+ 오답 추가</button>
+          </div>
+
+          ${(sr.wrongAnswers || []).length === 0 ? `
+            <div style="text-align:center;padding:16px;background:var(--bg-input);border-radius:12px">
+              <p style="color:var(--text-muted);font-size:12px">틀린 문항을 추가하여 오답 분석을 시작하세요</p>
+              <button class="btn-secondary" style="margin-top:8px;font-size:12px" onclick="addWrongAnswer(${activeSubj})">
+                <i class="fas fa-plus" style="margin-right:4px"></i>오답 추가
+              </button>
+            </div>
+          ` : `
+            ${(sr.wrongAnswers || []).map((w,wi) => `
+              <div class="wrong-answer-card" style="background:var(--bg-input);border-radius:12px;padding:12px;margin-bottom:8px;position:relative">
+                <button style="position:absolute;top:6px;right:8px;background:none;border:none;color:#FF6B6B;font-size:14px;cursor:pointer" onclick="removeWrongAnswer(${activeSubj},${wi})"><i class="fas fa-times"></i></button>
+                
+                <div style="display:flex;gap:6px;margin-bottom:8px">
+                  <div style="flex:0.5">
+                    <label style="font-size:10px;color:var(--text-muted)">문항</label>
+                    <input class="input-field wa-number" data-subj="${activeSubj}" data-wi="${wi}" type="number" placeholder="15" value="${w.number || ''}" style="font-size:13px;padding:6px 8px">
+                  </div>
+                  <div style="flex:1">
+                    <label style="font-size:10px;color:var(--text-muted)">관련 단원</label>
+                    <input class="input-field wa-topic" data-subj="${activeSubj}" data-wi="${wi}" placeholder="치환적분" value="${w.topic || ''}" style="font-size:13px;padding:6px 8px">
+                  </div>
+                </div>
+
+                <div style="margin-bottom:8px">
+                  <label style="font-size:10px;color:var(--text-muted)">오답 유형</label>
+                  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                    ${[{k:'concept',l:'📘 개념부족',c:'#6C5CE7'},{k:'careless',l:'⚡ 실수',c:'#FF9F43'},{k:'interpretation',l:'🔍 해석오류',c:'#FF6B6B'},{k:'time',l:'⏱️ 시간부족',c:'#74B9FF'}].map(t => `
+                      <button class="chip wa-type-btn ${w.type===t.k?'active':''}" data-subj="${activeSubj}" data-wi="${wi}" data-type="${t.k}" style="font-size:10px;padding:4px 8px;${w.type===t.k?'background:'+t.c+';border-color:'+t.c:''}" onclick="setWrongAnswerType(${activeSubj},${wi},'${t.k}')">
+                        ${t.l}
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:6px;margin-bottom:8px">
+                  <div style="flex:1">
+                    <label style="font-size:10px;color:var(--text-muted)">내 답</label>
+                    <input class="input-field wa-my" data-subj="${activeSubj}" data-wi="${wi}" placeholder="③" value="${w.myAnswer || ''}" style="font-size:13px;padding:6px 8px">
+                  </div>
+                  <div style="flex:1">
+                    <label style="font-size:10px;color:var(--text-muted)">정답</label>
+                    <input class="input-field wa-correct" data-subj="${activeSubj}" data-wi="${wi}" placeholder="④" value="${w.correctAnswer || ''}" style="font-size:13px;padding:6px 8px">
+                  </div>
+                </div>
+
+                <div style="margin-bottom:6px">
+                  <label style="font-size:10px;color:var(--text-muted)">왜 틀렸는지 (원인 분석)</label>
+                  <textarea class="input-field wa-reason" data-subj="${activeSubj}" data-wi="${wi}" rows="2" placeholder="치환 후 적분 구간 변환을 안 했음" style="font-size:12px;padding:8px">${w.reason || ''}</textarea>
+                </div>
+                <div>
+                  <label style="font-size:10px;color:var(--text-muted)">다음에 어떻게 할지 (성찰)</label>
+                  <textarea class="input-field wa-reflection" data-subj="${activeSubj}" data-wi="${wi}" rows="2" placeholder="구간 변환 공식을 다시 정리해야겠다" style="font-size:12px;padding:8px">${w.reflection || ''}</textarea>
+                </div>
+              </div>
+            `).join('')}
+          `}
+        </div>
+
+        <!-- 전체 소감 -->
+        <div style="margin-top:12px">
+          <label class="field-label">💭 전체 소감</label>
+          <textarea class="input-field" id="exam-overall-reflection" rows="3" placeholder="이번 시험을 돌아보며 느낀 점을 적어주세요">${r.overallReflection || ''}</textarea>
+        </div>
+
+        <button class="btn-primary" style="width:100%;margin-top:16px;padding:14px" onclick="saveExamResult()">
+          <i class="fas fa-save" style="margin-right:6px"></i>결과 저장
+        </button>
+
+      </div>
+    </div>
+  `;
+}
+
+// ==================== EXAM REPORT ====================
+
+function renderExamReport() {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex || !ex.result) return '<div class="full-screen"><p>결과 데이터가 없습니다</p></div>';
+
+  const r = ex.result;
+  const totalWrong = r.subjects.reduce((s,sub) => s + (sub.wrongAnswers||[]).length, 0);
+  const errorTypes = {concept:0, careless:0, interpretation:0, time:0};
+  const weakTopics = {};
+  
+  r.subjects.forEach(sub => {
+    (sub.wrongAnswers||[]).forEach(w => {
+      if (w.type) errorTypes[w.type]++;
+      if (w.topic) {
+        const key = sub.subject + ' - ' + w.topic;
+        weakTopics[key] = (weakTopics[key]||0) + 1;
+      }
+    });
+  });
+
+  const sortedWeakTopics = Object.entries(weakTopics).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const errorTotal = Object.values(errorTypes).reduce((a,b)=>a+b,0) || 1;
+  const errorTypeLabels = {concept:'📘 개념부족', careless:'⚡ 실수', interpretation:'🔍 해석오류', time:'⏱️ 시간부족'};
+  const errorTypeColors = {concept:'#6C5CE7', careless:'#FF9F43', interpretation:'#FF6B6B', time:'#74B9FF'};
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('exam-detail')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📊 결과 보고서</h1>
+      </div>
+      <div class="form-body">
+
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:13px;color:var(--text-muted)">${ex.name}</div>
+          <div style="font-size:36px;font-weight:800;color:var(--primary-light);margin:8px 0">${r.totalScore}점</div>
+          <div style="display:flex;justify-content:center;gap:16px;font-size:12px;color:var(--text-secondary)">
+            ${r.grade ? `<span>📋 ${r.grade}등급</span>` : ''}
+            <span>❌ 총 오답 ${totalWrong}문항</span>
+          </div>
+        </div>
+
+        <!-- 과목별 성적 -->
+        <div class="section-label">📚 과목별 성적</div>
+        <div class="card">
+          ${r.subjects.map(sub => {
+            const diff = sub.score && sub.avg ? sub.score - sub.avg : 0;
+            return `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color)">
+              <div style="width:4px;height:28px;border-radius:2px;background:${sub.color}"></div>
+              <span style="font-size:13px;font-weight:600;width:44px">${sub.subject}</span>
+              <div style="flex:1;height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${sub.score||0}%;background:${sub.color};border-radius:4px"></div>
+              </div>
+              <span style="font-size:14px;font-weight:700;width:36px;text-align:right;color:var(--text-primary)">${sub.score||'-'}</span>
+              ${sub.grade ? `<span style="font-size:10px;background:rgba(108,92,231,0.15);padding:2px 6px;border-radius:6px;color:${sub.color}">${sub.grade}등급</span>` : ''}
+              ${diff !== 0 ? `<span style="font-size:10px;color:${diff>0?'#00B894':'#FF6B6B'}">${diff>0?'+':''}${diff}</span>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+
+        <!-- 오답 유형 분석 -->
+        ${totalWrong > 0 ? `
+        <div class="section-label" style="margin-top:16px">🔍 오답 유형 분석</div>
+        <div class="card">
+          ${Object.entries(errorTypes).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([type,count]) => {
+            const pct = Math.round(count/errorTotal*100);
+            return `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+              <span style="font-size:12px;width:90px">${errorTypeLabels[type]}</span>
+              <div style="flex:1;height:10px;background:var(--bg-input);border-radius:5px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${errorTypeColors[type]};border-radius:5px;transition:width 0.5s"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;width:50px;text-align:right;color:${errorTypeColors[type]}">${count}개 ${pct}%</span>
+            </div>`;
+          }).join('')}
+        </div>
+        ` : ''}
+
+        <!-- 취약 단원 TOP -->
+        ${sortedWeakTopics.length > 0 ? `
+        <div class="section-label" style="margin-top:16px">⚠️ 취약 단원 TOP ${sortedWeakTopics.length}</div>
+        <div class="card">
+          ${sortedWeakTopics.map(([topic,count],i) => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;${i<sortedWeakTopics.length-1?'border-bottom:1px solid var(--border-color)':''}">
+              <span style="width:22px;height:22px;border-radius:50%;background:${i===0?'#FF6B6B':i===1?'#FF9F43':'#FDCB6E'};color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${i+1}</span>
+              <span style="flex:1;font-size:13px;color:var(--text-primary)">${topic}</span>
+              <span style="font-size:12px;color:var(--text-muted)">${count}문항</span>
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+
+        <!-- 과목별 오답 상세 -->
+        ${r.subjects.filter(s => (s.wrongAnswers||[]).length > 0).map(sub => `
+        <div class="section-label" style="margin-top:16px">${sub.subject} 오답 상세</div>
+        ${(sub.wrongAnswers||[]).map(w => `
+          <div class="card" style="border-left:3px solid ${errorTypeColors[w.type]||'var(--border-color)'};margin-bottom:8px;padding:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span style="font-size:12px;font-weight:700;background:var(--bg-input);padding:2px 8px;border-radius:6px">${w.number ? w.number+'번' : '?'}</span>
+              <span style="font-size:12px;color:var(--text-secondary)">${w.topic || ''}</span>
+              <span style="margin-left:auto;font-size:10px;padding:2px 6px;border-radius:6px;background:${errorTypeColors[w.type]||'var(--bg-input)'}20;color:${errorTypeColors[w.type]||'var(--text-muted)'}">${errorTypeLabels[w.type]||'미분류'}</span>
+            </div>
+            ${w.myAnswer || w.correctAnswer ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">내 답: <span style="color:#FF6B6B">${w.myAnswer||'?'}</span> → 정답: <span style="color:#00B894">${w.correctAnswer||'?'}</span></div>` : ''}
+            ${w.reason ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px"><strong>원인:</strong> ${w.reason}</div>` : ''}
+            ${w.reflection ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px"><strong>성찰:</strong> ${w.reflection}</div>` : ''}
+          </div>
+        `).join('')}
+        `).join('')}
+
+        <!-- 전체 소감 -->
+        ${r.overallReflection ? `
+        <div class="section-label" style="margin-top:16px">💭 전체 소감</div>
+        <div class="card">
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">${r.overallReflection}</p>
+        </div>
+        ` : ''}
+
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn-secondary" style="flex:1" onclick="state.viewingExam='${ex.id}';goScreen('exam-result-input')">
+            <i class="fas fa-edit" style="margin-right:4px"></i>결과 수정
+          </button>
+          <button class="btn-primary" style="flex:1" onclick="goScreen('growth-analysis')">
+            <i class="fas fa-chart-line" style="margin-right:4px"></i>성장 분석
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+
+// ==================== GROWTH ANALYSIS ====================
+
+function renderGrowthAnalysis() {
+  const examsWithResult = state.exams.filter(e => e.result).sort((a,b) => a.startDate.localeCompare(b.startDate));
+  
+  if (examsWithResult.length === 0) {
+    return `
+      <div class="full-screen animate-in">
+        <div class="screen-header">
+          <button class="back-btn" onclick="goScreen('exam-list')"><i class="fas fa-arrow-left"></i></button>
+          <h1>📈 성장 분석</h1>
+        </div>
+        <div class="form-body" style="text-align:center;padding-top:60px">
+          <div style="font-size:48px;margin-bottom:16px">📊</div>
+          <p style="font-size:14px;color:var(--text-secondary)">시험 결과를 2개 이상 입력하면<br>성장 추이를 분석할 수 있습니다</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // 전체 과목 리스트 수집
+  const allSubjects = [...new Set(examsWithResult.flatMap(e => e.result.subjects.map(s => s.subject)))];
+  const activeTab = state._growthTab || 'total';
+
+  // 과목별 색상 매핑
+  const subjColorMap = {};
+  examsWithResult.forEach(e => e.result.subjects.forEach(s => { if (!subjColorMap[s.subject]) subjColorMap[s.subject] = s.color; }));
+
+  // 오답유형 변화 추적
+  const errorTypeLabels = {concept:'📘 개념부족', careless:'⚡ 실수', interpretation:'🔍 해석오류', time:'⏱️ 시간부족'};
+  const errorTypeColors = {concept:'#6C5CE7', careless:'#FF9F43', interpretation:'#FF6B6B', time:'#74B9FF'};
+  
+  // 성장 하이라이트 계산
+  let highlights = [];
+  if (examsWithResult.length >= 2) {
+    const first = examsWithResult[0].result;
+    const last = examsWithResult[examsWithResult.length-1].result;
+    
+    allSubjects.forEach(subj => {
+      const firstSub = first.subjects.find(s => s.subject === subj);
+      const lastSub = last.subjects.find(s => s.subject === subj);
+      if (firstSub && lastSub && firstSub.score && lastSub.score) {
+        const diff = lastSub.score - firstSub.score;
+        highlights.push({ subject: subj, first: firstSub.score, last: lastSub.score, diff, color: subjColorMap[subj] || '#888' });
+      }
+    });
+    highlights.sort((a,b) => b.diff - a.diff);
+  }
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('exam-list')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📈 성장 분석</h1>
+      </div>
+      <div class="form-body">
+
+        <!-- 과목 필터 탭 -->
+        <div class="chip-row" style="margin-bottom:16px;flex-wrap:wrap">
+          <button class="chip ${activeTab==='total'?'active':''}" onclick="state._growthTab='total';renderScreen()">전체</button>
+          ${allSubjects.map(s => `
+            <button class="chip ${activeTab===s?'active':''}" onclick="state._growthTab='${s}';renderScreen()" style="${activeTab===s?'background:'+subjColorMap[s]+';border-color:'+subjColorMap[s]:''}">
+              ${s}
+            </button>
+          `).join('')}
+        </div>
+
+        <!-- 성적 추이 차트 -->
+        <div class="section-label">📊 성적 추이</div>
+        <div class="card" style="padding:16px">
+          <canvas id="growth-chart" width="300" height="180"></canvas>
+        </div>
+
+        <!-- 오답 유형 변화 -->
+        ${examsWithResult.length >= 1 ? `
+        <div class="section-label" style="margin-top:16px">🔍 오답 유형 변화</div>
+        <div class="card">
+          <div style="display:flex;gap:4px;margin-bottom:8px;font-size:10px;color:var(--text-muted)">
+            <span style="width:80px"></span>
+            ${examsWithResult.map(e => `<span style="flex:1;text-align:center">${e.name.replace(/.*?(중간|기말|모의|수행|학력).*/, '$1')}</span>`).join('')}
+          </div>
+          ${Object.entries(errorTypeLabels).map(([type, label]) => {
+            const counts = examsWithResult.map(e => {
+              let c = 0;
+              const subs = activeTab === 'total' ? e.result.subjects : e.result.subjects.filter(s => s.subject === activeTab);
+              subs.forEach(s => (s.wrongAnswers||[]).forEach(w => { if (w.type===type) c++; }));
+              return c;
+            });
+            if (counts.every(c => c===0)) return '';
+            const trend = counts.length >= 2 ? (counts[counts.length-1] < counts[0] ? '📉' : counts[counts.length-1] > counts[0] ? '📈' : '➡️') : '';
+            return `
+            <div style="display:flex;align-items:center;gap:4px;padding:4px 0;font-size:12px">
+              <span style="width:80px;color:${errorTypeColors[type]}">${label}</span>
+              ${counts.map(c => `<span style="flex:1;text-align:center;font-weight:700;color:var(--text-primary)">${c}</span>`).join('')}
+              <span>${trend}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        ` : ''}
+
+        <!-- 성장 하이라이트 -->
+        ${highlights.length > 0 ? `
+        <div class="section-label" style="margin-top:16px">🏆 성장 하이라이트</div>
+        <div class="card">
+          ${highlights.map(h => `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color)">
+              <span style="font-size:${h.diff>0?'16px':'14px'};width:24px">${h.diff>0?'✅':'⚠️'}</span>
+              <span style="font-size:13px;font-weight:600;color:${h.color};width:44px">${h.subject}</span>
+              <span style="font-size:12px;color:var(--text-muted)">${h.first} → ${h.last}</span>
+              <span style="margin-left:auto;font-size:14px;font-weight:700;color:${h.diff>0?'#00B894':'#FF6B6B'}">${h.diff>0?'+':''}${h.diff}</span>
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+
+        <!-- 시험별 보고서 바로가기 -->
+        <div class="section-label" style="margin-top:16px">📋 시험별 보고서</div>
+        ${examsWithResult.map(e => `
+          <div class="card" style="padding:12px;margin-bottom:8px;cursor:pointer" onclick="state.viewingExam='${e.id}';goScreen('exam-report')">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:13px;font-weight:700;color:var(--text-primary)">${e.name}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${e.startDate.slice(5).replace('-','/')}</div>
+              </div>
+              <div style="text-align:right">
+                <span style="font-size:18px;font-weight:800;color:var(--primary-light)">${e.result.totalScore}점</span>
+                ${e.result.grade ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px">(${e.result.grade}등급)</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+
+      </div>
+    </div>
+  `;
+}
+
+
+// ==================== EXAM RESULT UTILITY FUNCTIONS ====================
+
+function collectExamResultData() {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex) return null;
+
+  const r = ex.result || {};
+  const subjResults = r.subjects || ex.subjects.map(s => ({
+    subject: s.subject, score: '', grade: '', avg: '', color: s.color, wrongAnswers: []
+  }));
+
+  // 현재 과목의 입력값 수집
+  const activeSubj = state._examResultActiveSubj || 0;
+  
+  // 과목 점수/등급/평균 수집
+  document.querySelectorAll('.exam-subj-score').forEach(el => {
+    const idx = parseInt(el.dataset.idx);
+    if (subjResults[idx]) subjResults[idx].score = el.value ? parseInt(el.value) : '';
+  });
+  document.querySelectorAll('.exam-subj-grade').forEach(el => {
+    const idx = parseInt(el.dataset.idx);
+    if (subjResults[idx]) subjResults[idx].grade = el.value ? parseInt(el.value) : '';
+  });
+  document.querySelectorAll('.exam-subj-avg').forEach(el => {
+    const idx = parseInt(el.dataset.idx);
+    if (subjResults[idx]) subjResults[idx].avg = el.value ? parseInt(el.value) : '';
+  });
+
+  // 오답 데이터 수집
+  document.querySelectorAll('.wa-number').forEach(el => {
+    const si = parseInt(el.dataset.subj), wi = parseInt(el.dataset.wi);
+    if (subjResults[si] && subjResults[si].wrongAnswers[wi]) subjResults[si].wrongAnswers[wi].number = el.value ? parseInt(el.value) : '';
+  });
+  document.querySelectorAll('.wa-topic').forEach(el => {
+    const si = parseInt(el.dataset.subj), wi = parseInt(el.dataset.wi);
+    if (subjResults[si] && subjResults[si].wrongAnswers[wi]) subjResults[si].wrongAnswers[wi].topic = el.value;
+  });
+  document.querySelectorAll('.wa-my').forEach(el => {
+    const si = parseInt(el.dataset.subj), wi = parseInt(el.dataset.wi);
+    if (subjResults[si] && subjResults[si].wrongAnswers[wi]) subjResults[si].wrongAnswers[wi].myAnswer = el.value;
+  });
+  document.querySelectorAll('.wa-correct').forEach(el => {
+    const si = parseInt(el.dataset.subj), wi = parseInt(el.dataset.wi);
+    if (subjResults[si] && subjResults[si].wrongAnswers[wi]) subjResults[si].wrongAnswers[wi].correctAnswer = el.value;
+  });
+  document.querySelectorAll('.wa-reason').forEach(el => {
+    const si = parseInt(el.dataset.subj), wi = parseInt(el.dataset.wi);
+    if (subjResults[si] && subjResults[si].wrongAnswers[wi]) subjResults[si].wrongAnswers[wi].reason = el.value;
+  });
+  document.querySelectorAll('.wa-reflection').forEach(el => {
+    const si = parseInt(el.dataset.subj), wi = parseInt(el.dataset.wi);
+    if (subjResults[si] && subjResults[si].wrongAnswers[wi]) subjResults[si].wrongAnswers[wi].reflection = el.value;
+  });
+
+  return subjResults;
+}
+
+function addWrongAnswer(subjIdx) {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex) return;
+
+  // 현재 입력값 저장
+  const collected = collectExamResultData();
+  if (collected) {
+    if (!ex.result) ex.result = { totalScore:'', grade:'', subjects: collected, overallReflection:'' };
+    else ex.result.subjects = collected;
+  }
+
+  const totalScore = document.getElementById('exam-total-score')?.value;
+  const totalGrade = document.getElementById('exam-total-grade')?.value;
+  const reflection = document.getElementById('exam-overall-reflection')?.value;
+  if (ex.result) {
+    if (totalScore) ex.result.totalScore = parseInt(totalScore);
+    if (totalGrade) ex.result.grade = parseInt(totalGrade);
+    if (reflection !== undefined) ex.result.overallReflection = reflection;
+  }
+
+  // 오답 추가
+  if (!ex.result) ex.result = { totalScore:'', grade:'', subjects: ex.subjects.map(s => ({subject:s.subject,score:'',grade:'',avg:'',color:s.color,wrongAnswers:[]})), overallReflection:'' };
+  if (!ex.result.subjects[subjIdx].wrongAnswers) ex.result.subjects[subjIdx].wrongAnswers = [];
+  ex.result.subjects[subjIdx].wrongAnswers.push({ number:'', topic:'', type:'', myAnswer:'', correctAnswer:'', reason:'', reflection:'' });
+  
+  renderScreen();
+}
+
+function removeWrongAnswer(subjIdx, waIdx) {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex || !ex.result) return;
+  
+  const collected = collectExamResultData();
+  if (collected) ex.result.subjects = collected;
+  
+  ex.result.subjects[subjIdx].wrongAnswers.splice(waIdx, 1);
+  renderScreen();
+}
+
+function setWrongAnswerType(subjIdx, waIdx, type) {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex || !ex.result) return;
+  
+  const collected = collectExamResultData();
+  if (collected) ex.result.subjects = collected;
+  
+  ex.result.subjects[subjIdx].wrongAnswers[waIdx].type = type;
+  renderScreen();
+}
+
+function saveExamResult() {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex) return;
+
+  const collected = collectExamResultData();
+  const totalScore = document.getElementById('exam-total-score')?.value;
+  const totalGrade = document.getElementById('exam-total-grade')?.value;
+  const reflection = document.getElementById('exam-overall-reflection')?.value || '';
+
+  if (!totalScore) { alert('총점을 입력해주세요'); return; }
+
+  ex.result = {
+    totalScore: parseInt(totalScore),
+    grade: totalGrade ? parseInt(totalGrade) : '',
+    subjects: collected || [],
+    overallReflection: reflection,
+    createdAt: new Date().toISOString().slice(0,10),
+  };
+
+  ex.status = 'completed';
+  alert('시험 결과가 저장되었습니다! 📊');
+  goScreen('exam-report');
+}
+
+// 성장 분석 차트 그리기
+function drawGrowthChart() {
+  const canvas = document.getElementById('growth-chart');
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  const examsWithResult = state.exams.filter(e => e.result).sort((a,b) => a.startDate.localeCompare(b.startDate));
+  if (examsWithResult.length === 0) return;
+
+  const activeTab = state._growthTab || 'total';
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.clientWidth * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+  ctx.scale(dpr, dpr);
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  const pad = {top:20, right:20, bottom:30, left:35};
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (activeTab === 'total') {
+    // 전체: 모든 과목 라인
+    const allSubjects = [...new Set(examsWithResult.flatMap(e => e.result.subjects.map(s => s.subject)))];
+    const subjColorMap = {};
+    examsWithResult.forEach(e => e.result.subjects.forEach(s => { if (!subjColorMap[s.subject]) subjColorMap[s.subject] = s.color; }));
+
+    // 그리드
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + chartH * (1 - i/4);
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+chartW, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(i*25, pad.left-4, y+4);
+    }
+
+    // X축 라벨
+    examsWithResult.forEach((e,i) => {
+      const x = pad.left + (examsWithResult.length===1 ? chartW/2 : chartW * i/(examsWithResult.length-1));
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      const label = e.name.replace(/.*?(중간|기말|모의|수행|학력).*/, '$1');
+      ctx.fillText(label, x, H - 6);
+    });
+
+    // 각 과목 라인
+    allSubjects.forEach(subj => {
+      const points = [];
+      examsWithResult.forEach((e,i) => {
+        const s = e.result.subjects.find(s => s.subject === subj);
+        if (s && s.score) {
+          const x = pad.left + (examsWithResult.length===1 ? chartW/2 : chartW * i/(examsWithResult.length-1));
+          const y = pad.top + chartH * (1 - s.score/100);
+          points.push({x, y, score: s.score});
+        }
+      });
+      if (points.length === 0) return;
+
+      ctx.strokeStyle = subjColorMap[subj] || '#888';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      points.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+      ctx.stroke();
+
+      points.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+        ctx.fillStyle = subjColorMap[subj] || '#888';
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.score, p.x, p.y-8);
+      });
+    });
+
+    // 범례
+    let legendX = pad.left;
+    allSubjects.forEach(subj => {
+      ctx.fillStyle = subjColorMap[subj] || '#888';
+      ctx.beginPath(); ctx.arc(legendX+4, pad.top-8, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(subj, legendX+10, pad.top-5);
+      legendX += ctx.measureText(subj).width + 20;
+    });
+
+  } else {
+    // 단일 과목
+    const color = '#A29BFE';
+    const points = [];
+    examsWithResult.forEach((e,i) => {
+      const s = e.result.subjects.find(s => s.subject === activeTab);
+      if (s && s.score) {
+        const x = pad.left + (examsWithResult.length===1 ? chartW/2 : chartW * i/(examsWithResult.length-1));
+        const y = pad.top + chartH * (1 - s.score/100);
+        points.push({x, y, score: s.score, avg: s.avg, name: e.name.replace(/.*?(중간|기말|모의|수행|학력).*/, '$1')});
+      }
+    });
+
+    // 그리드
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + chartH * (1 - i/4);
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left+chartW, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(i*25, pad.left-4, y+4);
+    }
+
+    // X축
+    points.forEach(p => {
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.name, p.x, H - 6);
+    });
+
+    // 평균 라인 (점선)
+    if (points.some(p => p.avg)) {
+      ctx.setLineDash([4,4]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      points.filter(p=>p.avg).forEach((p,i) => {
+        const ay = pad.top + chartH * (1 - p.avg/100);
+        i===0 ? ctx.moveTo(p.x, ay) : ctx.lineTo(p.x, ay);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 내 점수 라인
+    const subjColor = examsWithResult.flatMap(e=>e.result.subjects).find(s=>s.subject===activeTab)?.color || color;
+    ctx.strokeStyle = subjColor;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    points.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+    ctx.stroke();
+
+    points.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI*2);
+      ctx.fillStyle = subjColor;
+      ctx.fill();
+      ctx.strokeStyle = '#1a1a2e';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(p.score, p.x, p.y-10);
+    });
+  }
+}
 
 // ==================== EXAM UTILITY FUNCTIONS ====================
 
