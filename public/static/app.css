@@ -403,9 +403,9 @@ body {
 #tablet-sidebar {
   display: flex;
   flex-direction: column;
-  width: 72px;
-  min-width: 72px;
-  max-width: 72px;
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
   height: 100vh;
   height: 100dvh;
   background: var(--bg-card);
@@ -413,7 +413,7 @@ body {
   position: relative;
   flex-shrink: 0;
   z-index: 200;
-  overflow-x: hidden;
+  overflow: hidden;
   overflow-y: auto;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -470,6 +470,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow: visible;
   gap: 3px;
   padding: 12px 4px;
   border-radius: 12px;
@@ -516,9 +517,10 @@ body {
 }
 
 .sidebar-nav-label {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
   white-space: nowrap;
+  overflow: visible;
 }
 
 /* 사이드바 뱃지 */
@@ -564,7 +566,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 56px;
+  max-width: 72px;
   text-align: center;
 }
 
@@ -822,8 +824,9 @@ body {
 @media (min-width: 768px) {
   #tablet-content .home-cards-grid {
     display:grid; grid-template-columns:repeat(2, 1fr); gap:12px;
+    align-items: stretch;
   }
-  #tablet-content .home-cards-grid > .card { margin:0 !important; }
+  #tablet-content .home-cards-grid > .card { margin:0 !important; display:flex; flex-direction:column; }
 }
 
 /* 태블릿 성장 탭 */
@@ -1152,10 +1155,12 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   justify-content: space-between;
   gap: 12px;
   padding: 12px 20px 6px;
+  flex-wrap: wrap;
 }
 
 .home-greeting {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .home-top-right {
@@ -1163,12 +1168,14 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .home-quick-actions {
   display: flex;
   gap: 6px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .home-qa-btn {
@@ -1251,6 +1258,13 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   flex-direction: column;
   gap: 12px;
   padding: 0 16px 20px;
+}
+.home-cards-grid > .card {
+  margin: 0 !important;
+  background: var(--bg-card);
+}
+.home-cards-grid > .card-gradient-purple {
+  background: linear-gradient(135deg, rgba(108,92,231,0.12), rgba(162,155,254,0.05));
 }
 
 /* ==================== QUICK TODO CARD ==================== */
@@ -4228,9 +4242,12 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 14px !important;
     padding: 0 0 20px !important;
+    align-items: stretch !important;
   }
   #tablet-content .home-cards-grid > .card {
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   /* 투두 카드 2컬럼 span */
@@ -4404,9 +4421,12 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 16px !important;
     padding: 0 0 20px !important;
+    align-items: stretch !important;
   }
   #tablet-content .home-cards-grid > .card {
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
   #tablet-content .home-cards-grid > .home-card-todo {
     grid-column: span 2 !important;
@@ -4502,9 +4522,12 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 12px !important;
     padding: 0 0 20px !important;
+    align-items: stretch !important;
   }
   #tablet-content .home-cards-grid > .card {
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
   #tablet-content .home-cards-grid > .home-card-todo {
     grid-column: span 2 !important;

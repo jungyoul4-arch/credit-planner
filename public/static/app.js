@@ -574,7 +574,6 @@ function renderXpBar() {
   const pct = Math.min((state.xp / nextLevelXp * 100), 100).toFixed(0);
   return `
     <div class="xp-bar-container">
-      <img src="/static/logo.png" alt="" class="xp-bar-logo">
       <span class="xp-level">Lv.${state.level}</span>
       <div class="xp-bar"><div class="xp-bar-fill" style="width:${pct}%"></div></div>
       <span class="xp-text">${state.xp.toLocaleString()}/${nextLevelXp.toLocaleString()}</span>
