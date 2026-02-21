@@ -61,17 +61,17 @@ const state = {
       desc: '교재 p.142~148 연습문제 1~15번',
       type: '문제풀이',
       teacher: '김태호',
-      dueDate: '2025-02-20',
-      createdDate: '2025-02-14',
+      dueDate: '2026-02-24',
+      createdDate: '2026-02-18',
       color: '#6C5CE7',
       status: 'in-progress', // 'pending','in-progress','completed'
       progress: 60,
       plan: [
-        { step: 1, title: '1~5번 기본 문제 풀기', date: '2/15', done: true },
-        { step: 2, title: '6~10번 응용 문제 풀기', date: '2/17', done: true },
-        { step: 3, title: '11~15번 심화 문제 풀기', date: '2/18', done: false },
-        { step: 4, title: '오답 정리 및 복습', date: '2/19', done: false },
-        { step: 5, title: '최종 점검 후 제출', date: '2/20', done: false },
+        { step: 1, title: '1~5번 기본 문제 풀기', date: '2/19', done: true },
+        { step: 2, title: '6~10번 응용 문제 풀기', date: '2/20', done: true },
+        { step: 3, title: '11~15번 심화 문제 풀기', date: '2/22', done: false },
+        { step: 4, title: '오답 정리 및 복습', date: '2/23', done: false },
+        { step: 5, title: '최종 점검 후 제출', date: '2/24', done: false },
       ]
     },
     {
@@ -81,17 +81,17 @@ const state = {
       desc: 'My Future Career Plan 주제, A4 2장 분량',
       type: '에세이/작문',
       teacher: '이정민',
-      dueDate: '2025-02-18',
-      createdDate: '2025-02-12',
+      dueDate: '2026-02-25',
+      createdDate: '2026-02-17',
       color: '#00B894',
       status: 'in-progress',
       progress: 40,
       plan: [
-        { step: 1, title: '주제 브레인스토밍 & 아웃라인', date: '2/13', done: true },
-        { step: 2, title: '초안 작성 (body)', date: '2/15', done: true },
-        { step: 3, title: '서론/결론 작성', date: '2/16', done: false },
-        { step: 4, title: '문법 체크 & 수정', date: '2/17', done: false },
-        { step: 5, title: '최종 제출', date: '2/18', done: false },
+        { step: 1, title: '주제 브레인스토밍 & 아웃라인', date: '2/18', done: true },
+        { step: 2, title: '초안 작성 (body)', date: '2/20', done: true },
+        { step: 3, title: '서론/결론 작성', date: '2/22', done: false },
+        { step: 4, title: '문법 체크 & 수정', date: '2/24', done: false },
+        { step: 5, title: '최종 제출', date: '2/25', done: false },
       ]
     },
     {
@@ -101,17 +101,17 @@ const state = {
       desc: '실험 결과 분석 및 결론 도출, 그래프 포함',
       type: '보고서',
       teacher: '최은지',
-      dueDate: '2025-02-25',
-      createdDate: '2025-02-15',
+      dueDate: '2026-02-26',
+      createdDate: '2026-02-19',
       color: '#FDCB6E',
       status: 'pending',
       progress: 0,
       plan: [
-        { step: 1, title: '실험 데이터 정리', date: '2/17', done: false },
-        { step: 2, title: '그래프 작성', date: '2/19', done: false },
-        { step: 3, title: '결과 분석 작성', date: '2/21', done: false },
-        { step: 4, title: '결론 및 고찰', date: '2/23', done: false },
-        { step: 5, title: '최종 검토 후 제출', date: '2/25', done: false },
+        { step: 1, title: '실험 데이터 정리', date: '2/22', done: false },
+        { step: 2, title: '그래프 작성', date: '2/23', done: false },
+        { step: 3, title: '결과 분석 작성', date: '2/24', done: false },
+        { step: 4, title: '결론 및 고찰', date: '2/25', done: false },
+        { step: 5, title: '최종 검토 후 제출', date: '2/26', done: false },
       ]
     },
     {
@@ -121,16 +121,16 @@ const state = {
       desc: '서시 감상문 원고지 3장 분량, 자아성찰 관점',
       type: '감상문',
       teacher: '박선영',
-      dueDate: '2025-02-14',
-      createdDate: '2025-02-10',
+      dueDate: '2026-02-20',
+      createdDate: '2026-02-16',
       color: '#FF6B6B',
       status: 'completed',
       progress: 100,
       plan: [
-        { step: 1, title: '시 반복 읽기 & 핵심 정리', date: '2/11', done: true },
-        { step: 2, title: '감상문 초안 작성', date: '2/12', done: true },
-        { step: 3, title: '수정 및 퇴고', date: '2/13', done: true },
-        { step: 4, title: '최종 제출', date: '2/14', done: true },
+        { step: 1, title: '시 반복 읽기 & 핵심 정리', date: '2/17', done: true },
+        { step: 2, title: '감상문 초안 작성', date: '2/18', done: true },
+        { step: 3, title: '수정 및 퇴고', date: '2/19', done: true },
+        { step: 4, title: '최종 제출', date: '2/20', done: true },
       ]
     },
   ],
@@ -195,7 +195,7 @@ const state = {
   ],
   // 비교과 활동 데이터
   extracurriculars: [
-    { id:'ec1', type:'report', title:'치환적분 알고리즘 탐구', subject:'수학', status:'in-progress', progress:40, startDate:'2025-02-10', endDate:'2025-03-10', color:'#6C5CE7', desc:'치환적분의 판별 알고리즘을 파이썬으로 구현', memo:'역함수 관점 접근법 발견',
+    { id:'ec1', type:'report', title:'치환적분 알고리즘 탐구', subject:'수학', status:'in-progress', progress:40, startDate:'2026-02-10', endDate:'2026-03-10', color:'#6C5CE7', desc:'치환적분의 판별 알고리즘을 파이썬으로 구현', memo:'역함수 관점 접근법 발견',
       // 탐구보고서 Phase 데이터
       report: {
         currentPhase: 1, // 0~4 (5 phases)
@@ -207,15 +207,15 @@ const state = {
           { id:'p5', name:'회고', status:'locked' },
         ],
         questions: [
-          { text:'항생제 내성이 뭐지?', level:'A-1', axis:'curiosity', xp:8, phaseId:'p1', time:'2025-02-10T09:00:00', diag:{ specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} } },
-          { text:'내성 유전자는 어떻게 전달돼?', level:'A-2', axis:'curiosity', xp:10, phaseId:'p1', time:'2025-02-11T14:00:00', diag:{ specific_target:{met:true}, own_thinking:{met:false}, context_connection:{met:false} } },
-          { text:'왜 플라스미드가 주요 전달 매체인 거지? 교과서에서는 형질전환만 나오는데 실제로는 접합이 더 빈번한 것 같거든요', level:'B-1', axis:'curiosity', xp:15, phaseId:'p2', time:'2025-02-13T10:30:00', diag:{ specific_target:{met:true}, own_thinking:{met:true}, context_connection:{met:true} } },
+          { text:'항생제 내성이 뭐지?', level:'A-1', axis:'curiosity', xp:8, phaseId:'p1', time:'2026-02-10T09:00:00', diag:{ specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} } },
+          { text:'내성 유전자는 어떻게 전달돼?', level:'A-2', axis:'curiosity', xp:10, phaseId:'p1', time:'2026-02-11T14:00:00', diag:{ specific_target:{met:true}, own_thinking:{met:false}, context_connection:{met:false} } },
+          { text:'왜 플라스미드가 주요 전달 매체인 거지? 교과서에서는 형질전환만 나오는데 실제로는 접합이 더 빈번한 것 같거든요', level:'B-1', axis:'curiosity', xp:15, phaseId:'p2', time:'2026-02-13T10:30:00', diag:{ specific_target:{met:true}, own_thinking:{met:true}, context_connection:{met:true} } },
         ],
         timeline: [],
         totalXp: 33,
       }
     },
-    { id:'ec2', type:'report', title:'산화환원 반응속도 비교 실험', subject:'과학', status:'in-progress', progress:25, startDate:'2025-02-12', endDate:'2025-03-15', color:'#FDCB6E', desc:'다양한 조건에서 반응속도 비교 실험 및 보고서 작성', memo:'',
+    { id:'ec2', type:'report', title:'산화환원 반응속도 비교 실험', subject:'과학', status:'in-progress', progress:25, startDate:'2026-02-12', endDate:'2026-03-15', color:'#FDCB6E', desc:'다양한 조건에서 반응속도 비교 실험 및 보고서 작성', memo:'',
       report: {
         currentPhase: 0,
         phases: [
@@ -226,40 +226,40 @@ const state = {
           { id:'p5', name:'회고', status:'locked' },
         ],
         questions: [
-          { text:'산화환원 반응에서 왜 반응속도가 달라지는 거지?', level:'A-1', axis:'curiosity', xp:8, phaseId:'p1', time:'2025-02-12T11:00:00', diag:{ specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} } },
+          { text:'산화환원 반응에서 왜 반응속도가 달라지는 거지?', level:'A-1', axis:'curiosity', xp:8, phaseId:'p1', time:'2026-02-12T11:00:00', diag:{ specific_target:{met:false}, own_thinking:{met:false}, context_connection:{met:false} } },
         ],
         timeline: [],
         totalXp: 8,
       }
     },
-    { id:'ec3', type:'reading', subType:'reading', title:'코스모스 (칼 세이건)', subject:'과학', status:'in-progress', progress:65, startDate:'2025-02-01', endDate:'2025-02-28', color:'#00B894', desc:'우주와 과학의 역사를 다룬 과학 교양서', memo:'3장까지 독서감상문 작성 완료',
+    { id:'ec3', type:'reading', subType:'reading', title:'코스모스 (칼 세이건)', subject:'과학', status:'in-progress', progress:65, startDate:'2026-02-01', endDate:'2026-02-28', color:'#00B894', desc:'우주와 과학의 역사를 다룬 과학 교양서', memo:'3장까지 독서감상문 작성 완료',
       logs: [
-        { date:'2025-02-14', content:'3장 "지구의 화합" 독서 완료 및 감상문 작성', reflection:'우주에서 바라본 지구의 의미를 다시 생각하게 됨', duration:'~50쪽' },
-        { date:'2025-02-10', content:'2장 읽기 완료', reflection:'과학의 역사가 이렇게 흥미로운 줄 몰랐다', duration:'~30쪽' },
-        { date:'2025-02-05', content:'1장 "코스모스의 해안" 읽기', reflection:'칼 세이건의 문체가 시적이라 감동받음', duration:'~30쪽' },
+        { date:'2026-02-14', content:'3장 "지구의 화합" 독서 완료 및 감상문 작성', reflection:'우주에서 바라본 지구의 의미를 다시 생각하게 됨', duration:'~50쪽' },
+        { date:'2026-02-10', content:'2장 읽기 완료', reflection:'과학의 역사가 이렇게 흥미로운 줄 몰랐다', duration:'~30쪽' },
+        { date:'2026-02-05', content:'1장 "코스모스의 해안" 읽기', reflection:'칼 세이건의 문체가 시적이라 감동받음', duration:'~30쪽' },
       ]
     },
-    { id:'ec4', type:'reading', subType:'reading', title:'수학의 확실성 (모리스 클라인)', subject:'수학', status:'pending', progress:0, startDate:'2025-03-01', endDate:'2025-03-31', color:'#6C5CE7', desc:'수학 철학과 역사를 다룬 교양서', memo:'', logs:[] },
-    { id:'ec5', type:'activity', subType:'club', title:'코딩동아리 (CodingLab)', subject:'정보', status:'in-progress', progress:50, startDate:'2025-03-01', endDate:'2025-12-31', color:'#E056A0', desc:'Python matplotlib 수학 그래프 시각화 프로젝트', memo:'sin, cos 합성파 표현', careerLink:'프로그래밍 + 수학 시각화 = 데이터 사이언스',
+    { id:'ec4', type:'reading', subType:'reading', title:'수학의 확실성 (모리스 클라인)', subject:'수학', status:'pending', progress:0, startDate:'2026-03-01', endDate:'2026-03-31', color:'#6C5CE7', desc:'수학 철학과 역사를 다룬 교양서', memo:'', logs:[] },
+    { id:'ec5', type:'activity', subType:'club', title:'코딩동아리 (CodingLab)', subject:'정보', status:'in-progress', progress:50, startDate:'2026-03-01', endDate:'2026-12-31', color:'#E056A0', desc:'Python matplotlib 수학 그래프 시각화 프로젝트', memo:'sin, cos 합성파 표현', careerLink:'프로그래밍 + 수학 시각화 = 데이터 사이언스',
       logs: [
-        { date:'2025-02-15', content:'Python matplotlib으로 sin, cos 합성파 그래프 시각화 완료', reflection:'코드로 수학을 표현하니까 함수의 성질이 더 직관적으로 이해됨', duration:'1시간' },
-        { date:'2025-02-10', content:'프로젝트 기획 및 matplotlib 기본 문법 학습', reflection:'그래프 커스텀이 생각보다 쉬워서 놀랐다', duration:'1.5시간' },
+        { date:'2026-02-21', content:'Python matplotlib으로 sin, cos 합성파 그래프 시각화 완료', reflection:'코드로 수학을 표현하니까 함수의 성질이 더 직관적으로 이해됨', duration:'1시간' },
+        { date:'2026-02-10', content:'프로젝트 기획 및 matplotlib 기본 문법 학습', reflection:'그래프 커스텀이 생각보다 쉬워서 놀랐다', duration:'1.5시간' },
       ]
     },
-    { id:'ec6', type:'activity', subType:'career', title:'진로탐색 - 데이터사이언스 체험', subject:'진로', status:'completed', progress:100, startDate:'2025-02-05', endDate:'2025-02-05', color:'#FF9F43', desc:'대학 연계 데이터사이언스 1일 체험', memo:'머신러닝 기초 실습', careerLink:'데이터사이언스 → 인공지능 연구',
+    { id:'ec6', type:'activity', subType:'career', title:'진로탐색 - 데이터사이언스 체험', subject:'진로', status:'completed', progress:100, startDate:'2026-02-05', endDate:'2026-02-05', color:'#FF9F43', desc:'대학 연계 데이터사이언스 1일 체험', memo:'머신러닝 기초 실습', careerLink:'데이터사이언스 → 인공지능 연구',
       logs: [
-        { date:'2025-02-05', content:'대학 연계 데이터사이언스 1일 체험. 파이썬으로 iris 데이터 분류 실습', reflection:'머신러닝이 생각보다 접근하기 쉬웠고, 수학이 중요하다는 걸 체감', duration:'2시간+' },
+        { date:'2026-02-05', content:'대학 연계 데이터사이언스 1일 체험. 파이썬으로 iris 데이터 분류 실습', reflection:'머신러닝이 생각보다 접근하기 쉬웠고, 수학이 중요하다는 걸 체감', duration:'2시간+' },
       ]
     },
   ],
   // 플래너 상태
   plannerView: 'daily', // 'daily','weekly','monthly'
-  plannerDate: '2025-02-15', // 현재 선택 날짜
+  plannerDate: '2026-02-21', // 현재 선택 날짜
   // 포트폴리오 상태
   portfolioPeriod: '1week', // '1week','2week','1month','custom'
   portfolioTab: 'all', // 'all','class','question','assignment','report','reading','activity'
-  portfolioCustomStart: '2025-02-01',
-  portfolioCustomEnd: '2025-02-28',
+  portfolioCustomStart: '2026-02-01',
+  portfolioCustomEnd: '2026-02-28',
   plannerAiOpen: false,
   plannerAiMessages: [
     { role:'ai', text:'안녕 민준! 👋 플래너 정율 도우미예요. 일정 추가, 과제 계획 조정, 공부 시간 배분 등 무엇이든 도와줄게요!' },
@@ -268,67 +268,67 @@ const state = {
   // 통합 플래너 일정 데이터
   plannerItems: [
     // == 2/15 (토) ==
-    { id:'p1', date:'2025-02-15', time:'07:00', endTime:'07:30', title:'기상 & 아침 루틴', category:'routine', color:'#A29BFE', icon:'☀️', done:true, aiGenerated:false },
-    { id:'p2', date:'2025-02-15', time:'08:30', endTime:'09:20', title:'1교시 국어', category:'class', color:'#FF6B6B', icon:'📖', done:true, aiGenerated:false, detail:'윤동주 서시' },
-    { id:'p3', date:'2025-02-15', time:'09:30', endTime:'10:20', title:'2교시 수학', category:'class', color:'#6C5CE7', icon:'📐', done:true, aiGenerated:false, detail:'치환적분' },
-    { id:'p4', date:'2025-02-15', time:'10:30', endTime:'11:20', title:'3교시 영어', category:'class', color:'#00B894', icon:'🔤', done:false, aiGenerated:false, detail:'관계대명사' },
-    { id:'p5', date:'2025-02-15', time:'11:30', endTime:'12:20', title:'4교시 과학', category:'class', color:'#FDCB6E', icon:'🔬', done:false, aiGenerated:false, detail:'산화환원' },
-    { id:'p6', date:'2025-02-15', time:'13:20', endTime:'14:10', title:'5교시 한국사', category:'class', color:'#74B9FF', icon:'🏛️', done:false, aiGenerated:false },
-    { id:'p7', date:'2025-02-15', time:'14:20', endTime:'15:10', title:'6교시 체육', category:'class', color:'#A29BFE', icon:'⚽', done:false, aiGenerated:false },
-    { id:'p8', date:'2025-02-15', time:'15:30', endTime:'16:30', title:'[과제] 수학 11~15번 풀기', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'치환적분 연습문제 심화' },
-    { id:'p9', date:'2025-02-15', time:'16:30', endTime:'17:30', title:'[과제] 영어 에세이 서론/결론', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'My Future Career Plan' },
-    { id:'p10', date:'2025-02-15', time:'17:30', endTime:'18:30', title:'코딩동아리 프로젝트', category:'activity', color:'#00CEC9', icon:'💻', done:false, aiGenerated:false, detail:'Python 그래프 시각화' },
-    { id:'p11', date:'2025-02-15', time:'19:00', endTime:'20:00', title:'수학 복습 & 질문 정리', category:'study', color:'#6C5CE7', icon:'📝', done:false, aiGenerated:true, detail:'치환적분 오답노트' },
-    { id:'p12', date:'2025-02-15', time:'20:00', endTime:'20:30', title:'저녁 루틴 & 하루 마무리', category:'routine', color:'#A29BFE', icon:'🌙', done:false, aiGenerated:false },
+    { id:'p1', date:'2026-02-21', time:'07:00', endTime:'07:30', title:'기상 & 아침 루틴', category:'routine', color:'#A29BFE', icon:'☀️', done:true, aiGenerated:false },
+    { id:'p2', date:'2026-02-21', time:'08:30', endTime:'09:20', title:'1교시 국어', category:'class', color:'#FF6B6B', icon:'📖', done:true, aiGenerated:false, detail:'윤동주 서시' },
+    { id:'p3', date:'2026-02-21', time:'09:30', endTime:'10:20', title:'2교시 수학', category:'class', color:'#6C5CE7', icon:'📐', done:true, aiGenerated:false, detail:'치환적분' },
+    { id:'p4', date:'2026-02-21', time:'10:30', endTime:'11:20', title:'3교시 영어', category:'class', color:'#00B894', icon:'🔤', done:false, aiGenerated:false, detail:'관계대명사' },
+    { id:'p5', date:'2026-02-21', time:'11:30', endTime:'12:20', title:'4교시 과학', category:'class', color:'#FDCB6E', icon:'🔬', done:false, aiGenerated:false, detail:'산화환원' },
+    { id:'p6', date:'2026-02-21', time:'13:20', endTime:'14:10', title:'5교시 한국사', category:'class', color:'#74B9FF', icon:'🏛️', done:false, aiGenerated:false },
+    { id:'p7', date:'2026-02-21', time:'14:20', endTime:'15:10', title:'6교시 체육', category:'class', color:'#A29BFE', icon:'⚽', done:false, aiGenerated:false },
+    { id:'p8', date:'2026-02-21', time:'15:30', endTime:'16:30', title:'[과제] 수학 11~15번 풀기', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'치환적분 연습문제 심화' },
+    { id:'p9', date:'2026-02-21', time:'16:30', endTime:'17:30', title:'[과제] 영어 에세이 서론/결론', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'My Future Career Plan' },
+    { id:'p10', date:'2026-02-21', time:'17:30', endTime:'18:30', title:'코딩동아리 프로젝트', category:'activity', color:'#00CEC9', icon:'💻', done:false, aiGenerated:false, detail:'Python 그래프 시각화' },
+    { id:'p11', date:'2026-02-21', time:'19:00', endTime:'20:00', title:'수학 복습 & 질문 정리', category:'study', color:'#6C5CE7', icon:'📝', done:false, aiGenerated:true, detail:'치환적분 오답노트' },
+    { id:'p12', date:'2026-02-21', time:'20:00', endTime:'20:30', title:'저녁 루틴 & 하루 마무리', category:'routine', color:'#A29BFE', icon:'🌙', done:false, aiGenerated:false },
     // == 2/16 (일) ==
-    { id:'p13', date:'2025-02-16', time:'09:00', endTime:'10:30', title:'[과제] 영어 에세이 마무리', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
-    { id:'p14', date:'2025-02-16', time:'10:30', endTime:'12:00', title:'[탐구] 치환적분 알고리즘 탐구', category:'explore', color:'#FF6B6B', icon:'🔬', done:false, aiGenerated:true, detail:'멘토 제안 탐구 주제' },
-    { id:'p15', date:'2025-02-16', time:'14:00', endTime:'15:30', title:'자유 독서 & 메모', category:'personal', color:'#636e72', icon:'📚', done:false, aiGenerated:false, detail:'진로 관련 도서' },
-    { id:'p16', date:'2025-02-16', time:'16:00', endTime:'17:00', title:'이서연에게 수학 가르치기', category:'teach', color:'#00B894', icon:'🤝', done:false, aiGenerated:false, detail:'치환적분 복습' },
+    { id:'p13', date:'2026-02-22', time:'09:00', endTime:'10:30', title:'[과제] 영어 에세이 마무리', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
+    { id:'p14', date:'2026-02-22', time:'10:30', endTime:'12:00', title:'[탐구] 치환적분 알고리즘 탐구', category:'explore', color:'#FF6B6B', icon:'🔬', done:false, aiGenerated:true, detail:'멘토 제안 탐구 주제' },
+    { id:'p15', date:'2026-02-22', time:'14:00', endTime:'15:30', title:'자유 독서 & 메모', category:'personal', color:'#636e72', icon:'📚', done:false, aiGenerated:false, detail:'진로 관련 도서' },
+    { id:'p16', date:'2026-02-22', time:'16:00', endTime:'17:00', title:'이서연에게 수학 가르치기', category:'teach', color:'#00B894', icon:'🤝', done:false, aiGenerated:false, detail:'치환적분 복습' },
     // == 2/17 (월) ==
-    { id:'p17', date:'2025-02-17', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
-    { id:'p18', date:'2025-02-17', time:'15:30', endTime:'17:00', title:'[과제] 과학 실험 데이터 정리', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
-    { id:'p19', date:'2025-02-17', time:'17:00', endTime:'18:00', title:'[과제] 영어 에세이 문법 체크', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
+    { id:'p17', date:'2026-02-23', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
+    { id:'p18', date:'2026-02-23', time:'15:30', endTime:'17:00', title:'[과제] 과학 실험 데이터 정리', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
+    { id:'p19', date:'2026-02-23', time:'17:00', endTime:'18:00', title:'[과제] 영어 에세이 문법 체크', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
     // == 2/18 (화) ==
-    { id:'p20', date:'2025-02-18', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
-    { id:'p21', date:'2025-02-18', time:'15:30', endTime:'16:00', title:'[과제] 영어 에세이 최종 제출 🚨', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'⚠️ 마감일!' },
-    { id:'p22', date:'2025-02-18', time:'16:00', endTime:'17:30', title:'[과제] 수학 오답정리', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1 },
+    { id:'p20', date:'2026-02-24', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
+    { id:'p21', date:'2026-02-24', time:'15:30', endTime:'16:00', title:'[과제] 영어 에세이 최종 제출 🚨', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'⚠️ 마감일!' },
+    { id:'p22', date:'2026-02-24', time:'16:00', endTime:'17:30', title:'[과제] 수학 오답정리', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1 },
     // == 2/19~20 ==
-    { id:'p23', date:'2025-02-19', time:'15:30', endTime:'17:00', title:'[과제] 과학 그래프 작성', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
-    { id:'p24', date:'2025-02-20', time:'08:30', endTime:'09:00', title:'[과제] 수학 최종제출 🚨', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'⚠️ 마감일!' },
+    { id:'p23', date:'2026-02-25', time:'15:30', endTime:'17:00', title:'[과제] 과학 그래프 작성', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
+    { id:'p24', date:'2026-02-26', time:'08:30', endTime:'09:00', title:'[과제] 수학 최종제출 🚨', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'⚠️ 마감일!' },
   ],
   // ==================== 시험 관리 데이터 ====================
   exams: [
     {
       id: 'exam1', type: 'midterm', name: '1학기 중간고사', 
-      startDate: '2025-04-21', endDate: '2025-04-25',
+      startDate: '2026-04-21', endDate: '2026-04-25',
       subjects: [
-        { subject: '수학', date: '2025-04-21', time: '1교시', range: '수학Ⅱ 1~3단원 (함수의 극한, 미분법, 적분법 기초)', readiness: 35, notes: '치환적분 집중 복습 필요', color: '#6C5CE7' },
-        { subject: '국어', date: '2025-04-21', time: '2교시', range: '문학: 현대시 5작품, 비문학: 과학·기술 지문', readiness: 50, notes: '윤동주 시 감상 정리 완료', color: '#FF6B6B' },
-        { subject: '영어', date: '2025-04-22', time: '1교시', range: '3~5과 본문, 관계대명사, 분사구문, 어휘 300개', readiness: 40, notes: '관계대명사 which/that 구분 연습', color: '#00B894' },
-        { subject: '과학', date: '2025-04-22', time: '2교시', range: '화학Ⅰ 1~2단원 (원자구조, 화학결합, 산화환원)', readiness: 25, notes: '산화환원 반응식 암기', color: '#FDCB6E' },
-        { subject: '한국사', date: '2025-04-23', time: '1교시', range: '근대 이후~일제강점기', readiness: 60, notes: '연표 정리 완료', color: '#74B9FF' },
+        { subject: '수학', date: '2026-04-21', time: '1교시', range: '수학Ⅱ 1~3단원 (함수의 극한, 미분법, 적분법 기초)', readiness: 35, notes: '치환적분 집중 복습 필요', color: '#6C5CE7' },
+        { subject: '국어', date: '2026-04-21', time: '2교시', range: '문학: 현대시 5작품, 비문학: 과학·기술 지문', readiness: 50, notes: '윤동주 시 감상 정리 완료', color: '#FF6B6B' },
+        { subject: '영어', date: '2026-04-22', time: '1교시', range: '3~5과 본문, 관계대명사, 분사구문, 어휘 300개', readiness: 40, notes: '관계대명사 which/that 구분 연습', color: '#00B894' },
+        { subject: '과학', date: '2026-04-22', time: '2교시', range: '화학Ⅰ 1~2단원 (원자구조, 화학결합, 산화환원)', readiness: 25, notes: '산화환원 반응식 암기', color: '#FDCB6E' },
+        { subject: '한국사', date: '2026-04-23', time: '1교시', range: '근대 이후~일제강점기', readiness: 60, notes: '연표 정리 완료', color: '#74B9FF' },
       ],
       status: 'upcoming', // 'upcoming','in-progress','completed'
       aiPlan: null, // AI 생성 학습계획 저장
     },
     {
       id: 'exam2', type: 'performance', name: '수학 수행평가 (탐구보고서)',
-      startDate: '2025-03-14', endDate: '2025-03-14',
+      startDate: '2026-03-14', endDate: '2026-03-14',
       subjects: [
-        { subject: '수학', date: '2025-03-14', time: '제출', range: '자유주제 탐구보고서 A4 5장 이상', readiness: 40, notes: '치환적분 알고리즘 주제로 진행 중', color: '#6C5CE7' },
+        { subject: '수학', date: '2026-03-14', time: '제출', range: '자유주제 탐구보고서 A4 5장 이상', readiness: 40, notes: '치환적분 알고리즘 주제로 진행 중', color: '#6C5CE7' },
       ],
       status: 'upcoming',
       aiPlan: null,
     },
     {
       id: 'exam3', type: 'mock', name: '3월 전국연합학력평가',
-      startDate: '2025-03-06', endDate: '2025-03-06',
+      startDate: '2026-03-06', endDate: '2026-03-06',
       subjects: [
-        { subject: '국어', date: '2025-03-06', time: '1교시', range: '전 범위 (독서+문학+언어)', readiness: 45, notes: '', color: '#FF6B6B' },
-        { subject: '수학', date: '2025-03-06', time: '2교시', range: '전 범위 (수Ⅰ+수Ⅱ)', readiness: 50, notes: '미적분 속도 연습', color: '#6C5CE7' },
-        { subject: '영어', date: '2025-03-06', time: '3교시', range: '전 범위 (듣기+독해)', readiness: 55, notes: '', color: '#00B894' },
-        { subject: '탐구', date: '2025-03-06', time: '4교시', range: '화학Ⅰ 전 범위', readiness: 30, notes: '', color: '#FDCB6E' },
+        { subject: '국어', date: '2026-03-06', time: '1교시', range: '전 범위 (독서+문학+언어)', readiness: 45, notes: '', color: '#FF6B6B' },
+        { subject: '수학', date: '2026-03-06', time: '2교시', range: '전 범위 (수Ⅰ+수Ⅱ)', readiness: 50, notes: '미적분 속도 연습', color: '#6C5CE7' },
+        { subject: '영어', date: '2026-03-06', time: '3교시', range: '전 범위 (듣기+독해)', readiness: 55, notes: '', color: '#00B894' },
+        { subject: '탐구', date: '2026-03-06', time: '4교시', range: '화학Ⅰ 전 범위', readiness: 30, notes: '', color: '#FDCB6E' },
       ],
       status: 'upcoming',
       aiPlan: null,
@@ -1541,8 +1541,8 @@ function saveNewExam() {
     id: 'exam' + Date.now(),
     type: _selectedExamType,
     name,
-    startDate: startDate || '2025-04-21',
-    endDate: endDate || startDate || '2025-04-21',
+    startDate: startDate || '2026-04-21',
+    endDate: endDate || startDate || '2026-04-21',
     subjects,
     status: 'upcoming',
     aiPlan: null,
@@ -1649,7 +1649,7 @@ function applyExamPlanToPlanner(examId) {
   alert('📅 학습 계획이 플래너에 반영되었습니다!\n플래너 탭에서 일정을 확인하세요.');
   // 실제로는 state.plannerItems에 학습 일정 추가
   const dDay = getDday(ex.startDate);
-  const today = new Date('2025-02-15');
+  const today = new Date('2026-02-15');
   ex.subjects.forEach((sub, i) => {
     const studyDate = new Date(today);
     studyDate.setDate(studyDate.getDate() + Math.min(i, dDay > 0 ? dDay : 1));
@@ -1673,7 +1673,7 @@ function applyExamPlanToPlanner(examId) {
 // ==================== PORTFOLIO (나의 활동 기록부) ====================
 
 function getPortfolioDateRange() {
-  const today = new Date('2025-02-15');
+  const today = new Date('2026-02-15');
   let start, end = today;
   switch(state.portfolioPeriod) {
     case '1week':
@@ -1703,11 +1703,11 @@ function collectPortfolioItems() {
 
   // 2) 질문 기록 (하드코딩 예시 — 추후 실 데이터)
   const questionRecords = [
-    { date:'2025-02-15', time:'09:40', subject:'수학', title:'치환적분과 부분적분의 선택 기준', level:'C-1', xp:25 },
-    { date:'2025-02-14', time:'14:20', subject:'국어', title:'윤동주 시의 자아성찰 관점', level:'B-2', xp:15 },
-    { date:'2025-02-13', time:'11:00', subject:'영어', title:'관계대명사 which vs that 차이', level:'A-3', xp:8 },
-    { date:'2025-02-10', time:'10:15', subject:'과학', title:'산화환원 반응에서 전자 이동 메커니즘', level:'B-1', xp:12 },
-    { date:'2025-02-08', time:'15:30', subject:'수학', title:'부정적분 상수 C의 기하학적 의미', level:'C-2', xp:30 },
+    { date:'2026-02-21', time:'09:40', subject:'수학', title:'치환적분과 부분적분의 선택 기준', level:'C-1', xp:25 },
+    { date:'2026-02-14', time:'14:20', subject:'국어', title:'윤동주 시의 자아성찰 관점', level:'B-2', xp:15 },
+    { date:'2026-02-13', time:'11:00', subject:'영어', title:'관계대명사 which vs that 차이', level:'A-3', xp:8 },
+    { date:'2026-02-10', time:'10:15', subject:'과학', title:'산화환원 반응에서 전자 이동 메커니즘', level:'B-1', xp:12 },
+    { date:'2026-02-08', time:'15:30', subject:'수학', title:'부정적분 상수 C의 기하학적 의미', level:'C-2', xp:30 },
   ];
   questionRecords.filter(q => q.date >= s && q.date <= e).forEach(q => {
     items.push({ date:q.date, time:q.time, cat:'question', icon:'❓', title:q.title, subject:q.subject, desc:`질문 레벨 ${q.level}`, xp:q.xp, color:'#FF6B6B' });
@@ -1721,8 +1721,8 @@ function collectPortfolioItems() {
 
   // 4) 교학상장 기록
   const teachRecords = [
-    { date:'2025-02-14', time:'16:00', student:'이서연', subject:'수학', topic:'치환적분 역함수 관점', duration:15 },
-    { date:'2025-02-11', time:'14:30', student:'박지호', subject:'영어', topic:'관계대명사 구문 분석', duration:20 },
+    { date:'2026-02-14', time:'16:00', student:'이서연', subject:'수학', topic:'치환적분 역함수 관점', duration:15 },
+    { date:'2026-02-11', time:'14:30', student:'박지호', subject:'영어', topic:'관계대명사 구문 분석', duration:20 },
   ];
   teachRecords.filter(t => t.date >= s && t.date <= e).forEach(t => {
     items.push({ date:t.date, time:t.time, cat:'teach', icon:'🤝', title:`${t.student}에게 ${t.topic} 설명`, subject:t.subject, desc:`${t.duration}분 멘토링`, xp:30, color:'#00B894' });
@@ -1886,7 +1886,7 @@ function formatDateLabel(dateStr) {
   const d = new Date(dateStr);
   const days = ['일','월','화','수','목','금','토'];
   const m = d.getMonth()+1, dd = d.getDate(), day = days[d.getDay()];
-  const today = new Date('2025-02-15');
+  const today = new Date('2026-02-15');
   const diff = Math.round((today - d) / 86400000);
   if (diff === 0) return `오늘 (${m}/${dd} ${day})`;
   if (diff === 1) return `어제 (${m}/${dd} ${day})`;
@@ -3859,7 +3859,7 @@ function renderRecordAssignment() {
 
         <div class="field-group">
           <label class="field-label">📅 마감일</label>
-          <input class="input-field" type="date" id="assignment-due" value="${isEdit ? a.dueDate : '2025-02-22'}" style="color:var(--text-primary)">
+          <input class="input-field" type="date" id="assignment-due" value="${isEdit ? a.dueDate : '2026-02-26'}" style="color:var(--text-primary)">
         </div>
 
         <div class="assignment-plan-cta animate-in" onclick="saveAssignment(true)">
@@ -5305,7 +5305,7 @@ function renderPlannerAiFloat() {
 
 // ---- PLANNER ADD ITEM ----
 function renderPlannerAddItem() {
-  const prefillDate = state.plannerDate || '2025-02-15';
+  const prefillDate = state.plannerDate || '2026-02-15';
   const prefillTime = state._addTime || '';
   return `
     <div class="full-screen animate-slide">
