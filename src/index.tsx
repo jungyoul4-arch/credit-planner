@@ -1014,6 +1014,32 @@ app.post('/api/student/:studentId/class-records', async (c) => {
   }
 });
 
+// 수업 기록 수정
+app.put('/api/student/class-records/:recordId', async (c) => {
+  try {
+    const recordId = c.req.param('recordId');
+    const body = await c.req.json();
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (body.subject !== undefined) { fields.push('subject = ?'); values.push(body.subject); }
+    if (body.date !== undefined) { fields.push('date = ?'); values.push(body.date); }
+    if (body.content !== undefined) { fields.push('content = ?'); values.push(body.content); }
+    if (body.keywords !== undefined) { fields.push('keywords = ?'); values.push(JSON.stringify(body.keywords)); }
+    if (body.understanding !== undefined) { fields.push('understanding = ?'); values.push(body.understanding); }
+    if (body.memo !== undefined) { fields.push('memo = ?'); values.push(body.memo); }
+
+    if (fields.length === 0) return c.json({ success: true });
+
+    values.push(recordId);
+    await c.env.DB.prepare(`UPDATE class_records SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 
 // ==================== STUDENT DATA API: 질문 코칭 기록 ====================
 

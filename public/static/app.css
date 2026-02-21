@@ -3373,3 +3373,212 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   .act-detail-stats { flex-wrap:wrap; }
   .act-detail-stat { min-width:25%; }
 }
+
+/* ==================== 수업 종료 자동 감지 시스템 ==================== */
+
+/* 수업 종료 직후 시간표 행 강조 */
+.tt-row.tt-just-ended {
+  background: linear-gradient(135deg, rgba(255,107,107,0.12), rgba(108,92,231,0.08));
+  border: 1px solid rgba(255,107,107,0.3);
+  animation: tt-pulse-bg 2s ease-in-out infinite;
+}
+
+@keyframes tt-pulse-bg {
+  0%, 100% { border-color: rgba(255,107,107,0.3); }
+  50% { border-color: rgba(255,107,107,0.6); }
+}
+
+/* 기록하기 버튼 glow 효과 */
+.tt-record-btn.tt-btn-glow {
+  background: linear-gradient(135deg, var(--accent), #FF8E53);
+  color: #fff;
+  font-weight: 700;
+  animation: tt-btn-glow-anim 1.5s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(255,107,107,0.4);
+}
+
+@keyframes tt-btn-glow-anim {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,107,107,0.3); transform: scale(1); }
+  50% { box-shadow: 0 0 20px rgba(255,107,107,0.6); transform: scale(1.05); }
+}
+
+/* Quick Action 버튼 glow */
+.quick-action-btn.qa-glow {
+  background: linear-gradient(135deg, rgba(255,107,107,0.15), rgba(108,92,231,0.1));
+  border-color: rgba(255,107,107,0.4);
+  animation: qa-glow-anim 2s ease-in-out infinite;
+}
+
+@keyframes qa-glow-anim {
+  0%, 100% { border-color: rgba(255,107,107,0.3); box-shadow: 0 0 6px rgba(255,107,107,0.15); }
+  50% { border-color: rgba(255,107,107,0.6); box-shadow: 0 0 14px rgba(255,107,107,0.3); }
+}
+
+.quick-action-btn.qa-glow.qa-pulse {
+  animation: qa-glow-anim 1s ease-in-out infinite;
+}
+
+/* Quick Action 뱃지 */
+.qa-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 4px;
+  line-height: 1;
+}
+
+/* 수업 종료 인앱 알림 배너 */
+.class-end-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #1E1B4B, #312E81);
+  border: 1px solid rgba(255,107,107,0.4);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(255,107,107,0.2);
+  max-width: calc(100vw - 32px);
+  width: auto;
+  min-width: 280px;
+  animation: banner-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes banner-slide-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(0.95); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.ceb-icon {
+  font-size: 24px;
+  animation: ceb-ring 0.6s ease-in-out 0.3s;
+}
+
+@keyframes ceb-ring {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(15deg); }
+  40% { transform: rotate(-15deg); }
+  60% { transform: rotate(10deg); }
+  80% { transform: rotate(-5deg); }
+}
+
+.ceb-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ceb-text strong {
+  font-size: 14px;
+  color: #F0F6FC;
+}
+
+.ceb-text span {
+  font-size: 11px;
+  color: #8B949E;
+}
+
+.ceb-btn {
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #FF8E53);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ceb-btn:active {
+  transform: scale(0.95);
+}
+
+.ceb-close {
+  border: none;
+  background: none;
+  color: #484F58;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.ceb-close:hover {
+  color: #F0F6FC;
+}
+
+/* 수업 기록 수정 화면 - 이해도 선택 */
+.understanding-selector {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.understanding-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.understanding-btn:hover {
+  border-color: var(--primary-light);
+  background: var(--bg-card-hover);
+}
+
+.understanding-btn.active {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(108,92,231,0.15), rgba(162,155,254,0.1));
+  box-shadow: 0 0 12px rgba(108,92,231,0.2);
+}
+
+/* 수업 기록 수정 완료된 행 hover 힌트 */
+.tt-row.done {
+  transition: background 0.2s, transform 0.15s;
+}
+
+.tt-row.done:hover {
+  background: var(--bg-card-hover);
+  transform: translateX(2px);
+}
+
+/* 미기록 경고 배너 */
+.unrecorded-warn-banner {
+  background: linear-gradient(135deg, rgba(255,107,107,0.12), rgba(243,156,18,0.08));
+  border: 1px solid rgba(255,107,107,0.25);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unrecorded-warn-banner:hover {
+  border-color: rgba(255,107,107,0.5);
+  background: linear-gradient(135deg, rgba(255,107,107,0.18), rgba(243,156,18,0.12));
+}

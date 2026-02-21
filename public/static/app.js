@@ -25,12 +25,12 @@ const state = {
   selectedStudent: null,
   inputMode: 'keyword', // 'keyword' | 'voice' | 'photo'
   todayRecords: [
-    { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B' },
-    { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7' },
-    { period: 3, subject: '영어', teacher: '이정민', done: false, question: null, summary: '', color:'#00B894' },
-    { period: 4, subject: '과학', teacher: '최은지', done: false, question: null, summary: '', color:'#FDCB6E' },
-    { period: 5, subject: '한국사', teacher: '강민수', done: false, question: null, summary: '', color:'#74B9FF' },
-    { period: 6, subject: '체육', teacher: '윤대현', done: false, question: null, summary: '', color:'#A29BFE' },
+    { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B', startTime:'09:00', endTime:'09:50', _dbRecordId: null },
+    { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7', startTime:'10:00', endTime:'10:50', _dbRecordId: null },
+    { period: 3, subject: '영어', teacher: '이정민', done: false, question: null, summary: '', color:'#00B894', startTime:'11:00', endTime:'11:50', _dbRecordId: null },
+    { period: 4, subject: '과학', teacher: '최은지', done: false, question: null, summary: '', color:'#FDCB6E', startTime:'13:00', endTime:'13:50', _dbRecordId: null },
+    { period: 5, subject: '한국사', teacher: '강민수', done: false, question: null, summary: '', color:'#74B9FF', startTime:'14:00', endTime:'14:50', _dbRecordId: null },
+    { period: 6, subject: '체육', teacher: '윤대현', done: false, question: null, summary: '', color:'#A29BFE', startTime:'15:00', endTime:'15:50', _dbRecordId: null },
   ],
   missions: [
     { text: '수업 기록 3개 이상', icon: '📝', current: 2, target: 3, done: false },
@@ -505,6 +505,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'activity-detail') return renderActivityDetail();
   if (state.currentScreen === 'activity-add') return renderActivityAdd();
   if (state.currentScreen === 'record-schoolrecord') return renderSchoolRecord();
+  if (state.currentScreen === 'class-record-edit') return renderClassRecordEdit();
 
   let content = '';
   content += renderXpBar();
@@ -966,6 +967,8 @@ function initAuthEvents(container) {
 
       // DB에서 데이터 로드 (비동기)
       DB.loadAll().then(() => renderScreen());
+      // 수업 종료 자동 감지 시작
+      startClassEndChecker();
     } catch (e) {
       state._loginError = e.message;
       state._loginLoading = false;
@@ -1173,6 +1176,8 @@ function autoLogin() {
         return res.json();
       }).then(() => {
         DB.loadAll().then(() => renderScreen());
+        // 수업 종료 자동 감지 시작
+        startClassEndChecker();
       }).catch(() => {
         // 서버 검증 실패 → 로그아웃
         console.log('Auto-login verification failed, logging out');
@@ -1454,6 +1459,16 @@ const DB = {
     return null;
   },
 
+  async updateClassRecord(recordId, updates) {
+    try {
+      await fetch(`/api/student/class-records/${recordId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error('updateClassRecord:', e); }
+  },
+
   // === 질문 코칭 기록 ===
   async loadQuestionRecords() {
     const sid = this.studentId();
@@ -1644,6 +1659,196 @@ const DB = {
 };
 
 
+// ==================== 시간 기반 수업종료 자동 감지 ====================
+
+// 교시별 수업 종료 시간 기준으로 상태 판단
+function getClassEndStatus(record) {
+  if (!record.endTime || record.done) return 'none';
+  const now = new Date();
+  const [h, m] = record.endTime.split(':').map(Number);
+  const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+  const diffMin = (now - endToday) / 60000;
+  // 수업 종료 후 0~30분 이내 → 'just-ended' (강조)
+  if (diffMin >= 0 && diffMin <= 30) return 'just-ended';
+  // 수업 종료 후 30분 초과 → 'ended' (미기록 경고)
+  if (diffMin > 30) return 'ended';
+  return 'none'; // 아직 수업 중이거나 미래
+}
+
+// 미기록 + 수업 끝난 교시가 있는지
+function hasUnrecordedEndedClass() {
+  return state.todayRecords.some(r => !r.done && getClassEndStatus(r) !== 'none');
+}
+
+function countUnrecordedEndedClasses() {
+  return state.todayRecords.filter(r => !r.done && getClassEndStatus(r) !== 'none').length;
+}
+
+// 저녁 시간대인지 (19시~23시)
+function isEveningTime() {
+  const h = new Date().getHours();
+  return h >= 19 && h <= 23;
+}
+
+// 1분마다 체크 → 수업 끝났으면 화면 갱신 + 선택적 자동 팝업
+let _classCheckTimer = null;
+let _lastAutoPopupPeriod = 0;
+
+function startClassEndChecker() {
+  if (_classCheckTimer) clearInterval(_classCheckTimer);
+  _classCheckTimer = setInterval(() => {
+    // 미기록 수업 중 방금 끝난 것 감지
+    const justEnded = state.todayRecords.find(r => !r.done && getClassEndStatus(r) === 'just-ended');
+    if (justEnded && justEnded.period !== _lastAutoPopupPeriod) {
+      _lastAutoPopupPeriod = justEnded.period;
+      // 홈 화면이면 알림 배너 표시 + 화면 갱신
+      if (state.currentScreen === 'main' && state.studentTab === 'home') {
+        renderScreen();
+        // 자동 팝업 (홈에 있을 때만)
+        showClassEndNotification(justEnded);
+      }
+    }
+    // 매분 홈이면 갱신 (시간 표시 업데이트)
+    if (state.currentScreen === 'main' && state.studentTab === 'home') {
+      // 버튼 glow 상태만 업데이트 (전체 렌더링은 부담)
+      document.querySelectorAll('.qa-glow').forEach(el => el.classList.toggle('qa-pulse'));
+    }
+  }, 60000); // 1분마다
+}
+
+// 수업 종료 인앱 알림 배너
+function showClassEndNotification(record) {
+  const banner = document.createElement('div');
+  banner.className = 'class-end-banner animate-in';
+  banner.innerHTML = `
+    <div class="ceb-icon">🔔</div>
+    <div class="ceb-text">
+      <strong>${record.period}교시 ${record.subject}</strong> 수업 끝!
+      <span>지금 바로 기록해보세요</span>
+    </div>
+    <button class="ceb-btn" onclick="this.closest('.class-end-banner').remove();goScreen('class-end-popup')">기록하기</button>
+    <button class="ceb-close" onclick="this.closest('.class-end-banner').remove()">✕</button>
+  `;
+  // 기존 배너 제거
+  document.querySelectorAll('.class-end-banner').forEach(el => el.remove());
+  document.body.appendChild(banner);
+  // 10초 후 자동 닫기
+  setTimeout(() => { if (document.body.contains(banner)) banner.remove(); }, 10000);
+}
+
+// 수업 기록 수정 화면 열기
+function openClassRecordEdit(idx) {
+  state._editingClassRecordIdx = idx;
+  goScreen('class-record-edit');
+}
+
+// 수업 기록 수정 화면 렌더링
+function renderClassRecordEdit() {
+  const idx = state._editingClassRecordIdx;
+  const r = state.todayRecords[idx];
+  if (!r) { goScreen('main'); return ''; }
+
+  const keywordsArr = r.summary ? r.summary.split(', ').filter(k => k) : [];
+  const understanding = r._understanding || 3;
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>✏️ 수업 기록 수정</h1>
+        <button class="header-action-btn" onclick="saveClassRecordEdit(${idx})" style="color:var(--primary-light)"><i class="fas fa-save"></i></button>
+      </div>
+
+      <div class="form-body">
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <div class="tt-period-badge done" style="width:36px;height:36px;font-size:14px">${r.period}</div>
+            <div>
+              <div style="font-size:17px;font-weight:700;color:${r.color}">${r.subject}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${r.teacher} 선생님 · ${r.startTime||''}~${r.endTime||''}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📝 키워드</label>
+          <input class="input-field" id="edit-cr-keywords" value="${keywordsArr.join(', ')}" placeholder="쉼표로 구분 (예: 치환적분, 부분적분, 역함수)">
+          <span style="font-size:11px;color:var(--text-muted)">쉼표(,)로 구분해서 입력하세요</span>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">💭 수업 내용 / 느낀 점</label>
+          <textarea class="input-field" id="edit-cr-content" rows="4" placeholder="이 수업에서 배운 것, 느낀 점...">${r._content || r.summary || ''}</textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📊 이해도</label>
+          <div class="understanding-selector" id="edit-cr-understanding">
+            ${[1,2,3,4,5].map(v => `
+              <button class="understanding-btn ${understanding===v?'active':''}" data-value="${v}" onclick="document.querySelectorAll('#edit-cr-understanding .understanding-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">
+                <span style="font-size:18px">${['😵','😟','😐','🙂','😄'][v-1]}</span>
+                <span style="font-size:10px">${['모르겠음','어려움','보통','이해함','완벽'][v-1]}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📎 메모 <span style="color:var(--text-muted)">(선택)</span></label>
+          <input class="input-field" id="edit-cr-memo" value="${r._memo || r.period + '교시'}" placeholder="추가 메모...">
+        </div>
+
+        ${r.question ? `
+        <div class="card" style="margin-top:12px;background:var(--bg-input);border-color:var(--primary)22">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span class="tt-q-badge">${r.question.level}</span>
+            <span style="font-size:13px;font-weight:600">질문 기록</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.5">"${r.question.text}"</p>
+        </div>
+        ` : ''}
+
+        <button class="btn-primary" style="width:100%;margin-top:20px" onclick="saveClassRecordEdit(${idx})">
+          <i class="fas fa-save" style="margin-right:6px"></i> 수정 완료
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// 수업 기록 수정 저장
+function saveClassRecordEdit(idx) {
+  const r = state.todayRecords[idx];
+  if (!r) return;
+
+  const keywordsInput = document.getElementById('edit-cr-keywords')?.value || '';
+  const content = document.getElementById('edit-cr-content')?.value?.trim() || '';
+  const memo = document.getElementById('edit-cr-memo')?.value?.trim() || '';
+  const activeUnderstanding = document.querySelector('#edit-cr-understanding .understanding-btn.active');
+  const understanding = activeUnderstanding ? parseInt(activeUnderstanding.dataset.value) : 3;
+
+  const keywords = keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+
+  // state 업데이트
+  r.summary = keywords.join(', ') || content || r.summary;
+  r._content = content;
+  r._memo = memo;
+  r._understanding = understanding;
+
+  // DB 업데이트
+  if (r._dbRecordId && DB.studentId()) {
+    DB.updateClassRecord(r._dbRecordId, {
+      content,
+      keywords,
+      understanding,
+      memo,
+    });
+  }
+
+  goScreen('main');
+  showXpPopup(0, '수업 기록이 수정되었어요! ✏️');
+}
+
 // ==================== HOME TAB (H-01~H-05) ====================
 
 function renderHomeTab() {
@@ -1709,6 +1914,18 @@ function renderHomeTab() {
         </div>
       </div>
 
+      ${hasUnrecordedEndedClass() ? `
+      <!-- 미기록 수업 경고 배너 -->
+      <div class="unrecorded-warn-banner stagger-2 animate-in" onclick="goScreen('class-end-popup')">
+        <span style="font-size:20px">🔔</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--accent)">미기록 수업 ${countUnrecordedEndedClasses()}개!</div>
+          <div style="font-size:11px;color:var(--text-secondary)">끝난 수업이 있어요. 탭하여 바로 기록하세요</div>
+        </div>
+        <i class="fas fa-chevron-right" style="color:var(--accent);font-size:12px"></i>
+      </div>
+      ` : ''}
+
       <!-- Today Timetable -->
       <div class="card stagger-2 animate-in">
         <div class="card-header-row">
@@ -1720,19 +1937,19 @@ function renderHomeTab() {
         </div>
         <div class="timetable-list">
           ${state.todayRecords.map((r, idx) => `
-            <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''}">
+            <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="openClassRecordEdit(${idx})" style="cursor:pointer"` : ''}>
               <div class="tt-period-badge ${r.done?'done':idx===doneCount?'current':''}" style="${r.done?'':''}">
                 ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : r.period}
               </div>
               <div class="tt-info">
                 <span class="tt-subject-name" style="color:${r.color}">${r.subject}</span>
-                ${r.done ? `<span class="tt-summary">${r.summary}</span>` : `<span class="tt-summary" style="opacity:0.4">${r.teacher} 선생님</span>`}
+                ${r.done ? `<span class="tt-summary">${r.summary} <i class="fas fa-pencil-alt" style="font-size:9px;opacity:0.4;margin-left:4px"></i></span>` : `<span class="tt-summary" style="opacity:0.4">${r.teacher} 선생님 · ${r.startTime||''}~${r.endTime||''}</span>`}
               </div>
               <div class="tt-action">
                 ${r.done
                   ? `<span class="tt-done-badge">${r.question ? '<span class="tt-q-badge" style="margin-right:4px">질문</span>' :''}✅</span>`
                   : (idx === doneCount
-                    ? `<button class="tt-record-btn" onclick="goScreen('class-end-popup')">기록하기</button>`
+                    ? `<button class="tt-record-btn ${getClassEndStatus(r)==='just-ended'?'tt-btn-glow':''}" onclick="event.stopPropagation();goScreen('class-end-popup')">기록하기</button>`
                     : `<span class="tt-locked"><i class="fas fa-lock" style="font-size:10px"></i></span>`
                   )
                 }
@@ -1849,11 +2066,11 @@ function renderHomeTab() {
 
       <!-- Quick Actions -->
       <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap" class="stagger-6 animate-in">
-        <button class="quick-action-btn" onclick="goScreen('evening-routine')">
-          <i class="fas fa-moon"></i> 저녁 루틴
+        <button class="quick-action-btn ${isEveningTime()?'qa-glow':''}" onclick="goScreen('evening-routine')">
+          <i class="fas fa-moon"></i> 저녁 루틴 ${isEveningTime()?'<span class="qa-badge">NOW</span>':''}
         </button>
-        <button class="quick-action-btn" onclick="goScreen('class-end-popup')">
-          <i class="fas fa-bell"></i> 수업종료 팝업
+        <button class="quick-action-btn ${hasUnrecordedEndedClass()?'qa-glow':''}" onclick="goScreen('class-end-popup')">
+          <i class="fas fa-bell"></i> 수업종료 팝업 ${hasUnrecordedEndedClass()?`<span class="qa-badge">${countUnrecordedEndedClasses()}</span>`:''}
         </button>
         <button class="quick-action-btn" onclick="goScreen('assignment-list')">
           <i class="fas fa-clipboard-list"></i> 과제 관리
