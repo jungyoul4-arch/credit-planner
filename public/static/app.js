@@ -774,8 +774,8 @@ function renderLoginScreen() {
           <input class="input-field" id="login-invite-code" placeholder="JYCC-XXXX-XXXX" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px" autocomplete="off">
         </div>
         <div class="field-group" style="width:100%">
-          <label class="field-label">이름</label>
-          <input class="input-field" id="login-name" placeholder="이름을 입력하세요" style="font-size:15px">
+          <label class="field-label">이름 (가입할 때 입력한 이름)</label>
+          <input class="input-field" id="login-name" placeholder="홍길동" style="font-size:15px">
         </div>
         <div class="field-group" style="width:100%">
           <label class="field-label">비밀번호</label>
