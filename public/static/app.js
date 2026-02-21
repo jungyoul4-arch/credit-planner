@@ -232,10 +232,25 @@ const state = {
         totalXp: 8,
       }
     },
-    { id:'ec3', type:'reading', title:'코스모스 (칼 세이건)', subject:'과학', status:'in-progress', progress:65, startDate:'2025-02-01', endDate:'2025-02-28', color:'#00B894', desc:'우주와 과학의 역사를 다룬 과학 교양서', memo:'3장까지 독서감상문 작성 완료' },
-    { id:'ec4', type:'reading', title:'수학의 확실성 (모리스 클라인)', subject:'수학', status:'pending', progress:0, startDate:'2025-03-01', endDate:'2025-03-31', color:'#6C5CE7', desc:'수학 철학과 역사를 다룬 교양서', memo:'' },
-    { id:'ec5', type:'activity', title:'코딩동아리 (CodingLab)', subject:'정보', status:'in-progress', progress:50, startDate:'2025-03-01', endDate:'2025-12-31', color:'#E056A0', desc:'Python matplotlib 수학 그래프 시각화 프로젝트', memo:'sin, cos 합성파 표현' },
-    { id:'ec6', type:'activity', title:'진로탐색 - 데이터사이언스 체험', subject:'진로', status:'completed', progress:100, startDate:'2025-02-05', endDate:'2025-02-05', color:'#FF9F43', desc:'대학 연계 데이터사이언스 1일 체험', memo:'머신러닝 기초 실습' },
+    { id:'ec3', type:'reading', subType:'reading', title:'코스모스 (칼 세이건)', subject:'과학', status:'in-progress', progress:65, startDate:'2025-02-01', endDate:'2025-02-28', color:'#00B894', desc:'우주와 과학의 역사를 다룬 과학 교양서', memo:'3장까지 독서감상문 작성 완료',
+      logs: [
+        { date:'2025-02-14', content:'3장 "지구의 화합" 독서 완료 및 감상문 작성', reflection:'우주에서 바라본 지구의 의미를 다시 생각하게 됨', duration:'~50쪽' },
+        { date:'2025-02-10', content:'2장 읽기 완료', reflection:'과학의 역사가 이렇게 흥미로운 줄 몰랐다', duration:'~30쪽' },
+        { date:'2025-02-05', content:'1장 "코스모스의 해안" 읽기', reflection:'칼 세이건의 문체가 시적이라 감동받음', duration:'~30쪽' },
+      ]
+    },
+    { id:'ec4', type:'reading', subType:'reading', title:'수학의 확실성 (모리스 클라인)', subject:'수학', status:'pending', progress:0, startDate:'2025-03-01', endDate:'2025-03-31', color:'#6C5CE7', desc:'수학 철학과 역사를 다룬 교양서', memo:'', logs:[] },
+    { id:'ec5', type:'activity', subType:'club', title:'코딩동아리 (CodingLab)', subject:'정보', status:'in-progress', progress:50, startDate:'2025-03-01', endDate:'2025-12-31', color:'#E056A0', desc:'Python matplotlib 수학 그래프 시각화 프로젝트', memo:'sin, cos 합성파 표현', careerLink:'프로그래밍 + 수학 시각화 = 데이터 사이언스',
+      logs: [
+        { date:'2025-02-15', content:'Python matplotlib으로 sin, cos 합성파 그래프 시각화 완료', reflection:'코드로 수학을 표현하니까 함수의 성질이 더 직관적으로 이해됨', duration:'1시간' },
+        { date:'2025-02-10', content:'프로젝트 기획 및 matplotlib 기본 문법 학습', reflection:'그래프 커스텀이 생각보다 쉬워서 놀랐다', duration:'1.5시간' },
+      ]
+    },
+    { id:'ec6', type:'activity', subType:'career', title:'진로탐색 - 데이터사이언스 체험', subject:'진로', status:'completed', progress:100, startDate:'2025-02-05', endDate:'2025-02-05', color:'#FF9F43', desc:'대학 연계 데이터사이언스 1일 체험', memo:'머신러닝 기초 실습', careerLink:'데이터사이언스 → 인공지능 연구',
+      logs: [
+        { date:'2025-02-05', content:'대학 연계 데이터사이언스 1일 체험. 파이썬으로 iris 데이터 분류 실습', reflection:'머신러닝이 생각보다 접근하기 쉬웠고, 수학이 중요하다는 걸 체감', duration:'2시간+' },
+      ]
+    },
   ],
   // 플래너 상태
   plannerView: 'daily', // 'daily','weekly','monthly'
@@ -329,6 +344,10 @@ const state = {
   reportAiLoading: false,
   reportDiagResult: null, // 최근 질문 진단 결과
   reportAiResponse: null, // 최근 AI 멘토/검색 응답
+  // 창의적 체험활동 통합 상태
+  activityFilter: 'all', // 'all','club','career','self','report','reading'
+  viewingActivity: null, // 현재 보고 있는 활동 ec id
+  activityLogInput: {}, // 활동 기록 입력 임시 저장
 };
 
 // ==================== MAIN RENDER ====================
@@ -383,6 +402,8 @@ function renderStudentApp() {
   if (state.currentScreen === 'exam-add') return renderExamAdd();
   if (state.currentScreen === 'report-project') return renderReportProject();
   if (state.currentScreen === 'report-add') return renderReportAdd();
+  if (state.currentScreen === 'activity-detail') return renderActivityDetail();
+  if (state.currentScreen === 'activity-add') return renderActivityAdd();
 
   let content = '';
   content += renderXpBar();
@@ -956,12 +977,16 @@ function renderRecordTab() {
       <div class="card stagger-7 animate-in">
         <div class="card-header-row">
           <span class="card-title">📚 진행 중인 비교과 활동</span>
+          <button class="card-link" onclick="goScreen('record-activity')">전체보기 →</button>
         </div>
         ${state.extracurriculars.filter(e => e.status !== 'completed').slice(0, 4).map(e => {
-          const typeLabel = e.type === 'report' ? '📄 탐구보고서' : e.type === 'reading' ? '📖 독서' : '🏫 창체';
+          const typeLabel = e.type === 'report' ? '📄 탐구보고서' : e.type === 'reading' ? '📖 독서' : e.subType === 'career' ? '🎯 진로' : e.subType === 'self' ? '🧠 자율자치' : '🎭 동아리';
           const statusLabel = e.status === 'in-progress' ? '진행중' : '예정';
+          const onclick = e.type === 'report' && e.report 
+            ? `state.viewingReport='${e.id}';state.reportPhaseTab=${e.report.currentPhase};goScreen('report-project')` 
+            : `state.viewingActivity='${e.id}';goScreen('activity-detail')`;
           return `
-          <div class="ec-mini-row" onclick="${e.type === 'report' && e.report ? `state.viewingReport='${e.id}';state.reportPhaseTab=${e.report.currentPhase};goScreen('report-project')` : ''}" style="${e.type === 'report' ? 'cursor:pointer' : ''}">
+          <div class="ec-mini-row" onclick="${onclick}" style="cursor:pointer">
             <div class="ec-mini-dot" style="background:${e.color}"></div>
             <div class="ec-mini-info">
               <div class="ec-mini-top">
@@ -1864,7 +1889,7 @@ function renderReportProjectList(projects) {
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="goScreen('record-activity')"><i class="fas fa-arrow-left"></i></button>
         <h1>📄 탐구보고서</h1>
         <button class="header-add-btn" onclick="goScreen('report-add')"><i class="fas fa-plus"></i></button>
       </div>
@@ -4026,63 +4051,557 @@ function completeAssignment(id) {
 // ==================== RECORD ACTIVITY (R-04 창의적 체험활동) ====================
 
 function renderRecordActivity() {
+  // 통합 리스트: 모든 활동 표시 (필터 지원)
+  const filter = state.activityFilter || 'all';
+  
+  // 유형 매핑
+  const TYPE_META = {
+    'activity': { label:'동아리', icon:'🎭', filterKey:'club', bg:'rgba(224,86,160,0.12)' },
+    'career': { label:'진로활동', icon:'🎯', filterKey:'career', bg:'rgba(255,159,67,0.12)' },
+    'self': { label:'자율자치', icon:'🧠', filterKey:'self', bg:'rgba(162,155,254,0.12)' },
+    'report': { label:'탐구보고서', icon:'📄', filterKey:'report', bg:'rgba(108,92,231,0.12)' },
+    'reading': { label:'독서', icon:'📖', filterKey:'reading', bg:'rgba(0,184,148,0.12)' },
+  };
+
+  // extracurriculars의 type값 → filter key 매핑
+  function getFilterKey(ec) {
+    if (ec.type === 'report') return 'report';
+    if (ec.type === 'reading') return 'reading';
+    // activity 타입은 subType으로 구분 (club, career, self)
+    if (ec.subType === 'career') return 'career';
+    if (ec.subType === 'self') return 'self';
+    return 'club'; // default activity → club
+  }
+  
+  // 필터링
+  let filtered = state.extracurriculars;
+  if (filter !== 'all') {
+    filtered = filtered.filter(ec => getFilterKey(ec) === filter);
+  }
+  
+  // 정렬: 진행중 먼저, 그 다음 최신순
+  const statusOrder = { 'in-progress': 0, 'pending': 1, 'completed': 2 };
+  filtered = [...filtered].sort((a, b) => {
+    const sa = statusOrder[a.status] ?? 1;
+    const sb = statusOrder[b.status] ?? 1;
+    if (sa !== sb) return sa - sb;
+    return (b.startDate || '').localeCompare(a.startDate || '');
+  });
+
+  const filters = [
+    { key:'all', label:'전체', icon:'📂' },
+    { key:'club', label:'동아리', icon:'🎭' },
+    { key:'career', label:'진로', icon:'🎯' },
+    { key:'self', label:'자율자치', icon:'🧠' },
+    { key:'report', label:'탐구보고서', icon:'📄' },
+    { key:'reading', label:'독서', icon:'📖' },
+  ];
+
+  // 유형별 카운트
+  const counts = { all: state.extracurriculars.length };
+  state.extracurriculars.forEach(ec => {
+    const k = getFilterKey(ec);
+    counts[k] = (counts[k] || 0) + 1;
+  });
+
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
         <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
-        <h1>창의적 체험활동</h1>
-        <span class="xp-badge-sm">+20 XP</span>
+        <h1>🏫 창의적 체험활동</h1>
+        <button class="header-add-btn" onclick="goScreen('activity-add')"><i class="fas fa-plus"></i></button>
       </div>
 
-      <div class="form-body">
-        <div class="field-group">
-          <label class="field-label">📂 활동 유형</label>
-          <div class="activity-type-grid">
-            ${[
-              {type:'club', icon:'🎭', name:'동아리'},
-              {type:'career', icon:'🎯', name:'진로활동'},
-              {type:'self', icon:'🧠', name:'자율자치'},
-              {type:'report', icon:'📄', name:'탐구보고서'},
-            ].map((a,i) => `
-              <button class="activity-type-btn ${i===0?'active':''}" data-type="${a.type}"
-                ${a.type === 'report' ? `onclick="goScreen('report-project')"` : ''}>
-                <span>${a.icon}</span><span>${a.name}</span>
-              </button>
-            `).join('')}
+      <div class="form-body" style="padding-top:8px">
+        <!-- 통계 요약 배너 -->
+        <div class="act-summary-banner animate-in">
+          <div class="act-summary-item">
+            <span class="act-summary-num">${state.extracurriculars.filter(e => e.status === 'in-progress').length}</span>
+            <span class="act-summary-label">진행중</span>
+          </div>
+          <div class="act-summary-divider"></div>
+          <div class="act-summary-item">
+            <span class="act-summary-num">${state.extracurriculars.filter(e => e.status === 'completed').length}</span>
+            <span class="act-summary-label">완료</span>
+          </div>
+          <div class="act-summary-divider"></div>
+          <div class="act-summary-item">
+            <span class="act-summary-num">${state.extracurriculars.reduce((s, e) => s + (e.report?.totalXp || 0), 0)}</span>
+            <span class="act-summary-label">총 XP</span>
           </div>
         </div>
 
-        <div class="field-group">
-          <label class="field-label">🏫 활동명</label>
-          <input class="input-field" placeholder="예: 코딩동아리, 진로탐색..." value="코딩동아리 (CodingLab)">
+        <!-- 필터 탭 (가로 스크롤) -->
+        <div class="act-filter-tabs">
+          ${filters.map(f => `
+            <button class="act-filter-tab ${filter === f.key ? 'active' : ''}" 
+              onclick="state.activityFilter='${f.key}';renderScreen()">
+              <span>${f.icon}</span>
+              <span>${f.label}</span>
+              ${counts[f.key] ? `<span class="act-filter-count">${counts[f.key]}</span>` : ''}
+            </button>
+          `).join('')}
         </div>
 
-        <div class="field-group">
-          <label class="field-label">📝 오늘 한 것</label>
-          <textarea class="input-field" rows="3" placeholder="오늘 활동 내용을 간단히 적어주세요">Python matplotlib으로 수학 함수 그래프 시각화 프로젝트 진행. sin, cos 함수의 합성파 표현</textarea>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">🔗 진로 연계 <span class="field-hint">(선택)</span></label>
-          <input class="input-field" placeholder="이 활동이 진로와 어떻게 연결되나요?" value="프로그래밍 + 수학 시각화 = 데이터 사이언스">
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">💡 배운 점 / 느낀 점</label>
-          <textarea class="input-field" rows="2" placeholder="활동하면서 느낀 점...">코드로 수학을 표현하니까 함수의 성질이 더 직관적으로 이해됨</textarea>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">⏱️ 활동 시간</label>
-          <div class="chip-row">
-            ${['30분','1시간','1.5시간','2시간','2시간+'].map((t,i) => `<button class="chip ${i===1?'active':''}">${t}</button>`).join('')}
+        <!-- 활동 리스트 -->
+        ${filtered.length === 0 ? `
+          <div class="act-empty">
+            <div class="act-empty-icon">📝</div>
+            <div class="act-empty-text">아직 등록된 활동이 없어요</div>
+            <div class="act-empty-sub">아래 버튼을 눌러 첫 활동을 등록해보세요!</div>
+            <button class="btn-primary" onclick="goScreen('activity-add')" style="display:inline-flex;align-items:center;gap:6px;padding:12px 24px;margin-top:12px">
+              <i class="fas fa-plus"></i> 새 활동 추가하기
+            </button>
           </div>
-        </div>
+        ` : filtered.map((ec, i) => {
+          const fk = getFilterKey(ec);
+          const meta = TYPE_META[ec.type] || TYPE_META['activity'];
+          // 유형 아이콘 우선순위: subType > type
+          let icon = meta.icon;
+          let label = meta.label;
+          let bg = meta.bg;
+          if (ec.subType === 'career') { icon = '🎯'; label = '진로활동'; bg = 'rgba(255,159,67,0.12)'; }
+          else if (ec.subType === 'self') { icon = '🧠'; label = '자율자치'; bg = 'rgba(162,155,254,0.12)'; }
 
-        <button class="btn-primary" onclick="showXpPopup(20, '창체 활동 기록 완료!')">기록 완료 +20 XP ✨</button>
+          const statusLabel = ec.status === 'completed' ? '✅ 완료' : ec.status === 'in-progress' ? '🔄 진행중' : '📋 예정';
+          const statusClass = ec.status === 'completed' ? 'completed' : ec.status === 'in-progress' ? 'in-progress' : 'pending';
+
+          // 탐구보고서는 추가 정보 표시
+          let extraInfo = '';
+          if (ec.type === 'report' && ec.report) {
+            const rpt = ec.report;
+            const totalXp = rpt.questions.reduce((s, q) => s + (q.xp || 0), 0);
+            const phaseName = ['주제 선정','탐구 설계','자료 수집','분석/작성','회고'][rpt.currentPhase] || '';
+            extraInfo = `<div class="act-card-extra"><span>💬 질문 ${rpt.questions.length}개</span><span>⚡ ${totalXp} XP</span><span>📍 ${phaseName}</span></div>`;
+          }
+          // 독서는 진행률 표시
+          if (ec.type === 'reading') {
+            extraInfo = `<div class="act-card-extra"><span>📖 ${ec.progress}% 읽음</span>${ec.memo ? `<span>📝 ${ec.memo}</span>` : ''}</div>`;
+          }
+
+          // 클릭 핸들러
+          let onclick = '';
+          if (ec.type === 'report' && ec.report) {
+            onclick = `state.viewingReport='${ec.id}';state.reportPhaseTab=${ec.report.currentPhase};state.reportViewMode='question';state.reportDiagResult=null;state.reportAiResponse=null;goScreen('report-project')`;
+          } else {
+            onclick = `state.viewingActivity='${ec.id}';goScreen('activity-detail')`;
+          }
+
+          return `
+          <div class="act-card stagger-${Math.min(i+1,8)} animate-in" onclick="${onclick}">
+            <div class="act-card-left">
+              <div class="act-card-type-badge" style="background:${bg}">
+                <span>${icon}</span>
+              </div>
+            </div>
+            <div class="act-card-body">
+              <div class="act-card-top">
+                <span class="act-card-type-label" style="color:${ec.color}">${label}</span>
+                <span class="act-card-subject">${ec.subject}</span>
+                <span class="act-card-status ${statusClass}">${statusLabel}</span>
+              </div>
+              <div class="act-card-title">${ec.title}</div>
+              ${ec.desc ? `<div class="act-card-desc">${ec.desc}</div>` : ''}
+              ${extraInfo}
+              <div class="act-card-footer">
+                <span class="act-card-date">${ec.startDate?.slice(5) || ''} ~ ${ec.endDate?.slice(5) || ''}</span>
+                <div class="act-card-progress">
+                  <div class="act-card-progress-fill" style="width:${ec.progress}%;background:${ec.color}"></div>
+                </div>
+                <span class="act-card-progress-text">${ec.progress}%</span>
+              </div>
+            </div>
+          </div>
+          `;
+        }).join('')}
+
+        <!-- 하단 추가 버튼 -->
+        ${filtered.length > 0 ? `
+        <button class="act-add-float-btn" onclick="goScreen('activity-add')">
+          <i class="fas fa-plus" style="margin-right:6px"></i> 새 활동 추가
+        </button>
+        ` : ''}
       </div>
     </div>
   `;
+}
+
+// ==================== 활동 상세 화면 (동아리/진로/자율자치/독서) ====================
+
+function renderActivityDetail() {
+  const ec = state.extracurriculars.find(e => e.id === state.viewingActivity);
+  if (!ec) { state.viewingActivity = null; goScreen('record-activity'); return ''; }
+  
+  // 유형 정보
+  let typeIcon = '🎭', typeLabel = '동아리', typeColor = '#E056A0';
+  if (ec.subType === 'career' || ec.type === 'career') { typeIcon = '🎯'; typeLabel = '진로활동'; typeColor = '#FF9F43'; }
+  else if (ec.subType === 'self' || ec.type === 'self') { typeIcon = '🧠'; typeLabel = '자율자치'; typeColor = '#A29BFE'; }
+  else if (ec.type === 'reading') { typeIcon = '📖'; typeLabel = '독서'; typeColor = '#00B894'; }
+
+  const statusLabel = ec.status === 'completed' ? '✅ 완료' : ec.status === 'in-progress' ? '🔄 진행중' : '📋 예정';
+
+  // 활동 로그 (간단한 기록 시스템)
+  const logs = ec.logs || [];
+
+  return `
+    <div class="full-screen animate-slide">
+      <!-- 헤더 -->
+      <div class="act-detail-header" style="border-bottom:3px solid ${ec.color}20">
+        <div class="act-detail-header-top">
+          <button class="back-btn" onclick="state.viewingActivity=null;goScreen('record-activity')"><i class="fas fa-arrow-left"></i></button>
+          <div style="flex:1">
+            <div class="act-detail-title">${ec.title}</div>
+            <div class="act-detail-subtitle">${ec.subject} · ${typeLabel}</div>
+          </div>
+          <span class="xp-badge-sm">+20 XP</span>
+        </div>
+
+        <!-- 요약 통계 -->
+        <div class="act-detail-stats">
+          <div class="act-detail-stat">
+            <span class="act-detail-stat-icon">${typeIcon}</span>
+            <span class="act-detail-stat-value">${typeLabel}</span>
+            <span class="act-detail-stat-label">유형</span>
+          </div>
+          <div class="act-detail-stat">
+            <span class="act-detail-stat-icon">📅</span>
+            <span class="act-detail-stat-value">${ec.startDate?.slice(5) || ''}</span>
+            <span class="act-detail-stat-label">시작일</span>
+          </div>
+          <div class="act-detail-stat">
+            <span class="act-detail-stat-icon">📊</span>
+            <span class="act-detail-stat-value">${ec.progress}%</span>
+            <span class="act-detail-stat-label">진행률</span>
+          </div>
+          <div class="act-detail-stat">
+            <span class="act-detail-stat-icon">📝</span>
+            <span class="act-detail-stat-value">${logs.length}</span>
+            <span class="act-detail-stat-label">기록 수</span>
+          </div>
+        </div>
+
+        <!-- 진행 바 -->
+        <div class="act-detail-progress-wrap">
+          <div class="act-detail-progress-bar">
+            <div class="act-detail-progress-fill" style="width:${ec.progress}%;background:${ec.color}"></div>
+          </div>
+          <span class="act-detail-progress-text">${statusLabel}</span>
+        </div>
+      </div>
+
+      <div class="form-body" style="padding-top:12px">
+        <!-- 활동 설명 -->
+        ${ec.desc ? `
+        <div class="act-detail-card">
+          <div class="act-detail-card-title">📋 활동 설명</div>
+          <div class="act-detail-card-body">${ec.desc}</div>
+        </div>
+        ` : ''}
+
+        <!-- 메모 -->
+        ${ec.memo ? `
+        <div class="act-detail-card">
+          <div class="act-detail-card-title">💡 메모</div>
+          <div class="act-detail-card-body">${ec.memo}</div>
+        </div>
+        ` : ''}
+
+        <!-- 진로 연계 -->
+        ${ec.careerLink ? `
+        <div class="act-detail-card">
+          <div class="act-detail-card-title">🔗 진로 연계</div>
+          <div class="act-detail-card-body">${ec.careerLink}</div>
+        </div>
+        ` : ''}
+
+        <!-- 활동 기록 타임라인 -->
+        <div class="act-detail-card">
+          <div class="act-detail-card-header">
+            <span class="act-detail-card-title">📜 활동 기록</span>
+            <span style="font-size:11px;color:#888">${logs.length}개 기록</span>
+          </div>
+          
+          ${logs.length > 0 ? logs.map((log, idx) => `
+            <div class="act-log-item">
+              <div class="act-log-date">${log.date?.slice(5) || ''}</div>
+              <div class="act-log-content">
+                <div class="act-log-text">${log.content}</div>
+                ${log.reflection ? `<div class="act-log-reflection">💡 ${log.reflection}</div>` : ''}
+                ${log.duration ? `<div class="act-log-duration">⏱️ ${log.duration}</div>` : ''}
+              </div>
+            </div>
+          `).join('') : `
+            <div style="text-align:center;padding:20px 0;color:#666;font-size:13px">
+              아직 기록이 없어요<br>아래에서 오늘의 활동을 기록해보세요!
+            </div>
+          `}
+        </div>
+
+        <!-- 새 기록 작성 -->
+        <div class="act-detail-card act-log-form">
+          <div class="act-detail-card-title">✏️ 오늘의 활동 기록</div>
+          <textarea id="act-log-content" class="input-field" rows="3" placeholder="오늘 한 활동 내용을 적어주세요"></textarea>
+          
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <div style="flex:1">
+              <label class="field-label" style="font-size:11px">💡 배운 점 (선택)</label>
+              <input id="act-log-reflection" class="input-field" placeholder="느낀 점, 배운 점..." style="font-size:13px">
+            </div>
+          </div>
+
+          ${ec.type !== 'reading' ? `
+          <div style="margin-top:8px">
+            <label class="field-label" style="font-size:11px">⏱️ 활동 시간</label>
+            <div class="chip-row">
+              ${['30분','1시간','1.5시간','2시간','2시간+'].map((t,i) => `<button class="chip act-dur-chip ${i===1?'active':''}">${t}</button>`).join('')}
+            </div>
+          </div>
+          ` : `
+          <div style="margin-top:8px">
+            <label class="field-label" style="font-size:11px">📖 읽은 분량</label>
+            <div class="chip-row">
+              ${['~10쪽','~30쪽','~50쪽','~100쪽','100쪽+'].map((t,i) => `<button class="chip act-dur-chip ${i===1?'active':''}">${t}</button>`).join('')}
+            </div>
+          </div>
+          `}
+
+          <button class="btn-primary" style="margin-top:12px" onclick="saveActivityLog('${ec.id}')">기록 완료 +20 XP ✨</button>
+        </div>
+
+        <!-- 편집/상태 변경 버튼 -->
+        <div class="act-detail-actions">
+          ${ec.status !== 'completed' ? `
+            <button class="btn-secondary" onclick="updateActivityProgress('${ec.id}', ${Math.min(ec.progress + 10, 100)})">
+              📊 진행률 +10%
+            </button>
+            <button class="btn-secondary" onclick="completeActivity('${ec.id}')" style="color:#00B894;border-color:#00B894">
+              ✅ 활동 완료
+            </button>
+          ` : `
+            <button class="btn-secondary" onclick="updateActivityStatus('${ec.id}','in-progress')" style="color:#FF9F43;border-color:#FF9F43">
+              🔄 다시 진행중으로
+            </button>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== 활동 추가 화면 ====================
+
+function renderActivityAdd() {
+  const subjects = ['수학','국어','영어','과학','한국사','사회','정보','기술가정','음악','미술','체육','진로','기타'];
+  const colors = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#A29BFE','#E056A0','#FF9F43','#00CEC9','#FD79A8','#E17055','#636e72','#888'];
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('record-activity')"><i class="fas fa-arrow-left"></i></button>
+        <h1>🏫 새 활동 등록</h1>
+      </div>
+      <div class="form-body">
+        <!-- Step 1: 활동 유형 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">1</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📂 활동 유형</label>
+            <div class="act-add-type-grid" id="act-add-types">
+              ${[
+                {type:'club', icon:'🎭', name:'동아리', desc:'교내 동아리 활동'},
+                {type:'career', icon:'🎯', name:'진로활동', desc:'진로 탐색·체험'},
+                {type:'self', icon:'🧠', name:'자율자치', desc:'자율활동·자치활동'},
+                {type:'report', icon:'📄', name:'탐구보고서', desc:'탐구·연구 프로젝트'},
+                {type:'reading', icon:'📖', name:'독서', desc:'독서·독서감상문'},
+              ].map((a,i) => `
+                <button class="act-add-type-btn ${i===0?'active':''}" data-type="${a.type}" onclick="selectActivityType(this)">
+                  <span class="act-add-type-icon">${a.icon}</span>
+                  <span class="act-add-type-name">${a.name}</span>
+                  <span class="act-add-type-desc">${a.desc}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: 활동명 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">2</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📝 활동명</label>
+            <div style="font-size:11px;color:#888;margin-bottom:8px">활동 이름을 입력하세요</div>
+            <input id="act-add-title" class="input-field form-input" placeholder="예: 코딩동아리, 진로탐색 체험, 독서...">
+          </div>
+        </div>
+
+        <!-- Step 3: 관련 과목 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">3</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📚 관련 과목</label>
+            <div class="rpt-add-subject-grid" id="act-add-subjects">
+              ${subjects.map((s, i) => `
+                <button class="rpt-add-subject-btn" data-subject="${s}" data-color="${colors[i]}" onclick="selectActAddSubject(this)">
+                  <span class="rpt-add-subject-dot" style="background:${colors[i]}"></span>${s}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: 기간 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">4</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📅 활동 기간</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="act-add-start" type="date" class="input-field form-input" value="${new Date().toISOString().slice(0,10)}" style="flex:1">
+              <span style="color:#666">~</span>
+              <input id="act-add-end" type="date" class="input-field form-input" value="${new Date(Date.now()+90*86400000).toISOString().slice(0,10)}" style="flex:1">
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: 설명 -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">5</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">📋 활동 설명 <span class="field-hint">(선택)</span></label>
+            <textarea id="act-add-desc" class="input-field form-input" rows="2" placeholder="활동에 대한 간단한 설명"></textarea>
+          </div>
+        </div>
+
+        <!-- Step 6: 진로 연계 (선택) -->
+        <div class="rpt-add-step">
+          <div class="rpt-add-step-num">6</div>
+          <div class="rpt-add-step-content">
+            <label class="field-label">🔗 진로 연계 <span class="field-hint">(선택)</span></label>
+            <input id="act-add-career" class="input-field form-input" placeholder="이 활동이 진로와 어떻게 연결되나요?">
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="saveNewActivity()" style="margin-top:16px">
+          🚀 활동 등록하기!
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// 활동 유형 선택
+function selectActivityType(btn) {
+  document.querySelectorAll('#act-add-types .act-add-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // 탐구보고서 선택 시 report-add로 이동
+  if (btn.dataset.type === 'report') {
+    goScreen('report-add');
+  }
+}
+
+function selectActAddSubject(btn) {
+  document.querySelectorAll('#act-add-subjects .rpt-add-subject-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// 새 활동 저장
+function saveNewActivity() {
+  const typeBtn = document.querySelector('#act-add-types .act-add-type-btn.active');
+  const actType = typeBtn?.dataset?.type || 'club';
+  
+  // 탐구보고서면 report-add로 리다이렉트
+  if (actType === 'report') { goScreen('report-add'); return; }
+
+  const title = document.getElementById('act-add-title')?.value?.trim();
+  const subjectBtn = document.querySelector('#act-add-subjects .rpt-add-subject-btn.active');
+  const subject = subjectBtn?.dataset?.subject || '기타';
+  const color = subjectBtn?.dataset?.color || '#888';
+  const startDate = document.getElementById('act-add-start')?.value;
+  const endDate = document.getElementById('act-add-end')?.value;
+  const desc = document.getElementById('act-add-desc')?.value?.trim() || '';
+  const careerLink = document.getElementById('act-add-career')?.value?.trim() || '';
+
+  if (!title) { alert('활동명을 입력해주세요!'); return; }
+
+  const newId = 'ec' + (Date.now() % 100000);
+  const ecType = actType === 'reading' ? 'reading' : 'activity';
+  
+  const newEntry = {
+    id: newId,
+    type: ecType,
+    subType: actType, // club, career, self, reading
+    title, subject, color,
+    status: 'in-progress',
+    progress: 0,
+    startDate: startDate || new Date().toISOString().slice(0,10),
+    endDate: endDate || new Date(Date.now()+90*86400000).toISOString().slice(0,10),
+    desc, memo: '',
+    careerLink,
+    logs: [],
+  };
+
+  state.extracurriculars.push(newEntry);
+  
+  // 바로 상세 화면으로
+  state.viewingActivity = newId;
+  goScreen('activity-detail');
+  showXpPopup(5, '새 활동이 등록되었어요! 🎉');
+}
+
+// 활동 로그 저장
+function saveActivityLog(ecId) {
+  const ec = state.extracurriculars.find(e => e.id === ecId);
+  if (!ec) return;
+  
+  const content = document.getElementById('act-log-content')?.value?.trim();
+  if (!content) { alert('활동 내용을 입력해주세요!'); return; }
+  
+  const reflection = document.getElementById('act-log-reflection')?.value?.trim() || '';
+  const durChip = document.querySelector('.act-dur-chip.active');
+  const duration = durChip ? durChip.textContent : '';
+
+  if (!ec.logs) ec.logs = [];
+  ec.logs.unshift({
+    date: new Date().toISOString().slice(0, 10),
+    content, reflection, duration,
+  });
+
+  // 진행률 자동 증가 (최소 5%)
+  if (ec.progress < 100) {
+    ec.progress = Math.min(ec.progress + 5, 100);
+  }
+
+  state.xp += 20;
+  renderScreen();
+  showXpPopup(20, '활동 기록 완료!');
+}
+
+// 활동 진행률 업데이트
+function updateActivityProgress(ecId, newProgress) {
+  const ec = state.extracurriculars.find(e => e.id === ecId);
+  if (!ec) return;
+  ec.progress = Math.min(Math.max(newProgress, 0), 100);
+  if (ec.progress >= 100) ec.status = 'completed';
+  renderScreen();
+}
+
+// 활동 완료 처리
+function completeActivity(ecId) {
+  const ec = state.extracurriculars.find(e => e.id === ecId);
+  if (!ec) return;
+  ec.status = 'completed';
+  ec.progress = 100;
+  state.xp += 30;
+  renderScreen();
+  showXpPopup(30, '활동 완료! 🎉');
+}
+
+// 활동 상태 변경
+function updateActivityStatus(ecId, newStatus) {
+  const ec = state.extracurriculars.find(e => e.id === ecId);
+  if (!ec) return;
+  ec.status = newStatus;
+  if (newStatus === 'in-progress' && ec.progress >= 100) ec.progress = 90;
+  renderScreen();
 }
 
 // ==================== EVENING ROUTINE ====================

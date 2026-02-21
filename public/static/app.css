@@ -2777,3 +2777,194 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .rpt-add-subject-dot {
   width:8px; height:8px; border-radius:50%; flex-shrink:0;
 }
+
+/* ==================== 통합 활동 리스트 ==================== */
+
+/* 요약 배너 */
+.act-summary-banner {
+  display:flex; align-items:center; justify-content:center; gap:0;
+  background:rgba(108,92,231,.08); border:1px solid rgba(108,92,231,.15);
+  border-radius:14px; padding:14px 20px; margin-bottom:12px;
+}
+.act-summary-item { text-align:center; flex:1; }
+.act-summary-num { display:block; font-size:20px; font-weight:800; color:#e0e0e0; }
+.act-summary-label { font-size:11px; color:#888; margin-top:2px; }
+.act-summary-divider { width:1px; height:32px; background:rgba(255,255,255,.08); margin:0 8px; flex-shrink:0; }
+
+/* 필터 탭 */
+.act-filter-tabs {
+  display:flex; gap:6px; overflow-x:auto; padding:4px 0 12px;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.act-filter-tabs::-webkit-scrollbar { display:none; }
+.act-filter-tab {
+  display:flex; align-items:center; gap:5px; white-space:nowrap;
+  padding:8px 14px; border-radius:20px;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06);
+  color:#999; font-size:12px; font-weight:600; cursor:pointer;
+  transition:all .2s;
+}
+.act-filter-tab:hover { background:rgba(255,255,255,.08); color:#ccc; }
+.act-filter-tab.active {
+  background:rgba(108,92,231,.15); border-color:rgba(108,92,231,.35);
+  color:#c4b5fd; font-weight:700;
+}
+.act-filter-count {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px;
+  border-radius:10px; font-size:10px; font-weight:700;
+  background:rgba(255,255,255,.08); color:#888;
+}
+.act-filter-tab.active .act-filter-count {
+  background:rgba(108,92,231,.25); color:#c4b5fd;
+}
+
+/* 활동 카드 */
+.act-card {
+  display:flex; gap:12px; padding:14px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06);
+  border-radius:14px; cursor:pointer; margin-bottom:8px;
+  transition:all .2s;
+}
+.act-card:hover { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12); transform:translateY(-1px); }
+.act-card:active { transform:scale(.98); }
+
+.act-card-left { flex-shrink:0; }
+.act-card-type-badge {
+  width:44px; height:44px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px;
+}
+
+.act-card-body { flex:1; min-width:0; }
+.act-card-top { display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
+.act-card-type-label { font-size:11px; font-weight:700; }
+.act-card-subject {
+  font-size:10px; font-weight:600; color:#888;
+  padding:1px 6px; background:rgba(255,255,255,.06); border-radius:4px;
+}
+.act-card-status {
+  font-size:10px; font-weight:600; margin-left:auto;
+  padding:2px 8px; border-radius:8px;
+}
+.act-card-status.in-progress { background:rgba(108,92,231,.15); color:#a78bfa; }
+.act-card-status.pending { background:rgba(255,159,67,.12); color:#FF9F43; }
+.act-card-status.completed { background:rgba(0,184,148,.12); color:#00B894; }
+
+.act-card-title { font-size:14px; font-weight:700; color:#e0e0e0; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.act-card-desc { font-size:12px; color:#777; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.act-card-extra { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.act-card-extra span { font-size:11px; color:#999; }
+
+.act-card-footer { display:flex; align-items:center; gap:8px; }
+.act-card-date { font-size:11px; color:#666; flex-shrink:0; }
+.act-card-progress { flex:1; height:4px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+.act-card-progress-fill { height:100%; border-radius:3px; transition:width .3s; }
+.act-card-progress-text { font-size:11px; font-weight:700; color:#888; flex-shrink:0; }
+
+/* 빈 상태 */
+.act-empty { text-align:center; padding:48px 0; }
+.act-empty-icon { font-size:48px; margin-bottom:12px; }
+.act-empty-text { font-size:15px; font-weight:700; color:#e0e0e0; margin-bottom:6px; }
+.act-empty-sub { font-size:13px; color:#666; }
+
+/* 하단 추가 버튼 */
+.act-add-float-btn {
+  display:flex; align-items:center; justify-content:center;
+  width:100%; padding:14px; margin-top:8px; margin-bottom:20px;
+  border-radius:14px; border:2px dashed rgba(108,92,231,.3);
+  background:rgba(108,92,231,.05); color:#a78bfa;
+  font-size:14px; font-weight:700; cursor:pointer;
+  transition:all .2s;
+}
+.act-add-float-btn:hover { background:rgba(108,92,231,.12); border-color:rgba(108,92,231,.5); }
+
+/* ==================== 활동 상세 화면 ==================== */
+
+.act-detail-header {
+  padding:16px 16px 12px; 
+  background:rgba(255,255,255,.02);
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.act-detail-header-top { display:flex; align-items:flex-start; gap:10px; margin-bottom:12px; }
+.act-detail-title { font-size:18px; font-weight:800; color:#e0e0e0; }
+.act-detail-subtitle { font-size:12px; color:#888; margin-top:2px; }
+
+.act-detail-stats {
+  display:flex; gap:0; background:rgba(255,255,255,.03);
+  border-radius:12px; border:1px solid rgba(255,255,255,.06);
+  padding:10px 0; margin-bottom:10px;
+}
+.act-detail-stat { flex:1; text-align:center; }
+.act-detail-stat-icon { display:block; font-size:16px; margin-bottom:2px; }
+.act-detail-stat-value { display:block; font-size:14px; font-weight:800; color:#e0e0e0; }
+.act-detail-stat-label { display:block; font-size:10px; color:#888; margin-top:1px; }
+
+.act-detail-progress-wrap { display:flex; align-items:center; gap:10px; }
+.act-detail-progress-bar { flex:1; height:6px; background:rgba(255,255,255,.06); border-radius:4px; overflow:hidden; }
+.act-detail-progress-fill { height:100%; border-radius:4px; transition:width .3s; }
+.act-detail-progress-text { font-size:12px; font-weight:600; color:#888; flex-shrink:0; }
+
+.act-detail-card {
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06);
+  border-radius:14px; padding:14px; margin-bottom:10px;
+}
+.act-detail-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.act-detail-card-title { font-size:14px; font-weight:700; color:#e0e0e0; margin-bottom:8px; }
+.act-detail-card-body { font-size:13px; color:#aaa; line-height:1.6; }
+
+/* 활동 로그 아이템 */
+.act-log-item {
+  display:flex; gap:10px; padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+.act-log-item:last-child { border-bottom:none; }
+.act-log-date {
+  font-size:11px; font-weight:700; color:#818cf8;
+  flex-shrink:0; width:40px; padding-top:2px;
+}
+.act-log-content { flex:1; min-width:0; }
+.act-log-text { font-size:13px; color:#ccc; line-height:1.5; }
+.act-log-reflection { font-size:12px; color:#a78bfa; margin-top:4px; }
+.act-log-duration { font-size:11px; color:#666; margin-top:3px; }
+
+/* 로그 작성 폼 */
+.act-log-form { border:1px solid rgba(108,92,231,.2); background:rgba(108,92,231,.04); }
+
+/* 활동 액션 버튼 */
+.act-detail-actions { display:flex; gap:8px; margin:12px 0 24px; }
+.act-detail-actions .btn-secondary {
+  flex:1; padding:12px; font-size:13px; font-weight:700;
+  border-radius:12px; text-align:center;
+}
+
+/* ==================== 활동 추가 화면 ==================== */
+
+.act-add-type-grid {
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:8px;
+}
+.act-add-type-btn {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:14px 8px; border-radius:12px;
+  background:rgba(255,255,255,.03); border:1.5px solid rgba(255,255,255,.06);
+  color:#aaa; cursor:pointer; transition:all .2s;
+}
+.act-add-type-btn:hover { background:rgba(255,255,255,.06); }
+.act-add-type-btn.active {
+  background:rgba(108,92,231,.12); border-color:rgba(108,92,231,.4);
+  color:#c4b5fd;
+}
+.act-add-type-icon { font-size:28px; }
+.act-add-type-name { font-size:13px; font-weight:700; }
+.act-add-type-desc { font-size:10px; color:#666; text-align:center; }
+.act-add-type-btn.active .act-add-type-desc { color:#a78bfa; }
+
+/* 반응형 */
+@media (max-width: 420px) {
+  .act-add-type-grid { grid-template-columns:repeat(2, 1fr); }
+  .act-summary-banner { padding:10px 12px; }
+  .act-summary-num { font-size:17px; }
+  .act-detail-stats { flex-wrap:wrap; }
+  .act-detail-stat { min-width:25%; }
+}
