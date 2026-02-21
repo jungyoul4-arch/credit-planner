@@ -1147,15 +1147,28 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 /* ==================== HOME TOP ROW (Greeting + Quick Actions) ==================== */
 .home-top-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px 8px;
+  padding: 12px 20px 6px;
+}
+
+.home-greeting {
+  flex-shrink: 0;
+}
+
+.home-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .home-quick-actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .home-qa-btn {
@@ -4200,19 +4213,13 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     min-height: 52px !important;
   }
 
-  /* ---------- 8. 홈 상단: Greeting + Quick Actions 가로 배치 ---------- */
+  /* ---------- 8. 홈 상단: Quick Actions 오른쪽 ---------- */
   .home-top-row {
-    flex-direction: row !important;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 0 8px !important;
+    padding: 10px 0 4px !important;
   }
-  .home-greeting {
-    flex: 1;
-    min-width: 0;
-  }
-  .home-quick-actions {
-    flex-shrink: 0;
+  .home-qa-btn {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
   }
 
   /* ---------- 9. 홈 탭: 카드 그리드 3컬럼 ---------- */
@@ -4387,12 +4394,9 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     min-height: 52px !important;
   }
 
-  /* iPad Pro: 홈 상단 가로 배치 */
+  /* iPad Pro: 홈 상단 */
   .home-top-row {
-    flex-direction: row !important;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 0 8px !important;
+    padding: 10px 0 4px !important;
   }
 
   #tablet-content .home-cards-grid {
@@ -4485,8 +4489,8 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 
   /* 세로 패드: 홈 상단 세로 배치 */
   .home-top-row {
-    flex-direction: column !important;
-    padding: 16px 16px 8px !important;
+    flex-wrap: wrap !important;
+    padding: 12px 16px 6px !important;
   }
   .home-quick-actions {
     flex-wrap: wrap !important;

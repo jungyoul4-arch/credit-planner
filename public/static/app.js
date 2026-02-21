@@ -1974,37 +1974,36 @@ function renderHomeTab() {
   
   return `
     <div class="tab-content animate-in">
-      <!-- Greeting + Quick Actions Row -->
+      <!-- Greeting + Quick Actions: 한 줄로 배치 -->
       <div class="home-top-row">
         <div class="home-greeting">
           <div>
             <h2>${greeting}, ${userName}! 👋</h2>
             <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
-              <span class="date-day">${now.getDate()}</span>
-              <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
-              ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
-            </div>
-          </div>
         </div>
-        <!-- Quick Actions (가로모드에서 우측 상단에 표시) -->
-        <div class="home-quick-actions">
-          <button class="home-qa-btn ${isEveningTime()?'qa-active':''}" onclick="goScreen('evening-routine')">
-            <i class="fas fa-moon"></i>
-            <span>저녁 루틴</span>
-            ${isEveningTime()?'<span class="qa-dot"></span>':''}
-          </button>
-          <button class="home-qa-btn ${hasUnrecordedEndedClass()?'qa-active':''}" onclick="goScreen('class-end-popup')">
-            <i class="fas fa-bell"></i>
-            <span>수업 종료</span>
-            ${hasUnrecordedEndedClass()?`<span class="qa-count">${countUnrecordedEndedClasses()}</span>`:''}
-          </button>
-          <button class="home-qa-btn" onclick="goScreen('assignment-list')">
-            <i class="fas fa-clipboard-list"></i>
-            <span>과제 관리</span>
-          </button>
+        <div class="home-top-right">
+          <div class="home-quick-actions">
+            <button class="home-qa-btn ${isEveningTime()?'qa-active':''}" onclick="goScreen('evening-routine')">
+              <i class="fas fa-moon"></i>
+              <span>저녁 루틴</span>
+              ${isEveningTime()?'<span class="qa-dot"></span>':''}
+            </button>
+            <button class="home-qa-btn ${hasUnrecordedEndedClass()?'qa-active':''}" onclick="goScreen('class-end-popup')">
+              <i class="fas fa-bell"></i>
+              <span>수업 종료</span>
+              ${hasUnrecordedEndedClass()?`<span class="qa-count">${countUnrecordedEndedClasses()}</span>`:''}
+            </button>
+            <button class="home-qa-btn" onclick="goScreen('assignment-list')">
+              <i class="fas fa-clipboard-list"></i>
+              <span>과제 관리</span>
+            </button>
+          </div>
+          <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
+            <span class="date-day">${now.getDate()}</span>
+            <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
+            ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+          </div>
         </div>
       </div>
 
