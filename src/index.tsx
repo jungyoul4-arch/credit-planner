@@ -504,6 +504,20 @@ app.get('/', (c) => {
         <button class="mode-btn" data-mode="mentor">👨‍🏫 멘토 대시보드</button>
         <button class="mode-btn" data-mode="director">🏢 원장 대시보드</button>
       </div>
+      <div id="device-preview-selector">
+        <span class="device-preview-label">미리보기</span>
+        <div class="device-preview-btns">
+          <button class="device-preview-btn" data-device="phone" title="핸드폰 (390×844)">
+            <i class="fas fa-mobile-alt"></i><span>핸드폰</span>
+          </button>
+          <button class="device-preview-btn" data-device="tablet" title="패드 (768×1024)">
+            <i class="fas fa-tablet-alt"></i><span>패드</span>
+          </button>
+          <button class="device-preview-btn active" data-device="pc" title="PC (실제 화면 크기)">
+            <i class="fas fa-desktop"></i><span>PC</span>
+          </button>
+        </div>
+      </div>
       <div id="phone-container">
         <div id="phone-frame">
           <div id="status-bar">

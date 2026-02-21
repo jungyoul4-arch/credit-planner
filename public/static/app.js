@@ -352,10 +352,22 @@ const state = {
 
 // ==================== MAIN RENDER ====================
 
-// 태블릿 감지 (768px 이상 + 터치 지원 또는 1024px 이하)
-function isTabletMode() {
-  const w = window.innerWidth;
-  return w >= 768 && w <= 1279;
+// 네이티브 모드 감지 (폰 프레임 없이 풀스크린으로 표시할 기기)
+// PC 대형 모니터(1280px+)만 프로토타입 폰 프레임 표시
+// devicePreview: null(자동), 'phone', 'tablet', 'pc'
+let devicePreview = null;
+
+function isNativeMode() {
+  // 디바이스 프리뷰가 수동 설정된 경우: phone/tablet → native, pc → not native
+  if (devicePreview === 'phone' || devicePreview === 'tablet') return true;
+  if (devicePreview === 'pc') return false;
+  return window.innerWidth <= 1279;
+}
+
+function getDevicePreviewClass() {
+  if (devicePreview === 'phone') return 'preview-phone';
+  if (devicePreview === 'tablet') return 'preview-tablet';
+  return 'preview-pc';
 }
 
 function renderScreen() {
@@ -365,11 +377,42 @@ function renderScreen() {
   const phoneContainer = document.getElementById('phone-container');
   const tabletContainer = document.getElementById('tablet-container');
   const desktopContainer = document.getElementById('desktop-container');
-  const tablet = isTabletMode();
+  const modeHeader = document.getElementById('mode-header');
+  const modeSelector = document.getElementById('mode-selector');
+  const deviceSelector = document.getElementById('device-preview-selector');
+  const native = isNativeMode();
+  const isPreviewMode = devicePreview !== null;
+
+  // 모드 선택 헤더/버튼/디바이스선택: PC에서만 표시 (또는 프리뷰 모드일 때)
+  if (modeHeader) modeHeader.style.display = (native && !isPreviewMode) ? 'none' : 'flex';
+  if (modeSelector) modeSelector.style.display = (native && !isPreviewMode) ? 'none' : 'flex';
+  if (deviceSelector) deviceSelector.style.display = (native && !isPreviewMode) ? 'none' : 'flex';
+
+  // 프리뷰 프레임 래퍼 관리
+  let previewFrame = document.getElementById('device-preview-frame');
+  if (isPreviewMode && (devicePreview === 'phone' || devicePreview === 'tablet')) {
+    // phone/tablet 프리뷰: tablet-container를 프리뷰 프레임 안에 배치
+    if (!previewFrame) {
+      previewFrame = document.createElement('div');
+      previewFrame.id = 'device-preview-frame';
+      tabletContainer.parentNode.insertBefore(previewFrame, tabletContainer);
+    }
+    previewFrame.className = getDevicePreviewClass();
+    if (tabletContainer.parentNode !== previewFrame) {
+      previewFrame.appendChild(tabletContainer);
+    }
+    previewFrame.style.display = 'flex';
+  } else if (previewFrame) {
+    // PC 모드 또는 실제 네이티브: 프리뷰 프레임 해제
+    if (tabletContainer.parentNode === previewFrame) {
+      previewFrame.parentNode.insertBefore(tabletContainer, previewFrame);
+    }
+    previewFrame.style.display = 'none';
+  }
 
   if (state.mode === 'student') {
     desktopContainer.style.display = 'none';
-    if (tablet) {
+    if (native) {
       phoneContainer.style.display = 'none';
       tabletContainer.style.display = 'block';
       tabletContent.innerHTML = renderStudentApp();
@@ -396,11 +439,11 @@ function renderScreen() {
 }
 
 // 화면 크기 변경 감지 → 자동 모드 전환
-let _lastTablet = isTabletMode();
+let _lastNative = isNativeMode();
 window.addEventListener('resize', () => {
-  const nowTablet = isTabletMode();
-  if (nowTablet !== _lastTablet) {
-    _lastTablet = nowTablet;
+  const nowNative = isNativeMode();
+  if (nowNative !== _lastNative) {
+    _lastNative = nowNative;
     renderScreen();
   }
 });
@@ -6775,6 +6818,25 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.classList.add('active');
     state.mode = btn.dataset.mode;
     if (state.mode === 'student') { state.currentScreen = 'main'; state.studentTab = 'home'; }
+    renderScreen();
+  });
+});
+
+// 디바이스 프리뷰 전환 버튼
+document.querySelectorAll('.device-preview-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.device-preview-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const device = btn.dataset.device;
+    devicePreview = device === 'pc' ? null : device;
+    // phone/tablet 프리뷰는 학생모드만 지원 → 자동 전환
+    if (devicePreview && state.mode !== 'student') {
+      state.mode = 'student';
+      state.currentScreen = 'main';
+      state.studentTab = 'home';
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.mode-btn[data-mode="student"]').classList.add('active');
+    }
     renderScreen();
   });
 });
