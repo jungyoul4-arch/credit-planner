@@ -352,29 +352,58 @@ const state = {
 
 // ==================== MAIN RENDER ====================
 
+// 태블릿 감지 (768px 이상 + 터치 지원 또는 1024px 이하)
+function isTabletMode() {
+  const w = window.innerWidth;
+  return w >= 768 && w <= 1279;
+}
+
 function renderScreen() {
   const container = document.getElementById('app-content');
+  const tabletContent = document.getElementById('tablet-content');
   const deskContainer = document.getElementById('desktop-content');
   const phoneContainer = document.getElementById('phone-container');
+  const tabletContainer = document.getElementById('tablet-container');
   const desktopContainer = document.getElementById('desktop-container');
+  const tablet = isTabletMode();
 
   if (state.mode === 'student') {
-    phoneContainer.style.display = 'flex';
     desktopContainer.style.display = 'none';
-    container.innerHTML = renderStudentApp();
-    initStudentEvents();
+    if (tablet) {
+      phoneContainer.style.display = 'none';
+      tabletContainer.style.display = 'block';
+      tabletContent.innerHTML = renderStudentApp();
+      initStudentEvents(tabletContent);
+    } else {
+      phoneContainer.style.display = 'flex';
+      tabletContainer.style.display = 'none';
+      container.innerHTML = renderStudentApp();
+      initStudentEvents(container);
+    }
   } else if (state.mode === 'mentor') {
     phoneContainer.style.display = 'none';
+    tabletContainer.style.display = 'none';
     desktopContainer.style.display = 'block';
     deskContainer.innerHTML = renderMentorDashboard();
     initMentorEvents();
   } else {
     phoneContainer.style.display = 'none';
+    tabletContainer.style.display = 'none';
     desktopContainer.style.display = 'block';
     deskContainer.innerHTML = renderDirectorDashboard();
     initDirectorEvents();
   }
 }
+
+// 화면 크기 변경 감지 → 자동 모드 전환
+let _lastTablet = isTabletMode();
+window.addEventListener('resize', () => {
+  const nowTablet = isTabletMode();
+  if (nowTablet !== _lastTablet) {
+    _lastTablet = nowTablet;
+    renderScreen();
+  }
+});
 
 // ==================== STUDENT APP ROUTER ====================
 
@@ -673,6 +702,8 @@ function renderHomeTab() {
         </div>
       </div>
 
+      <!-- 카드 그리드 (태블릿에서 2컬럼) -->
+      <div class="home-cards-grid">
       <!-- Morning Routine Card -->
       <div class="card card-gradient-purple stagger-1 animate-in">
         <div class="card-header-row">
@@ -841,6 +872,7 @@ function renderHomeTab() {
         </div>
       </div>
       ` : ''}
+      </div><!-- end home-cards-grid -->
 
       <!-- Quick Actions -->
       <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap" class="stagger-6 animate-in">
@@ -6571,7 +6603,7 @@ function showXpPopup(amount, label) {
 
 // ==================== EVENT HANDLERS ====================
 
-function initStudentEvents() {
+function initStudentEvents(root) {
   // Bottom nav
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => { state.studentTab = btn.dataset.tab; state.currentScreen = 'main'; renderScreen(); });

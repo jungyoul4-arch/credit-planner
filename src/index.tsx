@@ -477,7 +477,10 @@ app.get('/', (c) => {
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>정율사관학원 학점플래너 CreditPlanner</title>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -509,6 +512,19 @@ app.get('/', (c) => {
           </div>
           <div id="app-content"></div>
         </div>
+      </div>
+      <div id="tablet-container" style="display:none">
+        <div id="tablet-status-bar">
+          <span class="tablet-status-left">
+            <img src="/static/logo.png" alt="" class="tablet-status-logo">
+            <span class="tablet-status-title">학점플래너</span>
+          </span>
+          <span class="tablet-status-right">
+            <i class="fas fa-signal"></i> <i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i>
+            <span class="tablet-status-time">9:41</span>
+          </span>
+        </div>
+        <div id="tablet-content"></div>
       </div>
       <div id="desktop-container" style="display:none">
         <div id="desktop-content"></div>
