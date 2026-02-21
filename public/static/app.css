@@ -239,8 +239,18 @@ body {
 }
 /* tablet portrait preview: 사이드바 축소 (아이콘만) */
 #device-preview-frame.preview-tablet #tablet-sidebar {
-  width: 56px !important; min-width: 56px !important;
+  width: 56px !important; min-width: 56px !important; max-width: 56px !important;
 }
+#device-preview-frame.preview-tablet .sidebar-logo-text { display: none !important; }
+#device-preview-frame.preview-tablet .sidebar-nav-label { display: none !important; }
+#device-preview-frame.preview-tablet .sidebar-nav-item { flex-direction: column !important; padding: 10px 4px !important; gap: 3px !important; }
+#device-preview-frame.preview-tablet .sidebar-nav-item i { font-size: 16px !important; }
+#device-preview-frame.preview-tablet .sidebar-logo { flex-direction: column !important; padding: 8px 8px 12px !important; }
+#device-preview-frame.preview-tablet .sidebar-user-name { display: none !important; }
+#device-preview-frame.preview-tablet .sidebar-streak { display: none !important; }
+#device-preview-frame.preview-tablet .sidebar-logout span { display: none !important; }
+#device-preview-frame.preview-tablet .sidebar-footer { padding: 8px 4px !important; }
+#device-preview-frame.preview-tablet .sidebar-user { flex-direction: column !important; }
 #device-preview-frame.preview-tablet #tablet-content .onboarding-screen {
   max-width:520px !important; margin:0 auto !important; padding:40px 32px !important;
 }
@@ -4226,6 +4236,12 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   .sidebar-logout span { display: none !important; }
   .sidebar-user-name { display: none !important; }
   .sidebar-streak { display: none !important; }
+  .sidebar-nav-item { flex-direction: column !important; padding: 10px 4px !important; gap: 3px !important; }
+  .sidebar-nav-item i { font-size: 16px !important; }
+  .sidebar-logo { flex-direction: column !important; padding: 8px 8px 12px !important; }
+  .sidebar-footer { padding: 8px 4px !important; }
+  .sidebar-user { flex-direction: column !important; }
+  .sidebar-badge { top: 4px !important; right: 2px !important; }
 
   /* 세로 패드: 상태바 표시 */
   #tablet-status-bar {
