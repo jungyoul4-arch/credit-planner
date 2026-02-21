@@ -376,6 +376,7 @@ body {
   background:var(--bg-dark);
   overflow:hidden; min-height:80vh;
   display:flex; flex-direction:row;
+  position: relative;
 }
 
 /* 모바일/태블릿에서 컨테이너 풀스크린 */
@@ -394,15 +395,19 @@ body {
   flex-direction: column;
   width: 72px;
   min-width: 72px;
+  max-width: 72px;
   height: 100vh;
   height: 100dvh;
   background: var(--bg-card);
   border-right: 1px solid var(--border);
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex-shrink: 0;
   z-index: 200;
-  overflow: hidden;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar {
@@ -612,6 +617,7 @@ body {
   min-width: 0;
   height: 100vh;
   height: 100dvh;
+  overflow: hidden;
 }
 
 #tablet-status-bar {
@@ -650,6 +656,7 @@ body {
   #tablet-sidebar {
     width: 180px;
     min-width: 180px;
+    max-width: 180px;
   }
   .sidebar-logo {
     flex-direction: row;
@@ -4127,6 +4134,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   #tablet-sidebar {
     width: 200px !important;
     min-width: 200px !important;
+    max-width: 200px !important;
   }
 
   #tablet-status-bar {
@@ -4211,6 +4219,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   #tablet-sidebar {
     width: 56px !important;
     min-width: 56px !important;
+    max-width: 56px !important;
   }
   .sidebar-logo-text { display: none !important; }
   .sidebar-nav-label { display: none !important; }
@@ -4265,5 +4274,6 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 
 #tablet-sidebar {
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
