@@ -1973,7 +1973,7 @@ function renderHomeTab() {
   
   return `
     <div class="tab-content animate-in">
-      <!-- Greeting + Quick Actions: 한 줄로 배치 -->
+      <!-- Greeting Row -->
       <div class="home-top-row">
         <div class="home-greeting">
           <div>
@@ -1981,28 +1981,10 @@ function renderHomeTab() {
             <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
           </div>
         </div>
-        <div class="home-top-right">
-          <div class="home-quick-actions">
-            <button class="home-qa-btn ${isEveningTime()?'qa-active':''}" onclick="goScreen('evening-routine')">
-              <i class="fas fa-moon"></i>
-              <span>저녁 루틴</span>
-              ${isEveningTime()?'<span class="qa-dot"></span>':''}
-            </button>
-            <button class="home-qa-btn ${hasUnrecordedEndedClass()?'qa-active':''}" onclick="goScreen('class-end-popup')">
-              <i class="fas fa-bell"></i>
-              <span>수업 종료</span>
-              ${hasUnrecordedEndedClass()?`<span class="qa-count">${countUnrecordedEndedClasses()}</span>`:''}
-            </button>
-            <button class="home-qa-btn" onclick="goScreen('assignment-list')">
-              <i class="fas fa-clipboard-list"></i>
-              <span>과제 관리</span>
-            </button>
-          </div>
-          <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
-            <span class="date-day">${now.getDate()}</span>
-            <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
-            ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
-          </div>
+        <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
+          <span class="date-day">${now.getDate()}</span>
+          <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
+          ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
         </div>
       </div>
 
@@ -2018,203 +2000,225 @@ function renderHomeTab() {
       </div>
       ` : ''}
 
-      <!-- 카드 그리드 -->
-      <div class="home-cards-grid">
-      <!-- Morning Routine Card -->
-      <div class="card card-gradient-purple stagger-1 animate-in home-card-routine">
-        <div class="card-header-row">
-          <span class="card-title">☀️ 아침 루틴</span>
-          <span class="xp-badge-sm">+10 XP</span>
-        </div>
-        <div class="routine-checklist">
-          <div class="routine-item done">
-            <i class="fas fa-check-circle"></i>
-            <span>오늘 시간표 확인</span>
-          </div>
-          <div class="routine-item ${state.mood?'done':''}">
-            <i class="fas ${state.mood?'fa-check-circle':'fa-circle'}"></i>
-            <span>무드 체크</span>
-          </div>
-        </div>
-        <div class="mood-selector">
-          ${[
-            {emoji:'😄', label:'최고'},
-            {emoji:'🙂', label:'좋음'},
-            {emoji:'😐', label:'보통'},
-            {emoji:'😔', label:'별로'},
-            {emoji:'😫', label:'힘듦'}
-          ].map(m => `
-            <button class="mood-btn ${state.mood===m.emoji?'active':''}" data-mood="${m.emoji}">
-              <span class="mood-emoji">${m.emoji}</span>
-              <span class="mood-label">${m.label}</span>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-
-      <!-- Quick Todo Card (루틴 카드 아래 빈 공간 채우기) -->
-      <div class="card stagger-2 animate-in home-card-todo">
-        <div class="card-header-row">
-          <span class="card-title">✏️ 오늘 할 일</span>
-          <span class="card-subtitle">${state.quickTodos.filter(t=>t.done).length}/${state.quickTodos.length}</span>
-        </div>
-        <div class="quick-todo-list" id="quick-todo-list">
-          ${state.quickTodos.length === 0 ? `
-            <div class="quick-todo-empty">
-              <span style="font-size:20px;opacity:0.4">📝</span>
-              <span style="font-size:11px;color:var(--text-muted)">할 일을 추가해보세요</span>
+      <!-- 1행: 좌(루틴+투두) / 우(시간표) -->
+      <div class="home-row-top">
+        <div class="home-col-left">
+          <!-- Morning Routine Card -->
+          <div class="card card-gradient-purple stagger-1 animate-in home-card-routine">
+            <div class="card-header-row">
+              <span class="card-title">☀️ 아침 루틴</span>
+              <span class="xp-badge-sm">+10 XP</span>
             </div>
-          ` : state.quickTodos.map((t, i) => `
-            <div class="quick-todo-item ${t.done?'done':''}" onclick="toggleQuickTodo(${i})">
-              <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:14px;cursor:pointer"></i>
-              <span class="quick-todo-text">${t.text}</span>
-              <button class="quick-todo-del" onclick="event.stopPropagation();deleteQuickTodo(${i})"><i class="fas fa-times"></i></button>
-            </div>
-          `).join('')}
-        </div>
-        <div class="quick-todo-input-row">
-          <input type="text" id="quick-todo-input" class="quick-todo-input" placeholder="할 일 입력..." maxlength="50" onkeydown="if(event.key==='Enter')addQuickTodo()">
-          <button class="quick-todo-add-btn" onclick="addQuickTodo()"><i class="fas fa-plus"></i></button>
-        </div>
-      </div>
-
-      <!-- Today Timetable -->
-      <div class="card stagger-2 animate-in home-card-timetable">
-        <div class="card-header-row">
-          <span class="card-title">📋 오늘 시간표</span>
-          <span class="card-subtitle">${doneCount}/${total} 기록완료</span>
-        </div>
-        <div class="timetable-progress">
-          <div class="timetable-progress-fill" style="width:${recordPct}%"></div>
-        </div>
-        <div class="timetable-list">
-          ${state.todayRecords.map((r, idx) => `
-            <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="openClassRecordEdit(${idx})" style="cursor:pointer"` : ''}>
-              <div class="tt-period-badge ${r.done?'done':idx===doneCount?'current':''}" style="${r.done?'':''}">
-                ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : r.period}
+            <div class="routine-checklist">
+              <div class="routine-item done">
+                <i class="fas fa-check-circle"></i>
+                <span>오늘 시간표 확인</span>
               </div>
-              <div class="tt-info">
-                <span class="tt-subject-name" style="color:${r.color}">${r.subject}</span>
-                ${r.done ? `<span class="tt-summary">${r.summary} <i class="fas fa-pencil-alt" style="font-size:9px;opacity:0.4;margin-left:4px"></i></span>` : `<span class="tt-summary" style="opacity:0.4">${r.teacher} 선생님 · ${r.startTime||''}~${r.endTime||''}</span>`}
-              </div>
-              <div class="tt-action">
-                ${r.done
-                  ? `<span class="tt-done-badge">${r.question ? '<span class="tt-q-badge" style="margin-right:4px">질문</span>' :''}✅</span>`
-                  : (idx === doneCount
-                    ? `<button class="tt-record-btn ${getClassEndStatus(r)==='just-ended'?'tt-btn-glow':''}" onclick="event.stopPropagation();goScreen('class-end-popup')">기록하기</button>`
-                    : `<span class="tt-locked"><i class="fas fa-lock" style="font-size:10px"></i></span>`
-                  )
-                }
+              <div class="routine-item ${state.mood?'done':''}">
+                <i class="fas ${state.mood?'fa-check-circle':'fa-circle'}"></i>
+                <span>무드 체크</span>
               </div>
             </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <!-- Daily Missions -->
-      <div class="card stagger-3 animate-in">
-        <div class="card-header-row">
-          <span class="card-title">🎯 오늘의 미션</span>
-          <span class="xp-badge-sm">완료 시 +30 XP</span>
-        </div>
-        ${state.missions.map((m,i) => `
-          <div class="mission-row ${m.done?'done':''}">
-            <div class="mission-icon">${m.icon}</div>
-            <div class="mission-info">
-              <span class="mission-text">${m.text}</span>
-              <div class="mission-bar">
-                <div class="mission-bar-fill" style="width:${Math.min(m.current/m.target*100,100)}%"></div>
-              </div>
+            <div class="mood-selector">
+              ${[
+                {emoji:'😄', label:'최고'},
+                {emoji:'🙂', label:'좋음'},
+                {emoji:'😐', label:'보통'},
+                {emoji:'😔', label:'별로'},
+                {emoji:'😫', label:'힘듦'}
+              ].map(m => `
+                <button class="mood-btn ${state.mood===m.emoji?'active':''}" data-mood="${m.emoji}">
+                  <span class="mood-emoji">${m.emoji}</span>
+                  <span class="mood-label">${m.label}</span>
+                </button>
+              `).join('')}
             </div>
-            <span class="mission-count">${m.current}/${m.target}</span>
-            ${m.done ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:18px"></i>' : ''}
           </div>
-        `).join('')}
-      </div>
 
-      <!-- Weekly Mini Chart -->
-      <div class="card stagger-4 animate-in">
-        <div class="card-header-row">
-          <span class="card-title">📊 이번 주 현황</span>
-          <button class="card-link" onclick="goScreen('weekly-report')">자세히 →</button>
-        </div>
-        <div class="weekly-mini-stats">
-          <div class="mini-stat">
-            <span class="mini-stat-value" style="color:var(--primary-light)">12</span>
-            <span class="mini-stat-label">기록</span>
-          </div>
-          <div class="mini-stat-divider"></div>
-          <div class="mini-stat">
-            <span class="mini-stat-value" style="color:var(--accent)">5</span>
-            <span class="mini-stat-label">질문</span>
-          </div>
-          <div class="mini-stat-divider"></div>
-          <div class="mini-stat">
-            <span class="mini-stat-value" style="color:var(--teach-green)">2</span>
-            <span class="mini-stat-label">교학상장</span>
-          </div>
-          <div class="mini-stat-divider"></div>
-          <div class="mini-stat">
-            <span class="mini-stat-value" style="color:var(--question-b)">82%</span>
-            <span class="mini-stat-label">B+C비율</span>
-          </div>
-        </div>
-        <div class="weekly-bar-chart">
-          ${state.weeklyData.days.map((d, i) => `
-            <div class="weekly-bar-col">
-              <div class="weekly-bar-stack">
-                <div class="weekly-bar-q" style="height:${state.weeklyData.questions[i]*12}px"></div>
-                <div class="weekly-bar-r" style="height:${state.weeklyData.records[i]*8}px"></div>
-              </div>
-              <span class="weekly-bar-label ${i===4?'style="color:var(--primary-light);font-weight:700"':''}">${d}</span>
+          <!-- Quick Todo Card -->
+          <div class="card stagger-2 animate-in home-card-todo">
+            <div class="card-header-row">
+              <span class="card-title">✏️ 오늘 할 일</span>
+              <span class="card-subtitle">${state.quickTodos.filter(t=>t.done).length}/${state.quickTodos.length}</span>
             </div>
-          `).join('')}
-        </div>
-        <div class="chart-legend">
-          <span><span class="legend-dot" style="background:var(--primary)"></span>기록</span>
-          <span><span class="legend-dot" style="background:var(--accent)"></span>질문</span>
-        </div>
-      </div>
-
-      <!-- Upcoming Assignments Home Card -->
-      ${state.assignments.filter(a => a.status !== 'completed').length > 0 ? `
-      <div class="card stagger-5 animate-in">
-        <div class="card-header-row">
-          <span class="card-title">📋 다가오는 과제</span>
-          <button class="card-link" onclick="goScreen('assignment-list')">전체보기 →</button>
-        </div>
-        <div class="upcoming-assignments">
-          ${state.assignments.filter(a => a.status !== 'completed').sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).map(a => {
-            const dDay = getDday(a.dueDate);
-            const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
-            const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
-            return `
-            <div class="upcoming-assignment-card ${urgency}" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
-              <div class="ua-left">
-                <div class="ua-dday-badge ${urgency}">${dDayText}</div>
-              </div>
-              <div class="ua-center">
-                <div class="ua-subject-row">
-                  <span class="ua-subject-dot" style="background:${a.color}"></span>
-                  <span class="ua-subject">${a.subject}</span>
-                  <span class="ua-type">${a.type || ''}</span>
+            <div class="quick-todo-list" id="quick-todo-list">
+              ${state.quickTodos.length === 0 ? `
+                <div class="quick-todo-empty">
+                  <span style="font-size:20px;opacity:0.4">📝</span>
+                  <span style="font-size:11px;color:var(--text-muted)">할 일을 추가해보세요</span>
                 </div>
-                <div class="ua-title">${a.title}</div>
-                <div class="ua-progress-row">
-                  <div class="ua-progress-bar"><div class="ua-progress-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
-                  <span class="ua-progress-text">${a.progress}%</span>
+              ` : state.quickTodos.map((t, i) => `
+                <div class="quick-todo-item ${t.done?'done':''}" onclick="toggleQuickTodo(${i})">
+                  <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:14px;cursor:pointer"></i>
+                  <span class="quick-todo-text">${t.text}</span>
+                  <button class="quick-todo-del" onclick="event.stopPropagation();deleteQuickTodo(${i})"><i class="fas fa-times"></i></button>
+                </div>
+              `).join('')}
+            </div>
+            <div class="quick-todo-input-row">
+              <input type="text" id="quick-todo-input" class="quick-todo-input" placeholder="할 일 입력..." maxlength="50" onkeydown="if(event.key==='Enter')addQuickTodo()">
+              <button class="quick-todo-add-btn" onclick="addQuickTodo()"><i class="fas fa-plus"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today Timetable (우측) -->
+        <div class="card stagger-2 animate-in home-card-timetable">
+          <div class="card-header-row">
+            <span class="card-title">📋 오늘 시간표</span>
+            <span class="card-subtitle">${doneCount}/${total} 기록완료</span>
+          </div>
+          <div class="timetable-progress">
+            <div class="timetable-progress-fill" style="width:${recordPct}%"></div>
+          </div>
+          <div class="timetable-list">
+            ${state.todayRecords.map((r, idx) => `
+              <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="openClassRecordEdit(${idx})" style="cursor:pointer"` : ''}>
+                <div class="tt-period-badge ${r.done?'done':idx===doneCount?'current':''}" style="${r.done?'':''}">
+                  ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : r.period}
+                </div>
+                <div class="tt-info">
+                  <span class="tt-subject-name" style="color:${r.color}">${r.subject}</span>
+                  ${r.done ? `<span class="tt-summary">${r.summary} <i class="fas fa-pencil-alt" style="font-size:9px;opacity:0.4;margin-left:4px"></i></span>` : `<span class="tt-summary" style="opacity:0.4">${r.teacher} 선생님 · ${r.startTime||''}~${r.endTime||''}</span>`}
+                </div>
+                <div class="tt-action">
+                  ${r.done
+                    ? `<span class="tt-done-badge">${r.question ? '<span class="tt-q-badge" style="margin-right:4px">질문</span>' :''}✅</span>`
+                    : (idx === doneCount
+                      ? `<button class="tt-record-btn ${getClassEndStatus(r)==='just-ended'?'tt-btn-glow':''}" onclick="event.stopPropagation();goScreen('class-end-popup')">기록하기</button>`
+                      : `<span class="tt-locked"><i class="fas fa-lock" style="font-size:10px"></i></span>`
+                    )
+                  }
                 </div>
               </div>
-              <div class="ua-right">
-                <i class="fas fa-chevron-right"></i>
-              </div>
-            </div>
-            `;
-          }).join('')}
+            `).join('')}
+          </div>
         </div>
       </div>
-      ` : ''}
-      </div><!-- end home-cards-grid -->
+
+      <!-- 2행: 미션 | 주간현황 | 과제 (3등분) -->
+      <div class="home-row-bottom">
+        <!-- Daily Missions -->
+        <div class="card stagger-3 animate-in">
+          <div class="card-header-row">
+            <span class="card-title">🎯 오늘의 미션</span>
+            <span class="xp-badge-sm">완료 시 +30 XP</span>
+          </div>
+          ${state.missions.map((m,i) => `
+            <div class="mission-row ${m.done?'done':''}">
+              <div class="mission-icon">${m.icon}</div>
+              <div class="mission-info">
+                <span class="mission-text">${m.text}</span>
+                <div class="mission-bar">
+                  <div class="mission-bar-fill" style="width:${Math.min(m.current/m.target*100,100)}%"></div>
+                </div>
+              </div>
+              <span class="mission-count">${m.current}/${m.target}</span>
+              ${m.done ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:18px"></i>' : ''}
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Weekly Mini Chart -->
+        <div class="card stagger-4 animate-in">
+          <div class="card-header-row">
+            <span class="card-title">📊 이번 주 현황</span>
+            <button class="card-link" onclick="goScreen('weekly-report')">자세히 →</button>
+          </div>
+          <div class="weekly-mini-stats">
+            <div class="mini-stat">
+              <span class="mini-stat-value" style="color:var(--primary-light)">12</span>
+              <span class="mini-stat-label">기록</span>
+            </div>
+            <div class="mini-stat-divider"></div>
+            <div class="mini-stat">
+              <span class="mini-stat-value" style="color:var(--accent)">5</span>
+              <span class="mini-stat-label">질문</span>
+            </div>
+            <div class="mini-stat-divider"></div>
+            <div class="mini-stat">
+              <span class="mini-stat-value" style="color:var(--teach-green)">2</span>
+              <span class="mini-stat-label">교학상장</span>
+            </div>
+            <div class="mini-stat-divider"></div>
+            <div class="mini-stat">
+              <span class="mini-stat-value" style="color:var(--question-b)">82%</span>
+              <span class="mini-stat-label">B+C비율</span>
+            </div>
+          </div>
+          <div class="weekly-bar-chart">
+            ${state.weeklyData.days.map((d, i) => `
+              <div class="weekly-bar-col">
+                <div class="weekly-bar-stack">
+                  <div class="weekly-bar-q" style="height:${state.weeklyData.questions[i]*12}px"></div>
+                  <div class="weekly-bar-r" style="height:${state.weeklyData.records[i]*8}px"></div>
+                </div>
+                <span class="weekly-bar-label ${i===4?'style="color:var(--primary-light);font-weight:700"':''}">${d}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="chart-legend">
+            <span><span class="legend-dot" style="background:var(--primary)"></span>기록</span>
+            <span><span class="legend-dot" style="background:var(--accent)"></span>질문</span>
+          </div>
+        </div>
+
+        <!-- Upcoming Assignments -->
+        ${state.assignments.filter(a => a.status !== 'completed').length > 0 ? `
+        <div class="card stagger-5 animate-in">
+          <div class="card-header-row">
+            <span class="card-title">📋 다가오는 과제</span>
+            <button class="card-link" onclick="goScreen('assignment-list')">전체보기 →</button>
+          </div>
+          <div class="upcoming-assignments">
+            ${state.assignments.filter(a => a.status !== 'completed').sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).map(a => {
+              const dDay = getDday(a.dueDate);
+              const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
+              const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
+              return `
+              <div class="upcoming-assignment-card ${urgency}" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+                <div class="ua-left">
+                  <div class="ua-dday-badge ${urgency}">${dDayText}</div>
+                </div>
+                <div class="ua-center">
+                  <div class="ua-subject-row">
+                    <span class="ua-subject-dot" style="background:${a.color}"></span>
+                    <span class="ua-subject">${a.subject}</span>
+                    <span class="ua-type">${a.type || ''}</span>
+                  </div>
+                  <div class="ua-title">${a.title}</div>
+                  <div class="ua-progress-row">
+                    <div class="ua-progress-bar"><div class="ua-progress-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+                    <span class="ua-progress-text">${a.progress}%</span>
+                  </div>
+                </div>
+                <div class="ua-right">
+                  <i class="fas fa-chevron-right"></i>
+                </div>
+              </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- 하단 Quick Actions 바 -->
+      <div class="home-bottom-actions">
+        <button class="home-bottom-btn ${isEveningTime()?'active':''}" onclick="goScreen('evening-routine')">
+          <i class="fas fa-moon"></i>
+          <span>저녁 루틴</span>
+        </button>
+        <button class="home-bottom-btn ${hasUnrecordedEndedClass()?'active':''}" onclick="goScreen('class-end-popup')">
+          <i class="fas fa-bell"></i>
+          <span>수업종료 팝업</span>
+          ${hasUnrecordedEndedClass()?`<span class="home-bottom-badge">${countUnrecordedEndedClasses()}</span>`:''}
+        </button>
+        <button class="home-bottom-btn" onclick="goScreen('assignment-list')">
+          <i class="fas fa-clipboard-list"></i>
+          <span>과제 관리</span>
+        </button>
+      </div>
     </div>
   `;
 }
