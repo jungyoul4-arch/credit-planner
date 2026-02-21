@@ -1216,6 +1216,7 @@ const DB = {
         this.loadQuestionRecords(),
         this.loadTeachRecords(),
         this.loadActivityRecords(),
+        this.loadReportRecords(),
         this.loadProfile(),
       ]);
     } catch (e) {
@@ -1542,6 +1543,91 @@ const DB = {
         body: JSON.stringify(updates)
       });
     } catch (e) { console.error('updateActivityRecord:', e); }
+  },
+
+  // === 활동 로그 (날짜별 기록) ===
+  async saveActivityLog(activityRecordId, logData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/activity-logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activityRecordId, ...logData })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.logId;
+      }
+    } catch (e) { console.error('saveActivityLog:', e); }
+    return null;
+  },
+
+  async loadActivityLogs(activityId) {
+    const sid = this.studentId();
+    if (!sid) return [];
+    try {
+      const url = activityId 
+        ? `/api/student/${sid}/activity-logs?activityId=${activityId}`
+        : `/api/student/${sid}/activity-logs`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.logs || [];
+      }
+    } catch (e) { console.error('loadActivityLogs:', e); }
+    return [];
+  },
+
+  // === 탐구보고서 ===
+  async saveReportRecord(reportData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/report-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.reportId;
+      }
+    } catch (e) { console.error('saveReportRecord:', e); }
+    return null;
+  },
+
+  async updateReportRecord(reportId, updates) {
+    try {
+      await fetch(`/api/student/report-records/${reportId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error('updateReportRecord:', e); }
+  },
+
+  async loadReportRecords() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/report-records`);
+      if (res.ok) {
+        const data = await res.json();
+        state._dbReportRecords = (data.records || []).map(r => ({
+          ...r,
+          timeline: JSON.parse(r.timeline || '[]'),
+          questions: JSON.parse(r.questions || '[]'),
+        }));
+      }
+    } catch (e) { console.error('loadReportRecords:', e); }
+  },
+
+  // === 시험 삭제 ===
+  async deleteExam(examId) {
+    try {
+      await fetch(`/api/student/exams/${examId}`, { method: 'DELETE' });
+    } catch (e) { console.error('deleteExam:', e); }
   },
 
   async loadActivityRecords() {
@@ -3362,6 +3448,11 @@ function saveNewExam() {
 
 function deleteExam(examId) {
   if (!confirm('이 시험을 삭제하시겠습니까?')) return;
+  const ex = state.exams.find(e => e.id === examId);
+  // DB 삭제
+  if (ex && ex._dbId && DB.studentId()) {
+    DB.deleteExam(ex._dbId);
+  }
   state.exams = state.exams.filter(e => e.id !== examId);
   goScreen('exam-list');
 }
@@ -4059,6 +4150,34 @@ function saveNewReport() {
 
   state.extracurriculars.push(newEntry);
 
+  // DB 저장 (탐구보고서)
+  if (DB.studentId()) {
+    DB.saveReportRecord({
+      title,
+      subject,
+      phase: '주제 선정',
+      timeline: newEntry.report.timeline,
+      questions: newEntry.report.questions,
+      totalXp: newEntry.report.totalXp,
+      status: 'in-progress',
+    }).then(dbId => {
+      if (dbId) newEntry._reportDbId = dbId;
+    });
+    // activity_records에도 저장
+    DB.saveActivityRecord({
+      activityType: 'report',
+      title,
+      description: desc,
+      startDate: newEntry.startDate,
+      endDate: newEntry.endDate,
+      status: 'in-progress',
+      progress: 0,
+      reflection: '',
+    }).then(dbId => {
+      if (dbId) newEntry._dbId = dbId;
+    });
+  }
+
   // 바로 새 프로젝트로 진입
   state.viewingReport = newId;
   state.reportPhaseTab = 0;
@@ -4561,6 +4680,16 @@ async function submitReportQuestion(ecId, phaseIdx) {
         text: (mentorData.answer || '').slice(0, 200) + '...',
         phaseId: phase.id,
         time: new Date().toISOString(),
+      });
+    }
+
+    // DB에 탐구보고서 업데이트 (질문/타임라인 변경)
+    if (ec._reportDbId && DB.studentId()) {
+      DB.updateReportRecord(ec._reportDbId, {
+        timeline: rpt.timeline,
+        questions: rpt.questions,
+        totalXp: rpt.totalXp,
+        phase: phase.name,
       });
     }
   } catch (e) {
@@ -6686,13 +6815,21 @@ function saveActivityLog(ecId) {
     ec.progress = Math.min(ec.progress + 5, 100);
   }
 
-  // DB 업데이트 (활동 로그를 description에 누적 저장)
+  // DB 업데이트 (활동 로그를 description에 누적 저장 + 별도 activity_logs에도 기록)
   if (ec._dbId && DB.studentId()) {
     DB.updateActivityRecord(ec._dbId, {
       progress: ec.progress,
       status: ec.progress >= 100 ? 'completed' : 'in-progress',
       description: JSON.stringify(ec.logs),
       reflection: reflection,
+    });
+    // 날짜별 활동 로그 개별 저장 (관리자 조회용)
+    DB.saveActivityLog(ec._dbId, {
+      date: new Date().toISOString().slice(0, 10),
+      content,
+      reflection,
+      duration,
+      xpEarned: 20,
     });
   }
 
@@ -6707,6 +6844,10 @@ function updateActivityProgress(ecId, newProgress) {
   if (!ec) return;
   ec.progress = Math.min(Math.max(newProgress, 0), 100);
   if (ec.progress >= 100) ec.status = 'completed';
+  // DB 업데이트
+  if (ec._dbId && DB.studentId()) {
+    DB.updateActivityRecord(ec._dbId, { progress: ec.progress, status: ec.status });
+  }
   renderScreen();
 }
 
@@ -6716,6 +6857,10 @@ function completeActivity(ecId) {
   if (!ec) return;
   ec.status = 'completed';
   ec.progress = 100;
+  // DB 업데이트
+  if (ec._dbId && DB.studentId()) {
+    DB.updateActivityRecord(ec._dbId, { status: 'completed', progress: 100 });
+  }
   state.xp += 30;
   renderScreen();
   showXpPopup(30, '활동 완료! 🎉');
@@ -6727,6 +6872,10 @@ function updateActivityStatus(ecId, newStatus) {
   if (!ec) return;
   ec.status = newStatus;
   if (newStatus === 'in-progress' && ec.progress >= 100) ec.progress = 90;
+  // DB 업데이트
+  if (ec._dbId && DB.studentId()) {
+    DB.updateActivityRecord(ec._dbId, { status: ec.status, progress: ec.progress });
+  }
   renderScreen();
 }
 
@@ -8732,6 +8881,25 @@ function completeClassRecord(idx) {
 
 function showXpPopup(amount, label) {
   state.xp += amount;
+  
+  // XP를 DB에 동기화 (디바운스: 마지막 호출 후 2초 뒤 실행)
+  if (DB.studentId() && amount > 0) {
+    clearTimeout(window._xpSyncTimer);
+    window._xpSyncTimer = setTimeout(() => {
+      fetch(`/api/student/${DB.studentId()}/profile`).then(r => r.json()).then(data => {
+        // 서버의 현재 XP와 비교하여 차이만큼 업데이트
+        const serverXp = data.xp || 0;
+        if (state.xp > serverXp) {
+          const diff = state.xp - serverXp;
+          fetch(`/api/student/${DB.studentId()}/xp-sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ xpDelta: diff })
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }, 2000);
+  }
   const overlay = document.createElement('div');
   overlay.className = 'xp-popup-overlay';
   const popup = document.createElement('div');
