@@ -1,5 +1,5 @@
 /* ==============================
-   학점플래너 CreditPlanner - Interactive Prototype v3
+   고교학점플래너 CreditPlanner - Interactive Prototype v3
    학생 앱 UI 집중 리뉴얼
    ============================== */
 
@@ -485,6 +485,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'report-add') return renderReportAdd();
   if (state.currentScreen === 'activity-detail') return renderActivityDetail();
   if (state.currentScreen === 'activity-add') return renderActivityAdd();
+  if (state.currentScreen === 'record-schoolrecord') return renderSchoolRecord();
 
   let content = '';
   content += renderXpBar();
@@ -564,8 +565,8 @@ function renderOnboardingWelcome() {
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
         <div class="onboarding-logo">
           <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
-          <h2>학점플래너</h2>
-          <p>CreditPlanner</p>
+          <h2>고교학점플래너</h2>
+          <p>HS CreditPlanner</p>
         </div>
         <p style="text-align:center;color:var(--text-secondary);font-size:15px;line-height:1.8;margin-bottom:40px">
           고교학점제 시대,<br>
@@ -590,7 +591,7 @@ function renderOnboardingInfo() {
       <div class="onboarding-progress"><div class="onboarding-progress-fill" style="width:25%"></div></div>
       <span class="onboarding-step">1/4 기본 정보</span>
       <h1 class="onboarding-title">반갑습니다! 👋</h1>
-      <p class="onboarding-desc">학점플래너를 시작하기 위한 기본 정보를 입력해주세요.</p>
+      <p class="onboarding-desc">고교학점플래너를 시작하기 위한 기본 정보를 입력해주세요.</p>
       <div class="field-group">
         <label class="field-label">이름</label>
         <input class="input-field" placeholder="이름을 입력하세요" value="김민준">
@@ -985,6 +986,7 @@ function renderRecordTab() {
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창의적 체험활동', desc:'비교과 활동 기록', xp:'+20' },
           { screen:'exam-list', icon:'📝', bg:'rgba(116,185,255,0.15)', title:'시험 관리', desc:'중간·기말·모의·수행평가', xp:'+25' },
+          { screen:'record-schoolrecord', icon:'📄', bg:'rgba(162,155,254,0.15)', title:'학교 생활기록부 관리', desc:'생기부 업로드 및 AI 분석', xp:'+30' },
         ].map((item,i) => `
           <div class="record-type-card stagger-${i+1} animate-in" onclick="goScreen('${item.screen}')">
             <div class="record-type-icon" style="background:${item.bg}">${item.icon}</div>
@@ -1151,6 +1153,69 @@ function renderRecordTab() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== SCHOOL RECORD (학교 생활기록부 관리) ====================
+
+function renderSchoolRecord() {
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📄 생활기록부 관리</h1>
+        <span class="header-badge">+30 XP</span>
+      </div>
+
+      <div class="form-body" style="text-align:center;padding-top:40px">
+        <!-- 준비 중 안내 -->
+        <div style="background:linear-gradient(135deg,rgba(162,155,254,0.15),rgba(108,92,231,0.1));border-radius:20px;padding:32px 24px;margin-bottom:24px">
+          <div style="font-size:64px;margin-bottom:16px">📋</div>
+          <h2 style="font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:8px">학교 생활기록부 AI 분석</h2>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">
+            1학년 과정이 끝나면 실제 생활기록부를<br>
+            업로드하여 AI가 분석해드립니다
+          </p>
+        </div>
+
+        <!-- 예정 기능 목록 -->
+        <div style="text-align:left">
+          <h3 style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:12px">🔮 예정 기능</h3>
+          
+          ${[
+            { icon: '📤', title: '생기부 PDF 업로드', desc: '나이스에서 다운받은 생활기록부를 업로드', status: '준비 중' },
+            { icon: '🤖', title: 'AI 종합 분석', desc: '교과/비교과/세특 전 영역 AI 자동 분석', status: '준비 중' },
+            { icon: '📊', title: '강점·보완점 진단', desc: '대입 관점에서 강점과 보완해야 할 부분 제시', status: '준비 중' },
+            { icon: '🎯', title: '맞춤 전략 제안', desc: '분석 결과 기반 2·3학년 학업 전략 추천', status: '준비 중' },
+            { icon: '📈', title: '학기별 변화 추적', desc: '매 학기 생기부 비교로 성장 과정 시각화', status: '준비 중' },
+            { icon: '✍️', title: '세특 키워드 분석', desc: '세부능력특기사항 핵심 키워드 추출 및 일관성 점검', status: '준비 중' },
+          ].map(f => `
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border-radius:14px;margin-bottom:8px;border:1px solid var(--border-color)">
+              <span style="font-size:24px;flex-shrink:0">${f.icon}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:700;color:var(--text-primary)">${f.title}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${f.desc}</div>
+              </div>
+              <span style="font-size:10px;color:#a29bfe;background:rgba(162,155,254,0.15);padding:3px 8px;border-radius:8px;white-space:nowrap">${f.status}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- 알림 설정 -->
+        <div style="margin-top:24px;padding:20px;background:rgba(0,184,148,0.08);border-radius:14px;border:1px solid rgba(0,184,148,0.2)">
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">
+            <strong style="color:#00b894">💡 Tip</strong><br>
+            지금은 수업 기록, 질문 코칭, 창체 활동 기록을 꾸준히 쌓아두세요.<br>
+            이 데이터가 나중에 생기부 분석과 함께 강력한 포트폴리오가 됩니다!
+          </p>
+        </div>
+
+        <button class="btn-primary" style="margin-top:24px;width:100%;opacity:0.5;cursor:not-allowed" disabled>
+          <i class="fas fa-bell" style="margin-right:6px"></i>
+          오픈 시 알림 받기 (준비 중)
+        </button>
       </div>
     </div>
   `;
@@ -6375,7 +6440,7 @@ function renderMentorDashboard() {
       <div style="display:flex;align-items:center;gap:14px">
         <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
         <div>
-          <h1>학점플래너 <span style="color:var(--primary-light)">멘토</span></h1>
+          <h1>고교학점플래너 <span style="color:var(--primary-light)">멘토</span></h1>
           <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">박진수 멘토 | 담당 학생 20명</p>
         </div>
       </div>
@@ -6513,7 +6578,7 @@ function renderDirectorDashboard() {
       <div style="display:flex;align-items:center;gap:14px">
         <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
         <div>
-          <h1>학점플래너 <span style="color:var(--accent)">원장</span></h1>
+          <h1>고교학점플래너 <span style="color:var(--accent)">원장</span></h1>
           <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">정율고교학점데이터센터 | 498/500명</p>
         </div>
       </div>

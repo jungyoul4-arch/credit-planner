@@ -511,7 +511,7 @@ app.get('/', (c) => {
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>정율사관학원 학점플래너 CreditPlanner</title>
+  <title>정율사관학원 고교학점플래너 CreditPlanner</title>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link href="/static/app.css" rel="stylesheet">
@@ -524,8 +524,8 @@ app.get('/', (c) => {
         <div class="mode-logo-row">
           <img src="/static/logo.png" alt="정율사관학원" class="mode-logo-img">
           <div class="mode-logo-text">
-            <span class="mode-logo-title">학점플래너</span>
-            <span class="mode-logo-sub">CreditPlanner</span>
+            <span class="mode-logo-title">고교학점플래너</span>
+            <span class="mode-logo-sub">HS CreditPlanner</span>
           </div>
         </div>
       </div>
@@ -561,7 +561,7 @@ app.get('/', (c) => {
         <div id="tablet-status-bar">
           <span class="tablet-status-left">
             <img src="/static/logo.png" alt="" class="tablet-status-logo">
-            <span class="tablet-status-title">학점플래너</span>
+            <span class="tablet-status-title">고교학점플래너</span>
           </span>
           <span class="tablet-status-right">
             <i class="fas fa-signal"></i> <i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i>
