@@ -349,7 +349,8 @@ const state = {
   viewingActivity: null, // 현재 보고 있는 활동 ec id
   activityLogInput: {}, // 활동 기록 입력 임시 저장
   // 질문 코칭 과목 선택 상태
-  _questionSubject: '영어', // 기본 선택 과목
+  _questionSubject: '수학', // 기본 선택 과목
+  _questionText: '', // 사용자 입력 질문 텍스트 유지
 };
 
 // ==================== MAIN RENDER ====================
@@ -373,6 +374,12 @@ function getDevicePreviewClass() {
 }
 
 function renderScreen() {
+  // renderScreen 전에 질문 입력 내용 보존
+  const prevQuestionInput = document.getElementById('question-input');
+  if (prevQuestionInput) {
+    state._questionText = prevQuestionInput.value;
+  }
+
   const container = document.getElementById('app-content');
   const tabletContent = document.getElementById('tablet-content');
   const deskContainer = document.getElementById('desktop-content');
@@ -2915,7 +2922,7 @@ function renderRecordQuestion() {
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="state._coachingMode=null;state._diagResult=null;state._socratesStep=0;goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="state._coachingMode=null;state._diagResult=null;state._socratesStep=0;state._questionText='';state._questionImages=null;state._imageAnalysis=null;goScreen('main')"><i class="fas fa-arrow-left"></i></button>
         <h1>질문 코칭</h1>
         <span class="header-badge">🧠 2축 9단계</span>
       </div>
@@ -2964,7 +2971,7 @@ function renderRecordQuestion() {
         <div class="field-group">
           <label class="field-label">❓ 질문 내용</label>
           <div class="question-input-wrap">
-            <textarea class="input-field" rows="3" id="question-input" placeholder="${state._questionAxis==='reflection' ? '내가 어디서 틀렸는지, 왜 틀렸는지 생각을 적어주세요' : '수업 중 궁금한 점을 적어주세요. 자기 생각도 함께!'}">나는 관계대명사 which와 that이 역사적으로 같은 기능이었을 것 같은데, 왜 제한적/계속적 용법으로 나뉘게 된 건가요?</textarea>
+            <textarea class="input-field" rows="3" id="question-input" placeholder="${state._questionAxis==='reflection' ? '내가 어디서 틀렸는지, 왜 틀렸는지 생각을 적어주세요' : '수업 중 궁금한 점을 적어주세요. 자기 생각도 함께!'}">${state._questionText || ''}</textarea>
             
             <!-- 이미지 첨부 미리보기 -->
             ${state._questionImages && state._questionImages.length > 0 ? `
