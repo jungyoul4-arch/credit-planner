@@ -262,7 +262,7 @@ const state = {
   portfolioCustomEnd: '2025-02-28',
   plannerAiOpen: false,
   plannerAiMessages: [
-    { role:'ai', text:'안녕 민준! 👋 플래너 AI 도우미예요. 일정 추가, 과제 계획 조정, 공부 시간 배분 등 무엇이든 도와줄게요!' },
+    { role:'ai', text:'안녕 민준! 👋 플래너 정율 도우미예요. 일정 추가, 과제 계획 조정, 공부 시간 배분 등 무엇이든 도와줄게요!' },
   ],
   plannerAddOpen: false,
   // 통합 플래너 일정 데이터
@@ -336,14 +336,14 @@ const state = {
   ],
   viewingExam: null, // 현재 보고 있는 시험 id
   examAddMode: false, // 시험 추가 모드
-  examAiLoading: false, // AI 학습계획 생성 중
+  examAiLoading: false, // 정율 학습계획 생성 중
   // 탐구보고서 상태
   viewingReport: null, // 현재 보고 있는 탐구보고서 ec id
   reportPhaseTab: 0, // 현재 선택된 Phase 탭 (0~4)
   reportViewMode: 'question', // 'question','timeline','growth','report'
   reportAiLoading: false,
   reportDiagResult: null, // 최근 질문 진단 결과
-  reportAiResponse: null, // 최근 AI 멘토/검색 응답
+  reportAiResponse: null, // 최근 정율 멘토/검색 응답
   // 창의적 체험활동 통합 상태
   activityFilter: 'all', // 'all','club','career','self','report','reading'
   viewingActivity: null, // 현재 보고 있는 활동 ec id
@@ -709,7 +709,7 @@ function renderOnboardingGuide() {
         <div class="guide-icon-circle" style="background:rgba(255,107,107,0.15)">❓</div>
         <div class="guide-content">
           <h3>질문이 있었다면 기록</h3>
-          <p>AI가 2축 9단계로 질문을 코칭해줘요</p>
+          <p>정율이 2축 9단계로 질문을 코칭해줘요</p>
         </div>
       </div>
       <div class="guide-card stagger-3 animate-in">
@@ -982,11 +982,11 @@ function renderRecordTab() {
         ${[
           { screen:'record-class', icon:'📝', bg:'rgba(108,92,231,0.15)', title:'수업 기록', desc:'30초 만에 오늘 수업을 기록', xp:'+10' },
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
-          { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 AI 코칭', xp:'+8~30' },
+          { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 정율 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창의적 체험활동', desc:'비교과 활동 기록', xp:'+20' },
           { screen:'exam-list', icon:'📝', bg:'rgba(116,185,255,0.15)', title:'시험 관리', desc:'중간·기말·모의·수행평가', xp:'+25' },
-          { screen:'record-schoolrecord', icon:'📄', bg:'rgba(162,155,254,0.15)', title:'학교 생활기록부 관리', desc:'생기부 업로드 및 AI 분석', xp:'+30' },
+          { screen:'record-schoolrecord', icon:'📄', bg:'rgba(162,155,254,0.15)', title:'학교 생활기록부 관리', desc:'생기부 업로드 및 정율 분석', xp:'+30' },
         ].map((item,i) => `
           <div class="record-type-card stagger-${i+1} animate-in" onclick="goScreen('${item.screen}')">
             <div class="record-type-icon" style="background:${item.bg}">${item.icon}</div>
@@ -1173,10 +1173,10 @@ function renderSchoolRecord() {
         <!-- 준비 중 안내 -->
         <div style="background:linear-gradient(135deg,rgba(162,155,254,0.15),rgba(108,92,231,0.1));border-radius:20px;padding:32px 24px;margin-bottom:24px">
           <div style="font-size:64px;margin-bottom:16px">📋</div>
-          <h2 style="font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:8px">학교 생활기록부 AI 분석</h2>
+          <h2 style="font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:8px">학교 생활기록부 정율 분석</h2>
           <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">
             1학년 과정이 끝나면 실제 생활기록부를<br>
-            업로드하여 AI가 분석해드립니다
+            업로드하여 정율이 분석해드립니다
           </p>
         </div>
 
@@ -1186,7 +1186,7 @@ function renderSchoolRecord() {
           
           ${[
             { icon: '📤', title: '생기부 PDF 업로드', desc: '나이스에서 다운받은 생활기록부를 업로드', status: '준비 중' },
-            { icon: '🤖', title: 'AI 종합 분석', desc: '교과/비교과/세특 전 영역 AI 자동 분석', status: '준비 중' },
+            { icon: '🤖', title: '정율 종합 분석', desc: '교과/비교과/세특 전 영역 정율 자동 분석', status: '준비 중' },
             { icon: '📊', title: '강점·보완점 진단', desc: '대입 관점에서 강점과 보완해야 할 부분 제시', status: '준비 중' },
             { icon: '🎯', title: '맞춤 전략 제안', desc: '분석 결과 기반 2·3학년 학업 전략 추천', status: '준비 중' },
             { icon: '📈', title: '학기별 변화 추적', desc: '매 학기 생기부 비교로 성장 과정 시각화', status: '준비 중' },
@@ -1391,18 +1391,18 @@ function renderExamDetail() {
           </div>`;
         }).join('')}
 
-        <!-- AI 시험대비 코칭 -->
-        <div class="section-label" style="margin-top:20px">🤖 AI 시험대비 코칭</div>
+        <!-- 정율 시험대비 코칭 -->
+        <div class="section-label" style="margin-top:20px">🤖 정율 시험대비 코칭</div>
         <div class="card">
           ${state.examAiLoading ? `
             <div style="text-align:center;padding:24px">
               <div class="diag-loading-spinner"></div>
-              <p style="color:var(--text-muted);margin-top:12px;font-size:13px">AI가 학습 계획을 분석 중...</p>
+              <p style="color:var(--text-muted);margin-top:12px;font-size:13px">정율이 학습 계획을 분석 중...</p>
             </div>
           ` : ex.aiPlan ? `
             <div class="exam-ai-plan">
               <div class="exam-ai-plan-header">
-                <span>📋 AI 맞춤 학습 계획</span>
+                <span>📋 정율 맞춤 학습 계획</span>
                 <button class="card-link" onclick="generateExamPlan('${ex.id}')">다시 생성 →</button>
               </div>
               <div class="exam-ai-plan-content">${ex.aiPlan}</div>
@@ -1411,7 +1411,7 @@ function renderExamDetail() {
             <div style="text-align:center;padding:16px">
               <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">시험 범위와 준비 상태를 분석해서<br>맞춤 학습 계획을 세워드릴게요</p>
               <button class="btn-primary" onclick="generateExamPlan('${ex.id}')">
-                <i class="fas fa-magic" style="margin-right:6px"></i>AI 학습계획 생성
+                <i class="fas fa-magic" style="margin-right:6px"></i>정율 학습계획 생성
               </button>
             </div>
           `}
@@ -1633,7 +1633,7 @@ HTML 태그를 사용해서 보기 좋게 포맷팅해줘. <h4>, <p>, <ul><li>, 
     if (data.plan) {
       ex.aiPlan = data.plan;
     } else if (data.error) {
-      ex.aiPlan = '<p style="color:#FF6B6B">⚠️ AI 응답 오류: ' + data.error + '</p><p>다시 시도해주세요.</p>';
+      ex.aiPlan = '<p style="color:#FF6B6B">⚠️ 정율 응답 오류: ' + data.error + '</p><p>다시 시도해주세요.</p>';
     }
   } catch (e) {
     ex.aiPlan = '<p style="color:#FF6B6B">⚠️ 네트워크 오류. 다시 시도해주세요.</p>';
@@ -1898,7 +1898,7 @@ function formatDateLabel(dateStr) {
 const REPORT_PHASES = [
   { id:'p1', name:'주제 선정', icon:'🔍', color:'#818cf8', aiRole:'가이드', desc:'궁금한 것에서 출발하여 탐구 질문 만들기', expectedLevel:'A-1 ~ A-2', tip:'"이게 궁금해!"에서 시작해봐' },
   { id:'p2', name:'탐구 설계', icon:'📐', color:'#34d399', aiRole:'가이드', desc:'어떻게 조사/실험할 건지 계획 세우기', expectedLevel:'A-2 ~ B-1', tip:'"어떻게 알아볼 수 있을까?"를 고민해봐' },
-  { id:'p3', name:'자료 수집', icon:'📊', color:'#fbbf24', aiRole:'피드백', desc:'자료를 모으고 AI에게 물어보기', expectedLevel:'B-1 ~ B-2', tip:'"왜 이런 결과가 나올까?"를 물어봐' },
+  { id:'p3', name:'자료 수집', icon:'📊', color:'#fbbf24', aiRole:'피드백', desc:'자료를 모으고 정율에게 물어보기', expectedLevel:'B-1 ~ B-2', tip:'"왜 이런 결과가 나올까?"를 물어봐' },
   { id:'p4', name:'분석/작성', icon:'📝', color:'#f87171', aiRole:'검토', desc:'발견한 것을 정리하고 보고서 작성', expectedLevel:'B-2 ~ C-1', tip:'"만약 조건이 달랐다면?"을 생각해봐' },
   { id:'p5', name:'회고', icon:'🪞', color:'#a78bfa', aiRole:'성찰', desc:'질문 성장을 돌아보고 성찰하기', expectedLevel:'R-1 ~ R-3', tip:'"내가 뭘 배웠지?"를 되돌아봐' },
 ];
@@ -2294,7 +2294,7 @@ function renderReportPhaseView(phase, phaseIdx, phaseQuestions, allQuestions, rp
     ` : `
       <!-- 언락 상태 -->
       <div class="rpt-unlock-status ${unlocked ? 'unlocked' : ''}">
-        <div class="rpt-unlock-title">${unlocked ? '🔓 AI 초안 보조 활성화!' : '🔒 AI 초안 보조 잠김'}</div>
+        <div class="rpt-unlock-title">${unlocked ? '🔓 정율 초안 보조 활성화!' : '🔒 정율 초안 보조 잠김'}</div>
         <div class="rpt-unlock-checks">
           <span style="color:${phaseQuestions.length >= 2 ? '#34d399' : '#f87171'}">${phaseQuestions.length >= 2 ? '✅' : '❌'} 질문 2회 이상 (${phaseQuestions.length}/2)</span>
           <span style="color:${phaseQuestions.some(q => (REPORT_LEVEL_META[q.level]?.n || 0) >= 3) ? '#34d399' : '#f87171'}">${phaseQuestions.some(q => (REPORT_LEVEL_META[q.level]?.n || 0) >= 3) ? '✅' : '❌'} B-1 이상 질문 달성</span>
@@ -2368,11 +2368,11 @@ function renderReportQuestionMode(phase, phaseQuestions, allQuestions, ec) {
     <!-- 진단 결과 -->
     ${state.reportDiagResult ? renderReportDiagBadge(state.reportDiagResult) : ''}
 
-    <!-- AI 멘토 응답 (Perplexity) -->
+    <!-- 정율 멘토 응답 (Perplexity) -->
     ${state.reportAiResponse ? `
       <div class="rpt-ai-response">
         <div class="rpt-ai-response-header">
-          <span>🤖 AI 멘토 (${phase.aiRole})</span>
+          <span>🤖 정율 멘토 (${phase.aiRole})</span>
           <span class="rpt-ai-source">📚 Perplexity 검색 기반</span>
         </div>
         <div class="rpt-ai-response-body">${formatReportAiText(state.reportAiResponse.answer || '')}</div>
@@ -2447,7 +2447,7 @@ function renderReportTimelineMode(phase, rpt) {
       <div class="rpt-empty">
         <div style="font-size:28px;margin-bottom:6px">📭</div>
         <div style="font-size:13px">이 단계의 기록이 아직 없어요</div>
-        <div style="font-size:11px;margin-top:4px;color:#555">💬 질문하기 탭에서 AI에게 물어보면 자동 기록됩니다</div>
+        <div style="font-size:11px;margin-top:4px;color:#555">💬 질문하기 탭에서 정율에게 물어보면 자동 기록됩니다</div>
       </div>
     `;
   }
@@ -2513,7 +2513,7 @@ function renderReportAllTimeline(allQuestions, timeline) {
       <div class="rpt-stat-item"><span class="rpt-stat-icon">💬</span><span class="rpt-stat-value" style="color:#818cf8">${allQuestions.length}</span><span class="rpt-stat-label">질문 수</span></div>
       <div class="rpt-stat-item"><span class="rpt-stat-icon">${REPORT_LEVEL_META[highest]?.icon}</span><span class="rpt-stat-value" style="color:${REPORT_LEVEL_META[highest]?.color}">${highest}</span><span class="rpt-stat-label">최고 수준</span></div>
     </div>
-    ${timeline.length === 0 ? `<div class="rpt-empty" style="padding:40px"><div style="font-size:13px;color:#555">각 단계에서 AI에게 질문하면 여기에 자동 기록됩니다</div></div>` :
+    ${timeline.length === 0 ? `<div class="rpt-empty" style="padding:40px"><div style="font-size:13px;color:#555">각 단계에서 정율에게 질문하면 여기에 자동 기록됩니다</div></div>` :
     timeline.slice().reverse().map(entry => {
       const phaseMeta = REPORT_PHASES.find(p => p.id === entry.phaseId);
       const diagMeta = entry.diagResult ? REPORT_LEVEL_META[entry.diagResult.level] : null;
@@ -2695,7 +2695,7 @@ async function submitReportQuestion(ecId, phaseIdx) {
 
     // 에러 응답 처리
     if (diagData.error) {
-      state.reportAiResponse = { answer: '⚠️ AI 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', citations: [] };
+      state.reportAiResponse = { answer: '⚠️ 정율 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', citations: [] };
       state.reportAiLoading = false;
       renderScreen();
       return;
@@ -2731,7 +2731,7 @@ async function submitReportQuestion(ecId, phaseIdx) {
     }
     renderScreen();
 
-    // Step 2: AI 멘토 답변 (Perplexity - 자료 검색 기반)
+    // Step 2: 정율 멘토 답변 (Perplexity - 자료 검색 기반)
     const mentorRes = await fetch('/api/report-mentor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2819,7 +2819,7 @@ function renderClassEndPopup() {
 
         <div class="popup-question-ask">
           <span>❓ 질문이 있었나요?</span>
-          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">AI가 2축 9단계로 질문을 코칭해줘요!</p>
+          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">정율이 2축 9단계로 질문을 코칭해줘요!</p>
           <div style="display:flex;gap:8px">
             <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">🪜 호기심 질문</button>
             <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="state._questionAxis='reflection';goScreen('record-question')">🪞 성찰 질문</button>
@@ -2861,9 +2861,9 @@ function renderInputModeContent(subject) {
         </div>
       </div>
       <div class="field-group">
-        <label class="field-label">📝 AI 변환 결과</label>
+        <label class="field-label">📝 정율 변환 결과</label>
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:13px;color:var(--text-secondary);line-height:1.6;border:1px solid var(--border)">
-          <span style="color:var(--success);font-size:11px;font-weight:600">[AI 변환]</span><br>
+          <span style="color:var(--success);font-size:11px;font-weight:600">[정율 변환]</span><br>
           오늘 ${subject} 시간에는 관계대명사 중에서 which와 that의 차이점을 배웠습니다. 제한적 용법과 계속적 용법의 구분이 중요했어요.
         </div>
       </div>
@@ -2890,9 +2890,9 @@ function renderInputModeContent(subject) {
         </div>
       </div>
       <div class="field-group">
-        <label class="field-label">📝 AI OCR 추출 키워드</label>
+        <label class="field-label">📝 정율 OCR 추출 키워드</label>
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:13px;color:var(--text-secondary);line-height:1.6;border:1px solid var(--border)">
-          <span style="color:var(--success);font-size:11px;font-weight:600">[AI 인식]</span><br>
+          <span style="color:var(--success);font-size:11px;font-weight:600">[정율 인식]</span><br>
           관계대명사, which, that, 제한적 용법, 계속적 용법
         </div>
       </div>
@@ -2946,7 +2946,7 @@ function renderRecordClass() {
 
         <div class="question-prompt">
           <p>❓ 질문이 떠올랐나요?</p>
-          <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px">2축 9단계 AI 코칭으로 사고의 깊이를 키워보세요!</p>
+          <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px">2축 9단계 정율 코칭으로 사고의 깊이를 키워보세요!</p>
           <div style="display:flex;gap:12px">
             <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">🪜 호기심 질문</button>
             <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="state._questionAxis='reflection';goScreen('record-question')">🪞 성찰 질문</button>
@@ -3071,7 +3071,7 @@ function renderRecordQuestion() {
         </div>
 
         <button class="btn-primary" style="margin-bottom:16px" onclick="analyzeQuestion()">
-          <i class="fas fa-robot"></i> AI 질문 분석하기
+          <i class="fas fa-robot"></i> 정율 질문 분석하기
         </button>
 
         <!-- 로딩 상태 -->
@@ -3080,7 +3080,7 @@ function renderRecordQuestion() {
           <div class="loading-spinner-wrap">
             <div class="diag-loading-spinner"></div>
           </div>
-          <p style="margin-top:12px;font-weight:600;color:var(--text-secondary)">🧠 AI가 질문을 분석하고 있어요...</p>
+          <p style="margin-top:12px;font-weight:600;color:var(--text-secondary)">🧠 정율이 질문을 분석하고 있어요...</p>
           <p style="font-size:10px;color:var(--text-muted);margin-top:4px">${state._questionImages && state._questionImages.length > 0 ? '📷 이미지 분석 → 질문 분석 2단계 진행 중' : '2축 9단계 기준으로 꼼꼼히 확인 중'}</p>
         </div>
         ` : ''}
@@ -3091,7 +3091,7 @@ function renderRecordQuestion() {
           <div class="ai-header">
             <span class="ai-icon">📷</span>
             <span class="ai-title">이미지 분석 결과</span>
-            <span style="margin-left:auto;font-size:9px;background:var(--bg-input);padding:2px 8px;border-radius:8px">AI</span>
+            <span style="margin-left:auto;font-size:9px;background:var(--bg-input);padding:2px 8px;border-radius:8px">정율</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
             <div style="background:var(--bg-input);padding:6px 8px;border-radius:8px">
@@ -3099,7 +3099,7 @@ function renderRecordQuestion() {
               <div style="font-size:11px;font-weight:700">${state._selectedSubject || '미지정'}</div>
             </div>
             <div style="background:var(--bg-input);padding:6px 8px;border-radius:8px">
-              <div style="font-size:8px;color:var(--text-muted)">AI 인식 단원</div>
+              <div style="font-size:8px;color:var(--text-muted)">정율 인식 단원</div>
               <div style="font-size:11px;font-weight:700">${state._imageAnalysis.topic || '미지정'}</div>
             </div>
           </div>
@@ -3109,7 +3109,7 @@ function renderRecordQuestion() {
         </div>
         ` : ''}
 
-        <!-- AI 진단 결과 카드 (동적) -->
+        <!-- 정율 진단 결과 카드 (동적) -->
         ${coachingMode === 'result' && diagResult ? `
         <div class="ai-diagnosis-card animate-in">
           <div class="ai-header">
@@ -3160,7 +3160,7 @@ function renderRecordQuestion() {
             <span class="diag-xp">XP +${diagResult.xp || 0}</span>
           </div>
 
-          <!-- AI 피드백 -->
+          <!-- 정율 피드백 -->
           ${diagResult.feedback ? `
           <div style="background:var(--bg-input);padding:10px 12px;border-radius:10px;margin-top:8px;font-size:11px;line-height:1.6;color:var(--text-secondary)">
             💬 ${diagResult.feedback}
@@ -3241,7 +3241,7 @@ function renderRecordQuestion() {
             <span class="socrates-icon">👨‍🏫</span>
             <div class="socrates-text">
               <strong>선생님과 함께하기</strong>
-              <small>AI가 소크라테스식 질문으로 사고를 확장해줘요</small>
+              <small>정율이 소크라테스식 질문으로 사고를 확장해줘요</small>
             </div>
             <i class="fas fa-chevron-right"></i>
           </button>
@@ -3253,7 +3253,7 @@ function renderRecordQuestion() {
           <div class="socrates-header">
             <span>👨‍🏫</span>
             <h3>선생님과 함께하기</h3>
-            <p>AI 코치가 질문으로 사고를 이끌어줄게요 (Claude)</p>
+            <p>정율 코치가 질문으로 사고를 이끌어줄게요</p>
           </div>
           <div class="socrates-chat" id="socrates-chat-area">
             ${(state._socratesMessages || []).filter(m => !m._hidden).map(m => {
@@ -3395,7 +3395,7 @@ function analyzeQuestion() {
     if (result.error) {
       state._diagLoading = false;
       state._coachingMode = 'diagnosis';
-      alert('AI 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      alert('정율 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       renderScreen();
       return;
     }
@@ -3407,7 +3407,7 @@ function analyzeQuestion() {
   .catch(err => {
     state._diagLoading = false;
     state._coachingMode = 'diagnosis';
-    alert('AI 분석 중 오류가 발생했습니다. 네트워크를 확인해주세요.');
+    alert('정율 분석 중 오류가 발생했습니다. 네트워크를 확인해주세요.');
     renderScreen();
   });
 }
@@ -3448,7 +3448,7 @@ function analyzeWithImage(questionText, subject, axis) {
     if (result.error) {
       state._diagLoading = false;
       state._coachingMode = 'diagnosis';
-      alert('AI 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      alert('정율 분석 중 일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
       renderScreen();
       return;
     }
@@ -3460,7 +3460,7 @@ function analyzeWithImage(questionText, subject, axis) {
   .catch(err => {
     state._diagLoading = false;
     state._coachingMode = 'diagnosis';
-    alert('AI 분석 중 오류가 발생했습니다. 네트워크를 확인해주세요.');
+    alert('정율 분석 중 오류가 발생했습니다. 네트워크를 확인해주세요.');
     renderScreen();
   });
 }
@@ -3502,7 +3502,7 @@ function sendSocratesMessage() {
   })
   .catch(err => {
     state._socratesLoading = false;
-    alert('코칭 AI 오류: ' + err.message);
+    alert('코칭 정율 오류: ' + err.message);
     renderScreen();
   });
 }
@@ -3601,7 +3601,7 @@ function startSocrates() {
   })
   .catch(err => {
     state._socratesLoading = false;
-    alert('코칭 AI 시작 오류: ' + err.message);
+    alert('코칭 정율 시작 오류: ' + err.message);
     state._coachingMode = 'result';
     renderScreen();
   });
@@ -3866,7 +3866,7 @@ function renderRecordAssignment() {
           <div class="plan-cta-icon">📅</div>
           <div class="plan-cta-content">
             <h3>제출 계획 세우기</h3>
-            <p>마감일까지 단계별 플랜을 AI가 도와줘요!</p>
+            <p>마감일까지 단계별 플랜을 정율이 도와줘요!</p>
           </div>
           <i class="fas fa-chevron-right" style="color:var(--primary-light)"></i>
         </div>
@@ -3961,7 +3961,7 @@ function renderAssignmentPlan() {
         <div class="ai-plan-card stagger-2 animate-in">
           <div class="ai-header">
             <span class="ai-icon">🤖</span>
-            <span class="ai-title">AI 플랜 제안</span>
+            <span class="ai-title">정율 플랜 제안</span>
           </div>
           <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:8px">
             ${dDay <= 3 
@@ -5049,7 +5049,7 @@ function renderPlannerDaily() {
       <div class="pds-divider"></div>
       <div class="pds-item"><span class="pds-num" style="color:var(--success)">${doneCount}</span><span class="pds-label">완료</span></div>
       <div class="pds-divider"></div>
-      <div class="pds-item"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">AI 배치</span></div>
+      <div class="pds-item"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">정율 배치</span></div>
       <div class="pds-divider"></div>
       <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
     </div>
@@ -5082,7 +5082,7 @@ function renderPlannerDaily() {
                   </div>
                 </div>
                 <div class="pt-item-right">
-                  ${item.aiGenerated ? '<span class="pt-ai-badge">AI</span>' : ''}
+                  ${item.aiGenerated ? '<span class="pt-ai-badge">정율</span>' : ''}
                 </div>
               </div>
             `).join('') : `
@@ -5267,7 +5267,7 @@ function renderPlannerAiFloat() {
         <div class="pai-header">
           <div class="pai-avatar">🤖</div>
           <div>
-            <span class="pai-title">AI 플래너 도우미</span>
+            <span class="pai-title">정율 플래너 도우미</span>
             <span class="pai-status">항상 대기 중</span>
           </div>
           <button class="pai-close" onclick="state.plannerAiOpen=false;renderScreen()"><i class="fas fa-times"></i></button>
@@ -5289,7 +5289,7 @@ function renderPlannerAiFloat() {
           ].map(s => `<button class="pai-suggestion" onclick="sendAiMessage('${s}')">${s}</button>`).join('')}
         </div>
         <div class="pai-input-row">
-          <input class="pai-input" placeholder="AI에게 물어보세요..." id="pai-input-field" onkeypress="if(event.key==='Enter'){sendAiMessage(this.value);this.value=''}">
+          <input class="pai-input" placeholder="정율에게 물어보세요..." id="pai-input-field" onkeypress="if(event.key==='Enter'){sendAiMessage(this.value);this.value=''}">
           <button class="pai-send" onclick="const inp=document.getElementById('pai-input-field');sendAiMessage(inp.value);inp.value=''"><i class="fas fa-paper-plane"></i></button>
         </div>
       </div>
@@ -5364,7 +5364,7 @@ function renderPlannerAddItem() {
         <div class="ai-plan-card">
           <div class="ai-header">
             <span class="ai-icon">🤖</span>
-            <span class="ai-title">AI 추천</span>
+            <span class="ai-title">정율 추천</span>
           </div>
           <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:8px">
             지금 <strong style="color:var(--primary-light)">15:30~16:30</strong>이 비어있어요. 수학 과제가 D-5이니까 이 시간에 진행하면 좋겠어요! 📐
@@ -6091,11 +6091,11 @@ function renderTimetableManage() {
         <div class="ai-plan-card animate-in">
           <div class="ai-header">
             <span class="ai-icon">🤖</span>
-            <span class="ai-title">AI 자동 연동</span>
+            <span class="ai-title">정율 자동 연동</span>
           </div>
           <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:8px">
             시간표와 학원 스케줄을 수정하면 <strong style="color:var(--primary-light)">플래너에 자동 반영</strong>됩니다. 
-            AI가 학교 수업, 학원, 과제를 종합 분석하여 최적의 학습 계획을 제안해요! 📅
+            정율이 학교 수업, 학원, 과제를 종합 분석하여 최적의 학습 계획을 제안해요! 📅
           </p>
         </div>
       </div>
@@ -6254,14 +6254,14 @@ function renderAcademyAdd() {
           <textarea class="input-field" id="ac-memo" rows="2" placeholder="학원 수업 관련 메모">${isEdit ? (ac.memo || '') : ''}</textarea>
         </div>
 
-        <!-- AI 제안 -->
+        <!-- 정율 제안 -->
         <div class="ai-plan-card animate-in">
           <div class="ai-header">
             <span class="ai-icon">🤖</span>
-            <span class="ai-title">AI 시간 분석</span>
+            <span class="ai-title">정율 시간 분석</span>
           </div>
           <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:8px">
-            학원 일정을 등록하면 AI가 <strong style="color:var(--primary-light)">학교 수업 → 학원 → 자습</strong> 패턴을 분석하고,
+            학원 일정을 등록하면 정율이 <strong style="color:var(--primary-light)">학교 수업 → 학원 → 자습</strong> 패턴을 분석하고,
             비는 시간에 과제나 복습을 배치해줘요! 📊
           </p>
         </div>
@@ -6562,7 +6562,7 @@ function renderMentorNetwork() {
       </div>
     </div>
     <div class="insight-box" style="margin-top:16px">
-      <h4 style="margin-bottom:8px">💡 AI 인사이트</h4>
+      <h4 style="margin-bottom:8px">💡 정율 인사이트</h4>
       <div class="insight-item"><span>•</span> 김민준: 수학 허브 (3명 가르침) → 깊이 이해 확인</div>
       <div class="insight-item"><span>•</span> 강예린: 다과목 멘토 → 폭넓은 이해력</div>
       <div class="insight-item"><span>•</span> 정하은: 배우기만 함 → 가르칠 과목 탐색 필요</div>
@@ -6652,7 +6652,7 @@ function renderDirNetwork() {
           .map((s,i) => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><strong>${i+1}.</strong> ${s}</div>`).join('')}
       </div>
       <div class="insight-box">
-        <h4 style="margin-bottom:8px">💡 AI 인사이트</h4>
+        <h4 style="margin-bottom:8px">💡 정율 인사이트</h4>
         <div class="insight-item"><span>•</span> 수학 교학상장 42%로 가장 활발</div>
         <div class="insight-item"><span>•</span> 고1 참여율 = 고2의 1/3 → 캠페인 필요</div>
         <div class="insight-item"><span>•</span> 교학상장 활발 학생 B+C 비율 1.8배</div>
