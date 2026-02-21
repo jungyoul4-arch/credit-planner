@@ -1037,6 +1037,234 @@ app.post('/api/student/:studentId/question-records', async (c) => {
   }
 });
 
+// 질문 기록 조회
+app.get('/api/student/:studentId/question-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const records = await c.env.DB.prepare(
+      'SELECT * FROM question_records WHERE student_id = ? ORDER BY created_at DESC'
+    ).bind(studentId).all();
+    return c.json({ records: records.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 교학상장 (가르치기) ====================
+
+app.post('/api/student/:studentId/teach-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { subject, topic, taughtTo, content, reflection, xpEarned } = await c.req.json();
+    if (!topic) return c.json({ error: '주제는 필수입니다' }, 400);
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO teach_records (student_id, subject, topic, taught_to, content, reflection, xp_earned) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject || '', topic, taughtTo || '', content || '', reflection || '', xpEarned || 30).run();
+
+    if (xpEarned) {
+      await c.env.DB.prepare('UPDATE students SET xp = xp + ? WHERE id = ?').bind(xpEarned || 30, studentId).run();
+    }
+
+    return c.json({ success: true, recordId: result.meta.last_row_id });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/student/:studentId/teach-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const records = await c.env.DB.prepare(
+      'SELECT * FROM teach_records WHERE student_id = ? ORDER BY created_at DESC'
+    ).bind(studentId).all();
+    return c.json({ records: records.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 창의적 체험활동 ====================
+
+app.post('/api/student/:studentId/activity-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { activityType, title, description, startDate, endDate, status, progress, reflection } = await c.req.json();
+    if (!title) return c.json({ error: '활동명은 필수입니다' }, 400);
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO activity_records (student_id, activity_type, title, description, start_date, end_date, status, progress, reflection) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, activityType || '', title, description || '', startDate || '', endDate || '', status || 'in-progress', progress || 0, reflection || '').run();
+
+    return c.json({ success: true, recordId: result.meta.last_row_id });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.put('/api/student/activity-records/:recordId', async (c) => {
+  try {
+    const recordId = c.req.param('recordId');
+    const body = await c.req.json();
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (body.status !== undefined) { fields.push('status = ?'); values.push(body.status); }
+    if (body.progress !== undefined) { fields.push('progress = ?'); values.push(body.progress); }
+    if (body.reflection !== undefined) { fields.push('reflection = ?'); values.push(body.reflection); }
+    if (body.description !== undefined) { fields.push('description = ?'); values.push(body.description); }
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+
+    values.push(recordId);
+    await c.env.DB.prepare(`UPDATE activity_records SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/student/:studentId/activity-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const records = await c.env.DB.prepare(
+      'SELECT * FROM activity_records WHERE student_id = ? ORDER BY created_at DESC'
+    ).bind(studentId).all();
+    return c.json({ records: records.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== 관리자/멘토 전체 데이터 조회 API ====================
+
+// 특정 학생의 전체 기록 (날짜별 통합)
+app.get('/api/mentor/student/:studentId/all-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const dateFrom = c.req.query('from') || '2000-01-01';
+    const dateTo = c.req.query('to') || '2099-12-31';
+
+    const [classRecords, questionRecords, teachRecords, activityRecords, assignments, exams, examResults] = await Promise.all([
+      c.env.DB.prepare('SELECT * FROM class_records WHERE student_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, created_at DESC').bind(studentId, dateFrom, dateTo).all(),
+      c.env.DB.prepare('SELECT * FROM question_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ? ORDER BY created_at DESC').bind(studentId, dateFrom, dateTo).all(),
+      c.env.DB.prepare('SELECT * FROM teach_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ? ORDER BY created_at DESC').bind(studentId, dateFrom, dateTo).all(),
+      c.env.DB.prepare('SELECT * FROM activity_records WHERE student_id = ? ORDER BY created_at DESC').bind(studentId).all(),
+      c.env.DB.prepare('SELECT * FROM assignments WHERE student_id = ? ORDER BY due_date DESC').bind(studentId).all(),
+      c.env.DB.prepare('SELECT * FROM exams WHERE student_id = ? ORDER BY start_date DESC').bind(studentId).all(),
+      c.env.DB.prepare('SELECT er.*, e.name as exam_name FROM exam_results er JOIN exams e ON er.exam_id = e.id WHERE er.student_id = ? ORDER BY e.start_date DESC').bind(studentId).all(),
+    ]);
+
+    // 날짜별로 통합
+    const dateMap: Record<string, any> = {};
+    const addToDate = (date: string, type: string, data: any) => {
+      if (!dateMap[date]) dateMap[date] = { date, records: [] };
+      dateMap[date].records.push({ type, ...data });
+    };
+
+    (classRecords.results as any[]).forEach(r => addToDate(r.date, 'class', r));
+    (questionRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'question', r));
+    (teachRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'teach', r));
+    (activityRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'activity', r));
+    (assignments.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'assignment', r));
+
+    const sortedDates = Object.values(dateMap).sort((a: any, b: any) => b.date.localeCompare(a.date));
+
+    return c.json({
+      student: studentId,
+      dateRange: { from: dateFrom, to: dateTo },
+      dailyRecords: sortedDates,
+      summary: {
+        classRecords: (classRecords.results as any[]).length,
+        questionRecords: (questionRecords.results as any[]).length,
+        teachRecords: (teachRecords.results as any[]).length,
+        activityRecords: (activityRecords.results as any[]).length,
+        assignments: (assignments.results as any[]).length,
+        exams: (exams.results as any[]).length,
+        examResults: (examResults.results as any[]).length,
+      },
+      exams: exams.results,
+      examResults: examResults.results,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 그룹 전체 학생 요약 (멘토용 대시보드)
+app.get('/api/mentor/groups/:groupId/summary', async (c) => {
+  try {
+    const groupId = c.req.param('groupId');
+    const dateFrom = c.req.query('from') || new Date().toISOString().slice(0,10);
+    const dateTo = c.req.query('to') || new Date().toISOString().slice(0,10);
+
+    const students = await c.env.DB.prepare(
+      'SELECT id, name, school_name, grade, profile_emoji, xp, level, last_login_at FROM students WHERE group_id = ? AND is_active = 1 ORDER BY name'
+    ).bind(groupId).all();
+
+    const summaries = [];
+    for (const s of students.results as any[]) {
+      const [classCount, questionCount, teachCount, assignCount] = await Promise.all([
+        c.env.DB.prepare('SELECT COUNT(*) as cnt FROM class_records WHERE student_id = ? AND date BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
+        c.env.DB.prepare('SELECT COUNT(*) as cnt FROM question_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
+        c.env.DB.prepare('SELECT COUNT(*) as cnt FROM teach_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
+        c.env.DB.prepare('SELECT COUNT(*) as cnt FROM assignments WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
+      ]);
+
+      summaries.push({
+        ...s,
+        periodStats: {
+          classRecords: (classCount as any)?.cnt || 0,
+          questionRecords: (questionCount as any)?.cnt || 0,
+          teachRecords: (teachCount as any)?.cnt || 0,
+          assignments: (assignCount as any)?.cnt || 0,
+          total: ((classCount as any)?.cnt || 0) + ((questionCount as any)?.cnt || 0) + ((teachCount as any)?.cnt || 0) + ((assignCount as any)?.cnt || 0),
+        },
+      });
+    }
+
+    return c.json({
+      groupId,
+      dateRange: { from: dateFrom, to: dateTo },
+      students: summaries,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 전체 DB 내보내기 (관리자용)
+app.get('/api/admin/export/:table', async (c) => {
+  try {
+    const table = c.req.param('table');
+    const allowed = ['mentors','groups','students','exams','exam_results','wrong_answers','assignments','class_records','question_records','teach_records','activity_records'];
+    if (!allowed.includes(table)) return c.json({ error: '허용되지 않는 테이블입니다' }, 400);
+
+    const dateFrom = c.req.query('from') || '2000-01-01';
+    const dateTo = c.req.query('to') || '2099-12-31';
+
+    let query = `SELECT * FROM ${table}`;
+    if (['class_records'].includes(table)) {
+      query += ` WHERE date BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY date DESC`;
+    } else if (['question_records','teach_records','activity_records','assignments','exams'].includes(table)) {
+      query += ` WHERE DATE(created_at) BETWEEN '${dateFrom}' AND '${dateTo}' ORDER BY created_at DESC`;
+    } else {
+      query += ` ORDER BY id`;
+    }
+
+    const result = await c.env.DB.prepare(query).all();
+    return c.json({
+      table,
+      count: (result.results as any[]).length,
+      data: result.results,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 
 // ==================== STUDENT DATA API: XP/레벨 조회 ====================
 

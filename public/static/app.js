@@ -1214,6 +1214,8 @@ const DB = {
         this.loadAssignments(),
         this.loadClassRecords(),
         this.loadQuestionRecords(),
+        this.loadTeachRecords(),
+        this.loadActivityRecords(),
         this.loadProfile(),
       ]);
     } catch (e) {
@@ -1455,8 +1457,16 @@ const DB = {
   async loadQuestionRecords() {
     const sid = this.studentId();
     if (!sid) return;
-    // 질문 기록은 조회 API는 아직 없으므로 저장만 구현
-    state._dbQuestionRecords = [];
+    try {
+      const res = await fetch(`/api/student/${sid}/question-records`);
+      if (res.ok) {
+        const data = await res.json();
+        state._dbQuestionRecords = (data.records || []).map(r => ({
+          ...r,
+          coachingMessages: JSON.parse(r.coaching_messages || '[]'),
+        }));
+      }
+    } catch (e) { console.error('loadQuestionRecords:', e); }
   },
 
   async saveQuestionRecord(recordData) {
@@ -1474,6 +1484,76 @@ const DB = {
       }
     } catch (e) { console.error('saveQuestionRecord:', e); }
     return null;
+  },
+
+  // === 교학상장 (가르치기) ===
+  async saveTeachRecord(recordData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/teach-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.recordId;
+      }
+    } catch (e) { console.error('saveTeachRecord:', e); }
+    return null;
+  },
+
+  async loadTeachRecords() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/teach-records`);
+      if (res.ok) {
+        const data = await res.json();
+        state._dbTeachRecords = data.records || [];
+      }
+    } catch (e) { console.error('loadTeachRecords:', e); }
+  },
+
+  // === 창의적 체험활동 ===
+  async saveActivityRecord(recordData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/activity-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.recordId;
+      }
+    } catch (e) { console.error('saveActivityRecord:', e); }
+    return null;
+  },
+
+  async updateActivityRecord(recordId, updates) {
+    try {
+      await fetch(`/api/student/activity-records/${recordId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error('updateActivityRecord:', e); }
+  },
+
+  async loadActivityRecords() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/activity-records`);
+      if (res.ok) {
+        const data = await res.json();
+        state._dbActivityRecords = data.records || [];
+      }
+    } catch (e) { console.error('loadActivityRecords:', e); }
   },
 };
 
@@ -4680,7 +4760,7 @@ function renderRecordClass() {
           </div>
         </div>
 
-        <button class="btn-primary" onclick="showXpPopup(10, '수업 기록 완료!')">완료 +10 XP ✨</button>
+        <button class="btn-primary" onclick="saveClassRecordFromForm()">완료 +10 XP ✨</button>
         <p class="input-timer">⏱️ 입력 시간: 22초</p>
       </div>
     </div>
@@ -4688,6 +4768,69 @@ function renderRecordClass() {
 }
 
 // ==================== RECORD QUESTION (R-02) ====================
+
+// 질문 기록을 DB에 저장
+function saveQuestionToDB(saveType) {
+  if (!DB.studentId()) return;
+  const subj = state._activeSubject || '수학';
+  const questionText = state._questionText || '';
+  const diagResult = state._diagResult || {};
+  const challengeResult = state._challengeResult || {};
+  const coachMessages = state._coachMessages || [];
+  
+  const level = challengeResult.level || diagResult.level || '';
+  const label = challengeResult.levelName || diagResult.levelName || '';
+  const axis = diagResult.axis || 'curiosity';
+  const xp = saveType === 'coaching-complete' ? 30 : (challengeResult.xp || diagResult.xp || 15);
+  
+  DB.saveQuestionRecord({
+    subject: subj,
+    questionText: questionText,
+    questionLevel: level,
+    questionLabel: label,
+    axis: axis,
+    coachingMessages: coachMessages,
+    xpEarned: xp,
+    isComplete: saveType === 'coaching-complete',
+  });
+}
+
+// 수업기록 폼에서 실제 입력값을 DB에 저장
+function saveClassRecordFromForm() {
+  const nextRecord = state.todayRecords.find(r => !r.done);
+  const subject = nextRecord ? nextRecord.subject : '영어';
+  const period = nextRecord ? nextRecord.period : 3;
+  
+  // 폼에서 실제 입력값 수집
+  const keywords = document.querySelectorAll('.keyword-chip');
+  const keywordTexts = [];
+  keywords.forEach(k => keywordTexts.push(k.textContent?.trim() || ''));
+  
+  const textarea = document.querySelector('.form-body textarea');
+  const reflection = textarea ? textarea.value?.trim() : '';
+  
+  // todayRecords 업데이트
+  if (nextRecord) {
+    nextRecord.done = true;
+    nextRecord.summary = keywordTexts.join(', ') || reflection || '수업 기록 완료';
+    state.missions[0].current = state.todayRecords.filter(r => r.done).length;
+    if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
+  }
+  
+  // DB 저장
+  if (DB.studentId()) {
+    DB.saveClassRecord({
+      subject: subject,
+      date: new Date().toISOString().slice(0,10),
+      content: reflection || '',
+      keywords: keywordTexts.length > 0 ? keywordTexts : (reflection ? reflection.split(', ') : []),
+      understanding: 3,
+      memo: `${period}교시`,
+    });
+  }
+  
+  showXpPopup(10, '수업 기록 완료!');
+}
 
 function renderRecordQuestion() {
   // 2축 9단계 질문 코칭 시스템 v2.0
@@ -4912,7 +5055,7 @@ function renderRecordQuestion() {
               <i class="fas fa-fire"></i> ${diagResult.nextHint.targetLevel} 도전! 🔥
             </button>
             ` : ''}
-            <button class="btn-ghost" onclick="showXpPopup(${diagResult.xp || 0}, '${diagResult.level || ''} ${diagResult.levelName || ''} 완료!')">
+            <button class="btn-ghost" onclick="saveQuestionToDB('diag');showXpPopup(${diagResult.xp || 0}, '${diagResult.level || ''} ${diagResult.levelName || ''} 완료!')">
               괜찮아요 ✓
             </button>
           </div>
@@ -5011,7 +5154,7 @@ function renderRecordQuestion() {
             <div class="socrates-complete-icon">🎉</div>
             <p><strong>대화 완료!</strong> 사고가 확장됐어요!</p>
             <p class="socrates-xp">🏆 소크라테스 코칭 완료 +30 XP</p>
-            <button class="btn-primary" onclick="showXpPopup(30, '소크라테스 코칭 완료!')">
+            <button class="btn-primary" onclick="saveQuestionToDB('coaching-complete');showXpPopup(30, '소크라테스 코칭 완료!')">
               완료! +30 XP 🏆
             </button>
           </div>
@@ -5085,7 +5228,7 @@ function renderRecordQuestion() {
         </details>
 
         ${coachingMode !== 'challenge' && coachingMode !== 'socrates' && !diagResult ? `
-        <button class="btn-primary" style="margin-top:12px" onclick="showXpPopup(15, '질문 기록 완료! B-1 이유·원리 탐구')">완료 +15 XP ✨</button>
+        <button class="btn-primary" style="margin-top:12px" onclick="saveQuestionToDB('basic');showXpPopup(15, '질문 기록 완료!')">완료 +15 XP ✨</button>
         ` : ''}
       </div>
     </div>
@@ -5508,13 +5651,41 @@ function renderRecordTeach() {
         </div>
         ` : ''}
 
-        <button class="btn-primary" onclick="showXpPopup(30, '교학상장 기록 완료! 🏅')">기록 완료 +30 XP 🏅</button>
+        <button class="btn-primary" onclick="saveTeachRecordFromForm()">기록 완료 +30 XP 🏅</button>
       </div>
     </div>
   `;
 }
 
 // ==================== RECORD ASSIGNMENT (과제 기록) ====================
+
+// 교학상장(가르치기) 기록을 DB에 저장
+function saveTeachRecordFromForm() {
+  const chipActive = document.querySelector('.form-body .chip.active');
+  const subject = chipActive ? chipActive.textContent?.trim() : '수학';
+  const inputs = document.querySelectorAll('.form-body .input-field');
+  const topic = inputs[1]?.value?.trim() || '주제 미입력';
+  const content = inputs[2]?.value?.trim() || '';
+  const reflection = inputs[3]?.value?.trim() || '';
+  
+  const selectedCm = state._teachSelectedCm || null;
+  const classmates = state.classmates || [];
+  const student = classmates.find(c => c.id === selectedCm);
+  const taughtTo = student ? student.name : '';
+  
+  if (DB.studentId()) {
+    DB.saveTeachRecord({
+      subject,
+      topic,
+      taughtTo,
+      content,
+      reflection,
+      xpEarned: 30,
+    });
+  }
+  
+  showXpPopup(30, '교학상장 기록 완료! 🏅');
+}
 
 function renderRecordAssignment() {
   const subjectColors = {
@@ -5858,6 +6029,11 @@ function saveAssignment(goToPlan) {
       a.teacher = teacher || a.teacher;
       a.dueDate = dueDate || a.dueDate;
       a.color = subjectColors[subject] || '#636e72';
+      
+      // DB 업데이트
+      if (a._dbId && DB.studentId()) {
+        DB.updateAssignment(a._dbId, { title: a.title, dueDate: a.dueDate, status: a.status });
+      }
     }
     state.editingAssignment = null;
     if (goToPlan) {
@@ -5949,6 +6125,11 @@ function togglePlanStep(assignmentId, stepIdx) {
     a.status = 'pending';
   }
   
+  // DB 업데이트
+  if (a._dbId && DB.studentId()) {
+    DB.updateAssignment(a._dbId, { status: a.status, progress: a.progress, planData: a.plan });
+  }
+  
   renderScreen();
 }
 
@@ -5958,6 +6139,12 @@ function completeAssignment(id) {
   a.status = 'completed';
   a.progress = 100;
   a.plan.forEach(p => p.done = true);
+  
+  // DB 업데이트
+  if (a._dbId && DB.studentId()) {
+    DB.updateAssignment(a._dbId, { status: 'completed', progress: 100, planData: a.plan });
+  }
+  
   showXpPopup(20, '과제 완료! 🎉');
 }
 
@@ -6454,6 +6641,22 @@ function saveNewActivity() {
 
   state.extracurriculars.push(newEntry);
   
+  // DB 저장
+  if (DB.studentId()) {
+    DB.saveActivityRecord({
+      activityType: actType,
+      title,
+      description: desc,
+      startDate: newEntry.startDate,
+      endDate: newEntry.endDate,
+      status: 'in-progress',
+      progress: 0,
+      reflection: '',
+    }).then(dbId => {
+      if (dbId) newEntry._dbId = dbId;
+    });
+  }
+  
   // 바로 상세 화면으로
   state.viewingActivity = newId;
   goScreen('activity-detail');
@@ -6481,6 +6684,16 @@ function saveActivityLog(ecId) {
   // 진행률 자동 증가 (최소 5%)
   if (ec.progress < 100) {
     ec.progress = Math.min(ec.progress + 5, 100);
+  }
+
+  // DB 업데이트 (활동 로그를 description에 누적 저장)
+  if (ec._dbId && DB.studentId()) {
+    DB.updateActivityRecord(ec._dbId, {
+      progress: ec.progress,
+      status: ec.progress >= 100 ? 'completed' : 'in-progress',
+      description: JSON.stringify(ec.logs),
+      reflection: reflection,
+    });
   }
 
   state.xp += 20;
@@ -8488,21 +8701,29 @@ try {
 
 function completeClassRecord(idx) {
   if (idx >= 0 && idx < state.todayRecords.length) {
-    state.todayRecords[idx].done = true;
-    state.todayRecords[idx].summary = '관계대명사, which, that, 제한적용법';
+    const r = state.todayRecords[idx];
+    
+    // 팝업에서 실제 입력값 수집
+    const thoughtInput = document.querySelector('.popup-card .input-field');
+    const thought = thoughtInput ? thoughtInput.value?.trim() : '';
+    const keywords = document.querySelectorAll('.popup-card .keyword-chip');
+    const keywordTexts = [];
+    keywords.forEach(k => keywordTexts.push(k.textContent?.trim() || ''));
+    
+    r.done = true;
+    r.summary = keywordTexts.join(', ') || thought || '수업 기록 완료';
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
 
-    // DB 저장 (비동기)
+    // DB 저장
     if (DB.studentId()) {
-      const r = state.todayRecords[idx];
       DB.saveClassRecord({
         subject: r.subject || '미지정',
         date: new Date().toISOString().slice(0,10),
-        content: r.summary || '',
-        keywords: r.summary ? r.summary.split(', ') : [],
+        content: thought || r.summary || '',
+        keywords: keywordTexts.length > 0 ? keywordTexts : (r.summary ? r.summary.split(', ') : []),
         understanding: 3,
-        memo: '',
+        memo: `${r.period || ''}교시`,
       });
     }
   }
