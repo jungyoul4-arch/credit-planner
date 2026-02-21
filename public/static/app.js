@@ -1763,6 +1763,40 @@ function isEveningTime() {
   return h >= 19 && h <= 23;
 }
 
+// ==================== QUICK TODO FUNCTIONS ====================
+function addQuickTodo() {
+  const input = document.getElementById('quick-todo-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  if (!state.quickTodos) state.quickTodos = [];
+  state.quickTodos.push({ text, done: false });
+  input.value = '';
+  // 로컬 스토리지에 저장
+  try { localStorage.setItem('quickTodos', JSON.stringify(state.quickTodos)); } catch(e) {}
+  renderScreen();
+}
+
+function toggleQuickTodo(index) {
+  if (!state.quickTodos || !state.quickTodos[index]) return;
+  state.quickTodos[index].done = !state.quickTodos[index].done;
+  try { localStorage.setItem('quickTodos', JSON.stringify(state.quickTodos)); } catch(e) {}
+  renderScreen();
+}
+
+function deleteQuickTodo(index) {
+  if (!state.quickTodos) return;
+  state.quickTodos.splice(index, 1);
+  try { localStorage.setItem('quickTodos', JSON.stringify(state.quickTodos)); } catch(e) {}
+  renderScreen();
+}
+
+// 앱 시작 시 로컬 스토리지에서 투두 복원
+try {
+  const saved = localStorage.getItem('quickTodos');
+  if (saved) state.quickTodos = JSON.parse(saved);
+} catch(e) {}
+
 // 1분마다 체크 → 수업 끝났으면 화면 갱신 + 선택적 자동 팝업
 let _classCheckTimer = null;
 let _lastAutoPopupPeriod = 0;
@@ -1935,28 +1969,61 @@ function renderHomeTab() {
   const now = new Date();
   const dayNames = ['일','월','화','수','목','금','토'];
   
+  // 투두리스트 데이터 (state에 없으면 초기화)
+  if (!state.quickTodos) state.quickTodos = [];
+  
   return `
     <div class="tab-content animate-in">
-      <!-- Greeting -->
-      <div class="home-greeting">
-        <div>
-          <h2>${greeting}, ${userName}! 👋</h2>
-          <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
-            <span class="date-day">${now.getDate()}</span>
-            <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
-            ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+      <!-- Greeting + Quick Actions Row -->
+      <div class="home-top-row">
+        <div class="home-greeting">
+          <div>
+            <h2>${greeting}, ${userName}! 👋</h2>
+            <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
           </div>
-          ${state._authUser ? `<button onclick="logout()" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;padding:4px" title="로그아웃"><i class="fas fa-sign-out-alt"></i></button>` : ''}
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
+              <span class="date-day">${now.getDate()}</span>
+              <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
+              ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+            </div>
+          </div>
+        </div>
+        <!-- Quick Actions (가로모드에서 우측 상단에 표시) -->
+        <div class="home-quick-actions">
+          <button class="home-qa-btn ${isEveningTime()?'qa-active':''}" onclick="goScreen('evening-routine')">
+            <i class="fas fa-moon"></i>
+            <span>저녁 루틴</span>
+            ${isEveningTime()?'<span class="qa-dot"></span>':''}
+          </button>
+          <button class="home-qa-btn ${hasUnrecordedEndedClass()?'qa-active':''}" onclick="goScreen('class-end-popup')">
+            <i class="fas fa-bell"></i>
+            <span>수업 종료</span>
+            ${hasUnrecordedEndedClass()?`<span class="qa-count">${countUnrecordedEndedClasses()}</span>`:''}
+          </button>
+          <button class="home-qa-btn" onclick="goScreen('assignment-list')">
+            <i class="fas fa-clipboard-list"></i>
+            <span>과제 관리</span>
+          </button>
         </div>
       </div>
 
-      <!-- 카드 그리드 (태블릿에서 2컬럼) -->
+      ${hasUnrecordedEndedClass() ? `
+      <!-- 미기록 수업 경고 배너 -->
+      <div class="unrecorded-warn-banner stagger-1 animate-in" onclick="goScreen('class-end-popup')" style="margin:0 16px 12px">
+        <span style="font-size:20px">🔔</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--accent)">미기록 수업 ${countUnrecordedEndedClasses()}개!</div>
+          <div style="font-size:11px;color:var(--text-secondary)">끝난 수업이 있어요. 탭하여 바로 기록하세요</div>
+        </div>
+        <i class="fas fa-chevron-right" style="color:var(--accent);font-size:12px"></i>
+      </div>
+      ` : ''}
+
+      <!-- 카드 그리드 -->
       <div class="home-cards-grid">
       <!-- Morning Routine Card -->
-      <div class="card card-gradient-purple stagger-1 animate-in">
+      <div class="card card-gradient-purple stagger-1 animate-in home-card-routine">
         <div class="card-header-row">
           <span class="card-title">☀️ 아침 루틴</span>
           <span class="xp-badge-sm">+10 XP</span>
@@ -1987,20 +2054,34 @@ function renderHomeTab() {
         </div>
       </div>
 
-      ${hasUnrecordedEndedClass() ? `
-      <!-- 미기록 수업 경고 배너 -->
-      <div class="unrecorded-warn-banner stagger-2 animate-in" onclick="goScreen('class-end-popup')">
-        <span style="font-size:20px">🔔</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:var(--accent)">미기록 수업 ${countUnrecordedEndedClasses()}개!</div>
-          <div style="font-size:11px;color:var(--text-secondary)">끝난 수업이 있어요. 탭하여 바로 기록하세요</div>
+      <!-- Quick Todo Card (루틴 카드 아래 빈 공간 채우기) -->
+      <div class="card stagger-2 animate-in home-card-todo">
+        <div class="card-header-row">
+          <span class="card-title">✏️ 오늘 할 일</span>
+          <span class="card-subtitle">${state.quickTodos.filter(t=>t.done).length}/${state.quickTodos.length}</span>
         </div>
-        <i class="fas fa-chevron-right" style="color:var(--accent);font-size:12px"></i>
+        <div class="quick-todo-list" id="quick-todo-list">
+          ${state.quickTodos.length === 0 ? `
+            <div class="quick-todo-empty">
+              <span style="font-size:20px;opacity:0.4">📝</span>
+              <span style="font-size:11px;color:var(--text-muted)">할 일을 추가해보세요</span>
+            </div>
+          ` : state.quickTodos.map((t, i) => `
+            <div class="quick-todo-item ${t.done?'done':''}" onclick="toggleQuickTodo(${i})">
+              <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:14px;cursor:pointer"></i>
+              <span class="quick-todo-text">${t.text}</span>
+              <button class="quick-todo-del" onclick="event.stopPropagation();deleteQuickTodo(${i})"><i class="fas fa-times"></i></button>
+            </div>
+          `).join('')}
+        </div>
+        <div class="quick-todo-input-row">
+          <input type="text" id="quick-todo-input" class="quick-todo-input" placeholder="할 일 입력..." maxlength="50" onkeydown="if(event.key==='Enter')addQuickTodo()">
+          <button class="quick-todo-add-btn" onclick="addQuickTodo()"><i class="fas fa-plus"></i></button>
+        </div>
       </div>
-      ` : ''}
 
       <!-- Today Timetable -->
-      <div class="card stagger-2 animate-in">
+      <div class="card stagger-2 animate-in home-card-timetable">
         <div class="card-header-row">
           <span class="card-title">📋 오늘 시간표</span>
           <span class="card-subtitle">${doneCount}/${total} 기록완료</span>
@@ -2118,7 +2199,7 @@ function renderHomeTab() {
                 <div class="ua-subject-row">
                   <span class="ua-subject-dot" style="background:${a.color}"></span>
                   <span class="ua-subject">${a.subject}</span>
-                  <span class="ua-type">${a.type}</span>
+                  <span class="ua-type">${a.type || ''}</span>
                 </div>
                 <div class="ua-title">${a.title}</div>
                 <div class="ua-progress-row">
@@ -2136,19 +2217,6 @@ function renderHomeTab() {
       </div>
       ` : ''}
       </div><!-- end home-cards-grid -->
-
-      <!-- Quick Actions -->
-      <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap" class="stagger-6 animate-in">
-        <button class="quick-action-btn ${isEveningTime()?'qa-glow':''}" onclick="goScreen('evening-routine')">
-          <i class="fas fa-moon"></i> 저녁 루틴 ${isEveningTime()?'<span class="qa-badge">NOW</span>':''}
-        </button>
-        <button class="quick-action-btn ${hasUnrecordedEndedClass()?'qa-glow':''}" onclick="goScreen('class-end-popup')">
-          <i class="fas fa-bell"></i> 수업종료 팝업 ${hasUnrecordedEndedClass()?`<span class="qa-badge">${countUnrecordedEndedClasses()}</span>`:''}
-        </button>
-        <button class="quick-action-btn" onclick="goScreen('assignment-list')">
-          <i class="fas fa-clipboard-list"></i> 과제 관리
-        </button>
-      </div>
     </div>
   `;
 }
