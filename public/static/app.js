@@ -6,10 +6,18 @@
 // ==================== APP STATE ====================
 const state = {
   mode: 'student',
-  currentScreen: 'onboarding-welcome',
+  currentScreen: 'login',
   studentTab: 'home',
   mentorTab: 'students',
   directorTab: 'overview',
+  // 인증 상태
+  _authUser: null,
+  _authToken: null,
+  _authRole: null,
+  _authGroup: null,
+  _authMentorGroups: null,
+  _loginError: '',
+  _loginLoading: false,
   xp: 1240,
   level: 12,
   streak: 18,
@@ -426,12 +434,14 @@ function renderScreen() {
       tabletContainer.style.display = 'block';
       tabletContent.innerHTML = renderStudentApp();
       initStudentEvents(tabletContent);
+      initAuthEvents(tabletContent);
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
     } else {
       phoneContainer.style.display = 'flex';
       tabletContainer.style.display = 'none';
       container.innerHTML = renderStudentApp();
       initStudentEvents(container);
+      initAuthEvents(container);
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
     }
   } else if (state.mode === 'mentor') {
@@ -463,6 +473,10 @@ window.addEventListener('resize', () => {
 
 function renderStudentApp() {
   if (state.currentScreen.startsWith('onboarding')) return renderOnboarding();
+  if (state.currentScreen === 'login') return renderLoginScreen();
+  if (state.currentScreen === 'register-student') return renderStudentRegister();
+  if (state.currentScreen === 'register-mentor') return renderMentorRegister();
+  if (state.currentScreen === 'login-mentor') return renderMentorLogin();
   if (state.currentScreen === 'record-class') return renderRecordClass();
   if (state.currentScreen === 'record-question') return renderRecordQuestion();
   if (state.currentScreen === 'record-teach') return renderRecordTeach();
@@ -736,6 +750,417 @@ function renderOnboardingGuide() {
   `;
 }
 
+// ==================== LOGIN / REGISTER SCREENS ====================
+
+function renderLoginScreen() {
+  return `
+    <div class="onboarding-screen animate-in">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
+        <div class="onboarding-logo">
+          <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
+          <h2>고교학점플래너</h2>
+          <p>HS CreditPlanner</p>
+        </div>
+        <p style="text-align:center;color:var(--text-secondary);font-size:15px;line-height:1.8;margin-bottom:32px">
+          고교학점제 시대,<br>
+          <strong style="color:var(--text-primary)">학교생활의 모든 순간</strong>을 기록하고<br>
+          <strong style="color:var(--primary-light)">생기부 경쟁력</strong>으로 만드세요
+        </p>
+
+        ${state._loginError ? `<div style="background:rgba(255,107,107,0.15);color:#FF6B6B;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;width:100%;text-align:center">${state._loginError}</div>` : ''}
+
+        <div class="field-group" style="width:100%">
+          <label class="field-label">초대 코드</label>
+          <input class="input-field" id="login-invite-code" placeholder="JYCC-XXXX-XXXX" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px" autocomplete="off">
+        </div>
+        <div class="field-group" style="width:100%">
+          <label class="field-label">이름</label>
+          <input class="input-field" id="login-name" placeholder="이름을 입력하세요" style="font-size:15px">
+        </div>
+        <div class="field-group" style="width:100%">
+          <label class="field-label">비밀번호</label>
+          <input class="input-field" id="login-password" type="password" placeholder="비밀번호 입력" style="font-size:15px">
+        </div>
+      </div>
+
+      <button class="btn-primary btn-glow" id="btn-student-login" style="width:100%;margin-bottom:10px" ${state._loginLoading ? 'disabled' : ''}>
+        ${state._loginLoading ? '<i class="fas fa-spinner fa-spin"></i> 로그인 중...' : '로그인 <i class="fas fa-arrow-right" style="margin-left:8px"></i>'}
+      </button>
+      <button class="btn-secondary" id="btn-go-register" style="width:100%;margin-bottom:10px">
+        처음이에요? 회원가입
+      </button>
+      <div style="text-align:center;margin-top:4px">
+        <button style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;text-decoration:underline" id="btn-go-mentor-login">
+          선생님이신가요?
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderStudentRegister() {
+  return `
+    <div class="onboarding-screen animate-slide">
+      <div class="screen-header" style="padding:0 0 16px 0">
+        <button class="back-btn" onclick="state._loginError='';goScreen('login')"><i class="fas fa-arrow-left"></i></button>
+        <h1 style="font-size:18px">학생 회원가입</h1>
+      </div>
+
+      ${state._loginError ? `<div style="background:rgba(255,107,107,0.15);color:#FF6B6B;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;text-align:center">${state._loginError}</div>` : ''}
+
+      <div class="field-group">
+        <label class="field-label">초대 코드 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="reg-invite-code" placeholder="선생님이 알려준 코드" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px">
+        <div id="invite-code-status" style="font-size:12px;margin-top:4px;min-height:18px"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">이름 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="reg-name" placeholder="실명을 입력하세요">
+      </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="reg-password" type="password" placeholder="4자 이상">
+      </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호 확인 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="reg-password2" type="password" placeholder="비밀번호 다시 입력">
+      </div>
+      <div class="field-group">
+        <label class="field-label">학교명</label>
+        <input class="input-field" id="reg-school" placeholder="예: 정율고등학교">
+      </div>
+      <div class="field-group">
+        <label class="field-label">학년</label>
+        <div style="display:flex;gap:8px">
+          <button class="grid-select-btn reg-grade-btn active" data-grade="1" style="flex:1">1학년</button>
+          <button class="grid-select-btn reg-grade-btn" data-grade="2" style="flex:1">2학년</button>
+          <button class="grid-select-btn reg-grade-btn" data-grade="3" style="flex:1">3학년</button>
+        </div>
+      </div>
+
+      <div style="flex:1"></div>
+      <button class="btn-primary btn-glow" id="btn-student-register" style="width:100%;margin-top:16px" ${state._loginLoading ? 'disabled' : ''}>
+        ${state._loginLoading ? '<i class="fas fa-spinner fa-spin"></i> 가입 중...' : '가입하기 🎉'}
+      </button>
+    </div>
+  `;
+}
+
+function renderMentorLogin() {
+  return `
+    <div class="onboarding-screen animate-slide">
+      <div class="screen-header" style="padding:0 0 16px 0">
+        <button class="back-btn" onclick="state._loginError='';goScreen('login')"><i class="fas fa-arrow-left"></i></button>
+        <h1 style="font-size:18px">멘토 로그인</h1>
+      </div>
+
+      ${state._loginError ? `<div style="background:rgba(255,107,107,0.15);color:#FF6B6B;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;text-align:center">${state._loginError}</div>` : ''}
+
+      <div style="text-align:center;margin-bottom:24px">
+        <span style="font-size:48px">👨‍🏫</span>
+        <p style="color:var(--text-secondary);font-size:13px;margin-top:8px">선생님 전용 로그인</p>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">아이디</label>
+        <input class="input-field" id="mentor-login-id" placeholder="멘토 아이디" autocomplete="username">
+      </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호</label>
+        <input class="input-field" id="mentor-login-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+      </div>
+
+      <div style="flex:1"></div>
+      <button class="btn-primary" id="btn-mentor-login" style="width:100%;margin-bottom:10px" ${state._loginLoading ? 'disabled' : ''}>
+        ${state._loginLoading ? '<i class="fas fa-spinner fa-spin"></i> 로그인 중...' : '멘토 로그인'}
+      </button>
+      <button class="btn-secondary" id="btn-go-mentor-register" style="width:100%">
+        멘토 계정 만들기
+      </button>
+    </div>
+  `;
+}
+
+function renderMentorRegister() {
+  return `
+    <div class="onboarding-screen animate-slide">
+      <div class="screen-header" style="padding:0 0 16px 0">
+        <button class="back-btn" onclick="state._loginError='';goScreen('login-mentor')"><i class="fas fa-arrow-left"></i></button>
+        <h1 style="font-size:18px">멘토 회원가입</h1>
+      </div>
+
+      ${state._loginError ? `<div style="background:rgba(255,107,107,0.15);color:#FF6B6B;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;text-align:center">${state._loginError}</div>` : ''}
+
+      <div class="field-group">
+        <label class="field-label">아이디 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="mentor-reg-id" placeholder="영문/숫자 조합">
+      </div>
+      <div class="field-group">
+        <label class="field-label">비밀번호 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="mentor-reg-pw" type="password" placeholder="4자 이상">
+      </div>
+      <div class="field-group">
+        <label class="field-label">이름 <span style="color:#FF6B6B">*</span></label>
+        <input class="input-field" id="mentor-reg-name" placeholder="선생님 성함">
+      </div>
+      <div class="field-group">
+        <label class="field-label">학원명</label>
+        <input class="input-field" id="mentor-reg-academy" placeholder="예: 정율사관학원">
+      </div>
+      <div class="field-group">
+        <label class="field-label">연락처</label>
+        <input class="input-field" id="mentor-reg-phone" placeholder="010-XXXX-XXXX">
+      </div>
+
+      <div style="flex:1"></div>
+      <button class="btn-primary btn-glow" id="btn-mentor-register" style="width:100%;margin-top:16px" ${state._loginLoading ? 'disabled' : ''}>
+        ${state._loginLoading ? '<i class="fas fa-spinner fa-spin"></i> 가입 중...' : '멘토 등록하기'}
+      </button>
+    </div>
+  `;
+}
+
+
+// ==================== AUTH EVENT HANDLERS ====================
+
+function initAuthEvents(container) {
+  if (!container) return;
+
+  // 학생 로그인
+  container.querySelector('#btn-student-login')?.addEventListener('click', async () => {
+    const code = container.querySelector('#login-invite-code')?.value?.trim();
+    const name = container.querySelector('#login-name')?.value?.trim();
+    const pw = container.querySelector('#login-password')?.value;
+    if (!code || !name || !pw) { state._loginError = '모든 항목을 입력해주세요'; renderScreen(); return; }
+
+    state._loginLoading = true; state._loginError = ''; renderScreen();
+    try {
+      const res = await fetch('/api/auth/student/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ inviteCode: code, name, password: pw })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '로그인 실패');
+
+      // 로그인 성공 - 상태 저장
+      state._authUser = data.user;
+      state._authToken = data.token;
+      state._authRole = 'student';
+      state._authGroup = data.group;
+      state._loginError = '';
+      state._loginLoading = false;
+
+      // localStorage에 저장 (자동 로그인)
+      localStorage.setItem('cp_auth', JSON.stringify({
+        user: data.user, token: data.token, role: 'student', group: data.group
+      }));
+
+      state.currentScreen = 'main';
+      state.studentTab = 'home';
+      state.mode = 'student';
+      renderScreen();
+    } catch (e) {
+      state._loginError = e.message;
+      state._loginLoading = false;
+      renderScreen();
+    }
+  });
+
+  // 학생 가입 페이지로
+  container.querySelector('#btn-go-register')?.addEventListener('click', () => {
+    state._loginError = ''; goScreen('register-student');
+  });
+
+  // 멘토 로그인 페이지로
+  container.querySelector('#btn-go-mentor-login')?.addEventListener('click', () => {
+    state._loginError = ''; goScreen('login-mentor');
+  });
+
+  // 멘토 가입 페이지로
+  container.querySelector('#btn-go-mentor-register')?.addEventListener('click', () => {
+    state._loginError = ''; goScreen('register-mentor');
+  });
+
+  // 학생 회원가입
+  container.querySelector('#btn-student-register')?.addEventListener('click', async () => {
+    const code = container.querySelector('#reg-invite-code')?.value?.trim();
+    const name = container.querySelector('#reg-name')?.value?.trim();
+    const pw = container.querySelector('#reg-password')?.value;
+    const pw2 = container.querySelector('#reg-password2')?.value;
+    const school = container.querySelector('#reg-school')?.value?.trim();
+    const gradeBtn = container.querySelector('.reg-grade-btn.active');
+    const grade = gradeBtn ? parseInt(gradeBtn.dataset.grade) : 1;
+
+    if (!code || !name || !pw) { state._loginError = '초대코드, 이름, 비밀번호는 필수입니다'; renderScreen(); return; }
+    if (pw !== pw2) { state._loginError = '비밀번호가 일치하지 않습니다'; renderScreen(); return; }
+    if (pw.length < 4) { state._loginError = '비밀번호는 4자 이상이어야 합니다'; renderScreen(); return; }
+
+    state._loginLoading = true; state._loginError = ''; renderScreen();
+    try {
+      const res = await fetch('/api/auth/student/register', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ inviteCode: code, name, password: pw, schoolName: school, grade })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '가입 실패');
+
+      state._loginLoading = false;
+      alert(`🎉 ${data.groupName}에 가입되었습니다!\\n\\n담당: ${data.mentorName} 선생님\\n이제 로그인해주세요.`);
+      state._loginError = '';
+      goScreen('login');
+    } catch (e) {
+      state._loginError = e.message;
+      state._loginLoading = false;
+      renderScreen();
+    }
+  });
+
+  // 학생 가입: 학년 선택
+  container.querySelectorAll('.reg-grade-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.reg-grade-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // 초대코드 실시간 확인
+  const inviteInput = container.querySelector('#reg-invite-code');
+  let inviteTimer = null;
+  inviteInput?.addEventListener('input', () => {
+    clearTimeout(inviteTimer);
+    const status = container.querySelector('#invite-code-status');
+    const val = inviteInput.value.trim();
+    if (val.length < 10) { if (status) status.innerHTML = ''; return; }
+    inviteTimer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/auth/verify-invite/' + encodeURIComponent(val));
+        const data = await res.json();
+        if (data.valid) {
+          status.innerHTML = `<span style="color:#00B894">✅ ${data.academyName} - ${data.groupName} (${data.mentorName} 선생님)</span>`;
+        } else {
+          status.innerHTML = `<span style="color:#FF6B6B">❌ ${data.error}</span>`;
+        }
+      } catch { status.innerHTML = ''; }
+    }, 500);
+  });
+
+  // 멘토 로그인
+  container.querySelector('#btn-mentor-login')?.addEventListener('click', async () => {
+    const id = container.querySelector('#mentor-login-id')?.value?.trim();
+    const pw = container.querySelector('#mentor-login-pw')?.value;
+    if (!id || !pw) { state._loginError = '아이디와 비밀번호를 입력해주세요'; renderScreen(); return; }
+
+    state._loginLoading = true; state._loginError = ''; renderScreen();
+    try {
+      const res = await fetch('/api/auth/mentor/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ loginId: id, password: pw })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '로그인 실패');
+
+      state._authUser = data.user;
+      state._authToken = data.token;
+      state._authRole = 'mentor';
+      state._authMentorGroups = data.groups;
+      state._loginError = '';
+      state._loginLoading = false;
+
+      localStorage.setItem('cp_auth', JSON.stringify({
+        user: data.user, token: data.token, role: 'mentor', groups: data.groups
+      }));
+
+      state.mode = 'mentor';
+      state.currentScreen = 'main';
+      renderScreen();
+    } catch (e) {
+      state._loginError = e.message;
+      state._loginLoading = false;
+      renderScreen();
+    }
+  });
+
+  // 멘토 회원가입
+  container.querySelector('#btn-mentor-register')?.addEventListener('click', async () => {
+    const id = container.querySelector('#mentor-reg-id')?.value?.trim();
+    const pw = container.querySelector('#mentor-reg-pw')?.value;
+    const name = container.querySelector('#mentor-reg-name')?.value?.trim();
+    const academy = container.querySelector('#mentor-reg-academy')?.value?.trim();
+    const phone = container.querySelector('#mentor-reg-phone')?.value?.trim();
+
+    if (!id || !pw || !name) { state._loginError = '아이디, 비밀번호, 이름은 필수입니다'; renderScreen(); return; }
+    if (pw.length < 4) { state._loginError = '비밀번호는 4자 이상이어야 합니다'; renderScreen(); return; }
+
+    state._loginLoading = true; state._loginError = ''; renderScreen();
+    try {
+      const res = await fetch('/api/auth/mentor/register', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ loginId: id, password: pw, name, academyName: academy, phone })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '가입 실패');
+
+      state._loginLoading = false;
+      alert(`🎉 멘토 등록 완료!\\n\\n기본 반 초대코드: ${data.defaultGroupInviteCode}\\n이 코드를 학생들에게 알려주세요.\\n\\n이제 로그인해주세요.`);
+      state._loginError = '';
+      goScreen('login-mentor');
+    } catch (e) {
+      state._loginError = e.message;
+      state._loginLoading = false;
+      renderScreen();
+    }
+  });
+
+  // Enter 키 로그인
+  container.querySelector('#login-password')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') container.querySelector('#btn-student-login')?.click();
+  });
+  container.querySelector('#mentor-login-pw')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') container.querySelector('#btn-mentor-login')?.click();
+  });
+}
+
+// 로그아웃
+function logout() {
+  if (!confirm('로그아웃 하시겠습니까?')) return;
+  state._authUser = null;
+  state._authToken = null;
+  state._authRole = null;
+  state._authGroup = null;
+  state._authMentorGroups = null;
+  state._loginError = '';
+  localStorage.removeItem('cp_auth');
+  state.currentScreen = 'login';
+  state.mode = 'student';
+  renderScreen();
+}
+
+// 자동 로그인 (페이지 로드 시)
+function autoLogin() {
+  try {
+    const saved = localStorage.getItem('cp_auth');
+    if (!saved) return;
+    const auth = JSON.parse(saved);
+    if (!auth.user || !auth.token) return;
+
+    state._authUser = auth.user;
+    state._authToken = auth.token;
+    state._authRole = auth.role;
+    if (auth.role === 'student') {
+      state._authGroup = auth.group;
+      state.mode = 'student';
+    } else if (auth.role === 'mentor') {
+      state._authMentorGroups = auth.groups;
+      state.mode = 'mentor';
+    }
+    state.currentScreen = 'main';
+    state.studentTab = 'home';
+  } catch (e) {
+    localStorage.removeItem('cp_auth');
+  }
+}
+
+
 // ==================== HOME TAB (H-01~H-05) ====================
 
 function renderHomeTab() {
@@ -745,18 +1170,25 @@ function renderHomeTab() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? '좋은 아침' : hour < 18 ? '좋은 오후' : '좋은 저녁';
   
+  const userName = state._authUser?.name || '민준';
+  const now = new Date();
+  const dayNames = ['일','월','화','수','목','금','토'];
+  
   return `
     <div class="tab-content animate-in">
       <!-- Greeting -->
       <div class="home-greeting">
         <div>
-          <h2>${greeting}, 민준! 👋</h2>
+          <h2>${greeting}, ${userName}! 👋</h2>
           <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
         </div>
-        <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
-          <span class="date-day">15</span>
-          <span class="date-month">2월 토</span>
-          ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
+            <span class="date-day">${now.getDate()}</span>
+            <span class="date-month">${now.getMonth()+1}월 ${dayNames[now.getDay()]}</span>
+            ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+          </div>
+          ${state._authUser ? `<button onclick="logout()" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;padding:4px" title="로그아웃"><i class="fas fa-sign-out-alt"></i></button>` : ''}
         </div>
       </div>
 
@@ -7944,4 +8376,5 @@ document.querySelectorAll('.device-preview-btn').forEach(btn => {
 
 // 학원 플래너 동기화 초기화
 initAcademySync();
+autoLogin();
 renderScreen();
