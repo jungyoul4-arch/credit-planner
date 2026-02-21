@@ -1664,6 +1664,31 @@ function renderExamResultInput() {
                   <label style="font-size:10px;color:var(--text-muted)">다음에 어떻게 할지 (성찰)</label>
                   <textarea class="input-field wa-reflection" data-subj="${activeSubj}" data-wi="${wi}" rows="2" placeholder="구간 변환 공식을 다시 정리해야겠다" style="font-size:12px;padding:8px">${w.reflection || ''}</textarea>
                 </div>
+
+                <!-- 오답 문제 사진 -->
+                <div style="margin-top:8px">
+                  <label style="font-size:10px;color:var(--text-muted)">📷 오답 문제 사진</label>
+                  <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;align-items:center">
+                    ${(w.images || []).map((img, imgIdx) => `
+                      <div style="position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--border-color);flex-shrink:0">
+                        <img src="${img}" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="viewWrongAnswerImage(${activeSubj},${wi},${imgIdx})">
+                        <button style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(255,107,107,0.9);border:none;color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center" onclick="removeWrongAnswerImage(${activeSubj},${wi},${imgIdx})"><i class="fas fa-times" style="font-size:8px"></i></button>
+                      </div>
+                    `).join('')}
+                    <div style="display:flex;gap:4px">
+                      <label style="width:48px;height:48px;border-radius:8px;border:2px dashed var(--border-color);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:var(--text-muted);gap:2px;transition:all 0.2s" onmouseover="this.style.borderColor='var(--primary-light)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                        <i class="fas fa-image" style="font-size:14px"></i>
+                        <span>앨범</span>
+                        <input type="file" accept="image/*" multiple style="display:none" onchange="handleWrongAnswerImage(event,${activeSubj},${wi})">
+                      </label>
+                      <label style="width:48px;height:48px;border-radius:8px;border:2px dashed var(--border-color);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:10px;color:var(--text-muted);gap:2px;transition:all 0.2s" onmouseover="this.style.borderColor='var(--primary-light)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                        <i class="fas fa-camera" style="font-size:14px"></i>
+                        <span>촬영</span>
+                        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handleWrongAnswerImage(event,${activeSubj},${wi})">
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
             `).join('')}
           `}
@@ -1779,9 +1804,9 @@ function renderExamReport() {
         ` : ''}
 
         <!-- 과목별 오답 상세 -->
-        ${r.subjects.filter(s => (s.wrongAnswers||[]).length > 0).map(sub => `
+        ${r.subjects.filter(s => (s.wrongAnswers||[]).length > 0).map((sub, sIdx) => `
         <div class="section-label" style="margin-top:16px">${sub.subject} 오답 상세</div>
-        ${(sub.wrongAnswers||[]).map(w => `
+        ${(sub.wrongAnswers||[]).map((w, wIdx) => `
           <div class="card" style="border-left:3px solid ${errorTypeColors[w.type]||'var(--border-color)'};margin-bottom:8px;padding:12px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
               <span style="font-size:12px;font-weight:700;background:var(--bg-input);padding:2px 8px;border-radius:6px">${w.number ? w.number+'번' : '?'}</span>
@@ -1791,6 +1816,18 @@ function renderExamReport() {
             ${w.myAnswer || w.correctAnswer ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">내 답: <span style="color:#FF6B6B">${w.myAnswer||'?'}</span> → 정답: <span style="color:#00B894">${w.correctAnswer||'?'}</span></div>` : ''}
             ${w.reason ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px"><strong>원인:</strong> ${w.reason}</div>` : ''}
             ${w.reflection ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px"><strong>성찰:</strong> ${w.reflection}</div>` : ''}
+            ${(w.images && w.images.length > 0) ? `
+              <div style="margin-top:8px">
+                <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">📷 오답 문제 사진</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  ${w.images.map((img, imgI) => `
+                    <div style="width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--border-color);cursor:pointer" onclick="viewReportWrongImage('${ex.id}','${sub.subject}',${wIdx},${imgI})">
+                      <img src="${img}" style="width:100%;height:100%;object-fit:cover">
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
           </div>
         `).join('')}
         `).join('')}
@@ -1967,6 +2004,13 @@ function collectExamResultData() {
     subject: s.subject, score: '', grade: '', avg: '', color: s.color, wrongAnswers: []
   }));
 
+  // 이미지 데이터는 DOM이 아닌 state에 있으므로 기존 데이터에서 보존
+  subjResults.forEach(sr => {
+    (sr.wrongAnswers || []).forEach(w => {
+      if (!w.images) w.images = [];
+    });
+  });
+
   // 현재 과목의 입력값 수집
   const activeSubj = state._examResultActiveSubj || 0;
   
@@ -2036,7 +2080,7 @@ function addWrongAnswer(subjIdx) {
   // 오답 추가
   if (!ex.result) ex.result = { totalScore:'', grade:'', subjects: ex.subjects.map(s => ({subject:s.subject,score:'',grade:'',avg:'',color:s.color,wrongAnswers:[]})), overallReflection:'' };
   if (!ex.result.subjects[subjIdx].wrongAnswers) ex.result.subjects[subjIdx].wrongAnswers = [];
-  ex.result.subjects[subjIdx].wrongAnswers.push({ number:'', topic:'', type:'', myAnswer:'', correctAnswer:'', reason:'', reflection:'' });
+  ex.result.subjects[subjIdx].wrongAnswers.push({ number:'', topic:'', type:'', myAnswer:'', correctAnswer:'', reason:'', reflection:'', images:[] });
   
   renderScreen();
 }
@@ -2061,6 +2105,158 @@ function setWrongAnswerType(subjIdx, waIdx, type) {
   
   ex.result.subjects[subjIdx].wrongAnswers[waIdx].type = type;
   renderScreen();
+}
+
+// 오답 문제 사진 업로드 핸들러
+function handleWrongAnswerImage(event, subjIdx, waIdx) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex || !ex.result) return;
+
+  // 현재 입력값 저장
+  const collected = collectExamResultData();
+  if (collected) ex.result.subjects = collected;
+
+  const wa = ex.result.subjects[subjIdx]?.wrongAnswers[waIdx];
+  if (!wa) return;
+  if (!wa.images) wa.images = [];
+
+  // 최대 5장 제한
+  const maxImages = 5;
+  const remaining = maxImages - wa.images.length;
+  if (remaining <= 0) {
+    alert('사진은 최대 5장까지 첨부할 수 있습니다.');
+    return;
+  }
+
+  const filesToProcess = Array.from(files).slice(0, remaining);
+  let processedCount = 0;
+
+  filesToProcess.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      // 이미지 리사이즈 (최대 800px)
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 800;
+        let w = img.width, h = img.height;
+        if (w > MAX_SIZE || h > MAX_SIZE) {
+          if (w > h) { h = Math.round(h * MAX_SIZE / w); w = MAX_SIZE; }
+          else { w = Math.round(w * MAX_SIZE / h); h = MAX_SIZE; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        wa.images.push(dataUrl);
+        processedCount++;
+        if (processedCount === filesToProcess.length) {
+          renderScreen();
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 오답 사진 삭제
+function removeWrongAnswerImage(subjIdx, waIdx, imgIdx) {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex || !ex.result) return;
+
+  const collected = collectExamResultData();
+  if (collected) ex.result.subjects = collected;
+
+  const wa = ex.result.subjects[subjIdx]?.wrongAnswers[waIdx];
+  if (!wa || !wa.images) return;
+  wa.images.splice(imgIdx, 1);
+  renderScreen();
+}
+
+// 오답 사진 확대 보기
+function viewWrongAnswerImage(subjIdx, waIdx, imgIdx) {
+  const ex = state.exams.find(e => e.id === state.viewingExam);
+  if (!ex || !ex.result) return;
+
+  const wa = ex.result.subjects[subjIdx]?.wrongAnswers[waIdx];
+  if (!wa || !wa.images || !wa.images[imgIdx]) return;
+
+  const images = wa.images;
+  let currentIdx = imgIdx;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wa-image-viewer';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  
+  function renderViewer() {
+    overlay.innerHTML = `
+      <button style="position:absolute;top:16px;right:16px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;z-index:10001" onclick="document.getElementById('wa-image-viewer').remove()"><i class="fas fa-times"></i></button>
+      <div style="position:absolute;top:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px">${currentIdx+1} / ${images.length}</div>
+      ${images.length > 1 ? `
+        <button style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('wa-image-viewer')._nav(-1)"><i class="fas fa-chevron-left"></i></button>
+        <button style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('wa-image-viewer')._nav(1)"><i class="fas fa-chevron-right"></i></button>
+      ` : ''}
+      <img src="${images[currentIdx]}" style="max-width:90%;max-height:80%;object-fit:contain;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5)">
+    `;
+  }
+
+  overlay._nav = function(dir) {
+    currentIdx = (currentIdx + dir + images.length) % images.length;
+    renderViewer();
+  };
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  renderViewer();
+  document.body.appendChild(overlay);
+}
+
+// 보고서에서 오답 사진 확대 보기
+function viewReportWrongImage(examId, subjectName, waIdx, imgIdx) {
+  const ex = state.exams.find(e => e.id === examId);
+  if (!ex || !ex.result) return;
+
+  const sub = ex.result.subjects.find(s => s.subject === subjectName);
+  if (!sub || !sub.wrongAnswers || !sub.wrongAnswers[waIdx]) return;
+
+  const images = sub.wrongAnswers[waIdx].images || [];
+  if (!images[imgIdx]) return;
+
+  let currentIdx = imgIdx;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wa-image-viewer';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  
+  function renderViewer() {
+    overlay.innerHTML = `
+      <button style="position:absolute;top:16px;right:16px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;z-index:10001" onclick="document.getElementById('wa-image-viewer').remove()"><i class="fas fa-times"></i></button>
+      <div style="position:absolute;top:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px">${currentIdx+1} / ${images.length}</div>
+      ${images.length > 1 ? `
+        <button style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('wa-image-viewer')._nav(-1)"><i class="fas fa-chevron-left"></i></button>
+        <button style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:#fff;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('wa-image-viewer')._nav(1)"><i class="fas fa-chevron-right"></i></button>
+      ` : ''}
+      <img src="${images[currentIdx]}" style="max-width:90%;max-height:80%;object-fit:contain;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5)">
+    `;
+  }
+
+  overlay._nav = function(dir) {
+    currentIdx = (currentIdx + dir + images.length) % images.length;
+    renderViewer();
+  };
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  renderViewer();
+  document.body.appendChild(overlay);
 }
 
 function saveExamResult() {
