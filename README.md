@@ -114,9 +114,45 @@ report_records       - 탐구보고서
 - **초대코드**: `JYCC-X2Z8-2ND7`
 - **학생**: 이름 `곽정율` / PW `1234`
 
+## UI/UX 기능
+
+### 수업 기록 수정
+- 완료된 수업 행 클릭 → 수정 화면 (키워드, 내용, 이해도 5단계, 메모)
+- `PUT /api/student/class-records/:recordId` API로 DB 업데이트
+- 수정 완료 시 "수업 기록이 수정되었어요!" 피드백
+
+### 자동 수업 종료 감지 시스템
+- `startClassEndChecker()`: 1분마다 시간표 기반 수업 종료 감지
+- 수업 종료 후 0~30분: 시간표 행 glow + "기록하기" 버튼 빛나는 효과
+- 인앱 알림 배너: 상단에 10초 노출, "기록하기" 바로가기
+- Quick Action "수업종료 팝업" 버튼에 미기록 수 badge
+- 홈 시간표 상단 미기록 경고 배너
+- 저녁 시간(19~23시) "저녁 루틴" 버튼 glow
+
+### 패드 가로/세로 반응형 UI
+| 항목 | 세로모드 (Portrait) | 가로모드 (Landscape) |
+|------|-------------------|---------------------|
+| 네비게이션 | 하단 탭바 | 좌측 72~80px 사이드바 |
+| 상태바 | 상단 표시 | 숨김 (세로공간 확보) |
+| 홈 카드 | 2컬럼 | 3컬럼 (시간표 2칸 span) |
+| 상세화면 | max-width 720px | max-width 900~960px |
+| 기록 타입 | 2~3컬럼 | 3컬럼 넓게 |
+| 성장 통계 | 2~4컬럼 | 4컬럼 |
+| FAB | 우하단 | 사이드바 하단 |
+| 전환 | 자동 (orientation API + resize) | CSS transition 0.35s |
+
+**지원 기기:** iPad 10.2", iPad Air, iPad Pro 11", iPad Pro 12.9"
+
 ## 배포
 - **플랫폼**: Cloudflare Pages
 - **상태**: ✅ Active
 - **기술스택**: Hono + TypeScript + TailwindCSS (CDN) + D1 SQLite
 - **자동 마이그레이션**: `/api/migrate` 호출 시 14개 테이블 자동 생성
 - **최종 업데이트**: 2026-02-21
+
+## 향후 과제
+- 시간표 데이터 DB 연동 (현재 localStorage만 사용)
+- 학생 프로필 이미지 업로드 (R2 연동)
+- 멘토 대시보드 실시간 데이터 연동
+- 오프라인 모드 (Service Worker 캐싱 강화)
+- 알림 푸시 (Web Push API)
