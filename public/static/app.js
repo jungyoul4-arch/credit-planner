@@ -369,8 +369,8 @@ const state = {
 let devicePreview = null;
 
 function isNativeMode() {
-  // 디바이스 프리뷰가 수동 설정된 경우: phone/tablet → native, pc → not native
-  if (devicePreview === 'phone' || devicePreview === 'tablet') return true;
+  // 디바이스 프리뷰가 수동 설정된 경우: phone/tablet/tablet-landscape → native, pc → not native
+  if (devicePreview === 'phone' || devicePreview === 'tablet' || devicePreview === 'tablet-landscape') return true;
   if (devicePreview === 'pc') return false;
   return window.innerWidth <= 1279;
 }
@@ -378,6 +378,7 @@ function isNativeMode() {
 function getDevicePreviewClass() {
   if (devicePreview === 'phone') return 'preview-phone';
   if (devicePreview === 'tablet') return 'preview-tablet';
+  if (devicePreview === 'tablet-landscape') return 'preview-tablet-landscape';
   return 'preview-pc';
 }
 
@@ -407,7 +408,7 @@ function renderScreen() {
 
   // 프리뷰 프레임 래퍼 관리
   let previewFrame = document.getElementById('device-preview-frame');
-  if (isPreviewMode && (devicePreview === 'phone' || devicePreview === 'tablet')) {
+  if (isPreviewMode && (devicePreview === 'phone' || devicePreview === 'tablet' || devicePreview === 'tablet-landscape')) {
     // phone/tablet 프리뷰: tablet-container를 프리뷰 프레임 안에 배치
     if (!previewFrame) {
       previewFrame = document.createElement('div');
@@ -431,7 +432,27 @@ function renderScreen() {
     desktopContainer.style.display = 'none';
     if (native) {
       phoneContainer.style.display = 'none';
-      tabletContainer.style.display = 'block';
+      tabletContainer.style.display = 'flex';
+      // 사이드바 렌더링 (로그인/온보딩 화면이 아닐 때만)
+      const sidebarEl = document.getElementById('tablet-sidebar');
+      const isAuthScreen = state.currentScreen === 'login' || state.currentScreen.startsWith('onboarding') || state.currentScreen === 'register-student' || state.currentScreen === 'register-mentor' || state.currentScreen === 'login-mentor';
+      if (sidebarEl) {
+        if (isAuthScreen) {
+          sidebarEl.style.display = 'none';
+          sidebarEl.innerHTML = '';
+        } else {
+          sidebarEl.style.display = 'flex';
+          sidebarEl.innerHTML = renderSidebar();
+          // 사이드바 네비 이벤트
+          sidebarEl.querySelectorAll('.sidebar-nav-item').forEach(btn => {
+            btn.addEventListener('click', () => { 
+              state.studentTab = btn.dataset.tab; 
+              state.currentScreen = 'main'; 
+              renderScreen(); 
+            });
+          });
+        }
+      }
       tabletContent.innerHTML = renderStudentApp();
       initStudentEvents(tabletContent);
       initAuthEvents(tabletContent);
@@ -539,7 +560,6 @@ function renderStudentApp() {
     case 'growth': content += renderGrowthTab(); break;
     case 'my': content += renderMyTab(); break;
   }
-  content += renderBottomNav();
   content += renderFab();
   // AI 플로팅 어시스턴트 (플래너 탭에서 항상 노출)
   if (state.studentTab === 'planner' && state.currentScreen === 'main') {
@@ -563,23 +583,53 @@ function renderXpBar() {
   `;
 }
 
-// ==================== BOTTOM NAV ====================
-function renderBottomNav() {
+// ==================== SIDEBAR NAVIGATION (오르조 스타일) ====================
+function renderSidebar() {
   const tabs = [
-    { id:'home', icon:'fa-house', label:'홈' },
-    { id:'record', icon:'fa-pen-to-square', label:'기록' },
-    { id:'planner', icon:'fa-calendar-check', label:'플래너' },
-    { id:'growth', icon:'fa-chart-line', label:'성장' },
-    { id:'my', icon:'fa-user', label:'마이' },
+    { id:'home', icon:'fa-house', label:'홈', emoji:'🏠' },
+    { id:'record', icon:'fa-pen-to-square', label:'기록', emoji:'✏️' },
+    { id:'planner', icon:'fa-calendar-check', label:'플래너', emoji:'📅' },
+    { id:'growth', icon:'fa-chart-line', label:'성장', emoji:'📈' },
+    { id:'my', icon:'fa-user', label:'마이', emoji:'👤' },
   ];
+
+  const userName = state._authUser?.name || '학생';
+  const doneCount = state.todayRecords.filter(r => r.done).length;
+  const total = state.todayRecords.length;
+  const unrecordedCount = countUnrecordedEndedClasses();
+
   return `
-    <div class="bottom-nav">
-      ${tabs.map(t => `
-        <button class="nav-item ${state.studentTab===t.id?'active':''}" data-tab="${t.id}">
-          <i class="fas ${t.icon}"></i>
-          <span>${t.label}</span>
-        </button>
-      `).join('')}
+    <div class="sidebar">
+      <!-- 로고 영역 -->
+      <div class="sidebar-logo">
+        <img src="/static/logo.png" alt="" class="sidebar-logo-img">
+        <span class="sidebar-logo-text">학점플래너</span>
+      </div>
+
+      <!-- 메인 네비게이션 -->
+      <nav class="sidebar-nav">
+        ${tabs.map(t => `
+          <button class="sidebar-nav-item ${state.studentTab===t.id?'active':''}" data-tab="${t.id}">
+            <i class="fas ${t.icon}"></i>
+            <span class="sidebar-nav-label">${t.label}</span>
+            ${t.id === 'record' && unrecordedCount > 0 ? `<span class="sidebar-badge">${unrecordedCount}</span>` : ''}
+          </button>
+        `).join('')}
+      </nav>
+
+      <!-- 하단 정보 영역 -->
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <span class="sidebar-user-emoji">${state._authUser?.emoji || '🐻'}</span>
+          <span class="sidebar-user-name">${userName}</span>
+        </div>
+        <div class="sidebar-xp">
+          <span class="sidebar-xp-level">Lv.${state.level}</span>
+          <div class="sidebar-xp-bar"><div class="sidebar-xp-fill" style="width:${Math.min(state.xp/1500*100,100).toFixed(0)}%"></div></div>
+        </div>
+        <div class="sidebar-streak">🔥 ${state.streak}일 연속</div>
+        ${state._authUser ? `<button class="sidebar-logout" onclick="logout()"><i class="fas fa-sign-out-alt"></i><span>로그아웃</span></button>` : ''}
+      </div>
     </div>
   `;
 }
@@ -9177,11 +9227,6 @@ function showXpPopup(amount, label) {
 // ==================== EVENT HANDLERS ====================
 
 function initStudentEvents(root) {
-  // Bottom nav
-  document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.addEventListener('click', () => { state.studentTab = btn.dataset.tab; state.currentScreen = 'main'; renderScreen(); });
-  });
-
   // FAB
   const fab = document.getElementById('fab-btn');
   if (fab) fab.addEventListener('click', () => { state.studentTab = 'record'; state.currentScreen = 'main'; renderScreen(); });

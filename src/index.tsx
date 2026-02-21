@@ -1614,8 +1614,11 @@ app.get('/', (c) => {
           <button class="device-preview-btn" data-device="phone" title="핸드폰 (390×844)">
             <i class="fas fa-mobile-alt"></i><span>핸드폰</span>
           </button>
-          <button class="device-preview-btn" data-device="tablet" title="패드 (768×1024)">
-            <i class="fas fa-tablet-alt"></i><span>패드</span>
+          <button class="device-preview-btn" data-device="tablet" title="패드 세로 (768×1024)">
+            <i class="fas fa-tablet-alt"></i><span>패드세로</span>
+          </button>
+          <button class="device-preview-btn" data-device="tablet-landscape" title="패드 가로 (1194×834)">
+            <i class="fas fa-tablet-alt" style="transform:rotate(90deg)"></i><span>패드가로</span>
           </button>
           <button class="device-preview-btn active" data-device="pc" title="PC (실제 화면 크기)">
             <i class="fas fa-desktop"></i><span>PC</span>
@@ -1632,17 +1635,20 @@ app.get('/', (c) => {
         </div>
       </div>
       <div id="tablet-container" style="display:none">
-        <div id="tablet-status-bar">
-          <span class="tablet-status-left">
-            <img src="/static/logo.png" alt="" class="tablet-status-logo">
-            <span class="tablet-status-title">고교학점플래너</span>
-          </span>
-          <span class="tablet-status-right">
-            <i class="fas fa-signal"></i> <i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i>
-            <span class="tablet-status-time">9:41</span>
-          </span>
+        <div id="tablet-sidebar"></div>
+        <div id="tablet-main-area">
+          <div id="tablet-status-bar">
+            <span class="tablet-status-left">
+              <img src="/static/logo.png" alt="" class="tablet-status-logo">
+              <span class="tablet-status-title">고교학점플래너</span>
+            </span>
+            <span class="tablet-status-right">
+              <i class="fas fa-signal"></i> <i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i>
+              <span class="tablet-status-time">9:41</span>
+            </span>
+          </div>
+          <div id="tablet-content"></div>
         </div>
-        <div id="tablet-content"></div>
       </div>
       <div id="desktop-container" style="display:none">
         <div id="desktop-content"></div>
