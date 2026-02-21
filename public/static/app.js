@@ -461,13 +461,36 @@ function renderScreen() {
 
 // 화면 크기 변경 감지 → 자동 모드 전환
 let _lastNative = isNativeMode();
+let _lastOrientation = screen.orientation?.type || (window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
+
 window.addEventListener('resize', () => {
   const nowNative = isNativeMode();
-  if (nowNative !== _lastNative) {
+  const nowOrientation = screen.orientation?.type || (window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
+  const orientationChanged = (nowOrientation.includes('landscape') !== _lastOrientation.includes('landscape'));
+  
+  if (nowNative !== _lastNative || orientationChanged) {
     _lastNative = nowNative;
+    _lastOrientation = nowOrientation;
     renderScreen();
   }
 });
+
+// orientation change 이벤트 (모바일/태블릿 전용)
+if (screen.orientation) {
+  screen.orientation.addEventListener('change', () => {
+    _lastOrientation = screen.orientation.type;
+    // 약간의 딜레이 후 렌더링 (새 뷰포트 안정화 대기)
+    setTimeout(() => renderScreen(), 100);
+  });
+} else {
+  // fallback: orientationchange
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      _lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      renderScreen();
+    }, 200);
+  });
+}
 
 // ==================== STUDENT APP ROUTER ====================
 
