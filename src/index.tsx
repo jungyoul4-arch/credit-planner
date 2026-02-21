@@ -1080,6 +1080,21 @@ app.get('/api/student/:studentId/profile', async (c) => {
 });
 
 
+// ==================== ADMIN: 비밀번호 리셋 ====================
+app.post('/api/admin/reset-password', async (c) => {
+  try {
+    const { studentId, newPassword, adminKey } = await c.req.json();
+    if (adminKey !== 'jycc_admin_2026') return c.json({ error: 'Unauthorized' }, 403);
+    if (!studentId || !newPassword) return c.json({ error: 'studentId와 newPassword 필요' }, 400);
+    const hash = await hashPassword(newPassword);
+    await c.env.DB.prepare('UPDATE students SET password_hash = ? WHERE id = ?').bind(hash, studentId).run();
+    return c.json({ success: true, message: '비밀번호가 초기화되었습니다' });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
 // ==================== DB 자동 마이그레이션 ====================
 app.get('/api/migrate', async (c) => {
   try {
