@@ -959,6 +959,9 @@ function initAuthEvents(container) {
       state.studentTab = 'home';
       state.mode = 'student';
       renderScreen();
+
+      // DB에서 데이터 로드 (비동기)
+      DB.loadAll().then(() => renderScreen());
     } catch (e) {
       state._loginError = e.message;
       state._loginLoading = false;
@@ -1073,6 +1076,8 @@ function initAuthEvents(container) {
       state.mode = 'mentor';
       state.currentScreen = 'main';
       renderScreen();
+      // DB 마이그레이션 (멘토 첫 접속 시 테이블 생성)
+      fetch('/api/migrate').catch(() => {});
     } catch (e) {
       state._loginError = e.message;
       state._loginLoading = false;
@@ -1155,10 +1160,299 @@ function autoLogin() {
     }
     state.currentScreen = 'main';
     state.studentTab = 'home';
+
+    // 자동 로그인 시 DB 데이터 로드
+    if (auth.role === 'student') {
+      DB.loadAll().then(() => renderScreen());
+    }
   } catch (e) {
     localStorage.removeItem('cp_auth');
   }
 }
+
+
+// ==================== DB SYNC LAYER ====================
+
+const DB = {
+  // 학생 ID 가져오기
+  studentId() {
+    return state._authUser?.id;
+  },
+
+  // === 로그인 후 전체 데이터 로드 ===
+  async loadAll() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      // DB 마이그레이션 먼저 실행 (테이블 없으면 생성)
+      await fetch('/api/migrate').catch(() => {});
+      await Promise.all([
+        this.loadExams(),
+        this.loadAssignments(),
+        this.loadClassRecords(),
+        this.loadQuestionRecords(),
+        this.loadProfile(),
+      ]);
+    } catch (e) {
+      console.error('DB loadAll error:', e);
+    }
+  },
+
+  // === 프로필 ===
+  async loadProfile() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/profile`);
+      if (res.ok) {
+        const data = await res.json();
+        state.xp = data.xp || 0;
+        state.level = data.level || 1;
+      }
+    } catch (e) { console.error('loadProfile:', e); }
+  },
+
+  // === 시험 ===
+  async loadExams() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const [examsRes, resultsRes] = await Promise.all([
+        fetch(`/api/student/${sid}/exams`),
+        fetch(`/api/student/${sid}/exam-results`)
+      ]);
+      if (examsRes.ok) {
+        const examsData = await examsRes.json();
+        const resultsData = resultsRes.ok ? await resultsRes.json() : { results: [] };
+        
+        // DB 데이터를 state.exams 형식으로 변환
+        state.exams = (examsData.exams || []).map(ex => {
+          const subjects = JSON.parse(ex.subjects || '[]');
+          const result = (resultsData.results || []).find(r => r.exam_id === ex.id);
+          
+          const examObj = {
+            id: String(ex.id),
+            _dbId: ex.id,
+            name: ex.name,
+            type: ex.type,
+            startDate: ex.start_date,
+            subjects: subjects,
+            status: ex.status,
+            memo: ex.memo || '',
+            result: null,
+          };
+
+          if (result) {
+            const subjectsData = JSON.parse(result.subjects_data || '[]');
+            // 오답 데이터를 과목별로 매핑
+            const wrongAnswers = result.wrongAnswers || [];
+            subjectsData.forEach(sd => {
+              sd.wrongAnswers = wrongAnswers.filter(wa => wa.subject === sd.subject).map(wa => ({
+                number: wa.question_number,
+                topic: wa.topic,
+                type: wa.error_type,
+                myAnswer: wa.my_answer,
+                correctAnswer: wa.correct_answer,
+                reason: wa.reason,
+                reflection: wa.reflection,
+                images: wa.images || [],
+              }));
+            });
+
+            examObj.result = {
+              totalScore: result.total_score,
+              grade: result.grade,
+              subjects: subjectsData,
+              overallReflection: result.overall_reflection || '',
+              createdAt: result.created_at,
+            };
+          }
+          return examObj;
+        });
+      }
+    } catch (e) { console.error('loadExams:', e); }
+  },
+
+  async saveExam(examData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/exams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(examData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.examId;
+      }
+    } catch (e) { console.error('saveExam:', e); }
+    return null;
+  },
+
+  async updateExam(examId, updates) {
+    try {
+      await fetch(`/api/student/exams/${examId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error('updateExam:', e); }
+  },
+
+  async saveExamResult(examDbId, resultData) {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      // wrongAnswers 평탄화
+      const wrongAnswers = [];
+      (resultData.subjects || []).forEach(sub => {
+        (sub.wrongAnswers || []).forEach(wa => {
+          wrongAnswers.push({
+            subject: sub.subject,
+            number: wa.number,
+            topic: wa.topic,
+            type: wa.type,
+            myAnswer: wa.myAnswer,
+            correctAnswer: wa.correctAnswer,
+            reason: wa.reason,
+            reflection: wa.reflection,
+            images: wa.images || [],
+          });
+        });
+      });
+
+      await fetch(`/api/student/${sid}/exam-results`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          examId: examDbId,
+          totalScore: resultData.totalScore,
+          grade: resultData.grade,
+          subjectsData: resultData.subjects,
+          overallReflection: resultData.overallReflection,
+          wrongAnswers: wrongAnswers,
+        })
+      });
+    } catch (e) { console.error('saveExamResult:', e); }
+  },
+
+  // === 과제 ===
+  async loadAssignments() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/assignments`);
+      if (res.ok) {
+        const data = await res.json();
+        state.assignments = (data.assignments || []).map(a => ({
+          id: String(a.id),
+          _dbId: a.id,
+          subject: a.subject,
+          title: a.title,
+          description: a.description,
+          teacherName: a.teacher_name,
+          dueDate: a.due_date,
+          status: a.status,
+          progress: a.progress,
+          color: a.color,
+          plan: JSON.parse(a.plan_data || '[]'),
+          createdAt: a.created_at,
+        }));
+      }
+    } catch (e) { console.error('loadAssignments:', e); }
+  },
+
+  async saveAssignment(assignmentData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assignmentData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.assignmentId;
+      }
+    } catch (e) { console.error('saveAssignment:', e); }
+    return null;
+  },
+
+  async updateAssignment(assignmentId, updates) {
+    try {
+      await fetch(`/api/student/assignments/${assignmentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error('updateAssignment:', e); }
+  },
+
+  // === 수업 기록 ===
+  async loadClassRecords() {
+    const sid = this.studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/class-records`);
+      if (res.ok) {
+        const data = await res.json();
+        state._dbClassRecords = (data.records || []).map(r => ({
+          id: r.id,
+          subject: r.subject,
+          date: r.date,
+          content: r.content,
+          keywords: JSON.parse(r.keywords || '[]'),
+          understanding: r.understanding,
+          memo: r.memo,
+        }));
+      }
+    } catch (e) { console.error('loadClassRecords:', e); }
+  },
+
+  async saveClassRecord(recordData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/class-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.recordId;
+      }
+    } catch (e) { console.error('saveClassRecord:', e); }
+    return null;
+  },
+
+  // === 질문 코칭 기록 ===
+  async loadQuestionRecords() {
+    const sid = this.studentId();
+    if (!sid) return;
+    // 질문 기록은 조회 API는 아직 없으므로 저장만 구현
+    state._dbQuestionRecords = [];
+  },
+
+  async saveQuestionRecord(recordData) {
+    const sid = this.studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch(`/api/student/${sid}/question-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.recordId;
+      }
+    } catch (e) { console.error('saveQuestionRecord:', e); }
+    return null;
+  },
+};
 
 
 // ==================== HOME TAB (H-01~H-05) ====================
@@ -2711,6 +3005,13 @@ function saveExamResult() {
   };
 
   ex.status = 'completed';
+
+  // DB 저장 (비동기)
+  if (ex._dbId && DB.studentId()) {
+    DB.saveExamResult(ex._dbId, ex.result);
+    DB.updateExam(ex._dbId, { status: 'completed' });
+  }
+
   alert('시험 결과가 저장되었습니다! 📊');
   goScreen('exam-report');
 }
@@ -2935,6 +3236,24 @@ function saveNewExam() {
 
   state.exams.push(newExam);
   state.viewingExam = newExam.id;
+
+  // DB 저장 (비동기)
+  if (DB.studentId()) {
+    DB.saveExam({
+      name,
+      type: _selectedExamType,
+      startDate: startDate || '2026-04-21',
+      subjects,
+      memo: '',
+    }).then(dbId => {
+      if (dbId) {
+        newExam._dbId = dbId;
+        newExam.id = String(dbId);
+        state.viewingExam = newExam.id;
+      }
+    });
+  }
+
   goScreen('exam-detail');
 }
 
@@ -5563,6 +5882,24 @@ function saveAssignment(goToPlan) {
   
   state.assignments.push(newAssignment);
 
+  // DB 저장 (비동기)
+  if (DB.studentId()) {
+    DB.saveAssignment({
+      subject,
+      title: title || '새 과제',
+      description: desc || '',
+      teacherName: teacher || '',
+      dueDate,
+      color: subjectColors[subject] || '#636e72',
+      planData: plan,
+    }).then(dbId => {
+      if (dbId) {
+        newAssignment._dbId = dbId;
+        newAssignment.id = String(dbId);
+      }
+    });
+  }
+
   if (goToPlan) {
     state.viewingAssignment = newId;
     goScreen('assignment-plan');
@@ -8132,6 +8469,19 @@ function completeClassRecord(idx) {
     state.todayRecords[idx].summary = '관계대명사, which, that, 제한적용법';
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
+
+    // DB 저장 (비동기)
+    if (DB.studentId()) {
+      const r = state.todayRecords[idx];
+      DB.saveClassRecord({
+        subject: r.subject || '미지정',
+        date: new Date().toISOString().slice(0,10),
+        content: r.summary || '',
+        keywords: r.summary ? r.summary.split(', ') : [],
+        understanding: 3,
+        memo: '',
+      });
+    }
   }
   showXpPopup(10, '수업 기록 완료!');
 }
