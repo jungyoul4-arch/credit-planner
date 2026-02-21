@@ -753,6 +753,9 @@ function renderOnboardingGuide() {
 // ==================== LOGIN / REGISTER SCREENS ====================
 
 function renderLoginScreen() {
+  // 이전에 저장된 초대코드 자동 채우기
+  const savedAuth = (() => { try { return JSON.parse(localStorage.getItem('cp_auth') || '{}'); } catch { return {}; } })();
+  const savedInviteCode = savedAuth.inviteCode || savedAuth.group?.inviteCode || '';
   return `
     <div class="onboarding-screen animate-in">
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
@@ -771,7 +774,7 @@ function renderLoginScreen() {
 
         <div class="field-group" style="width:100%">
           <label class="field-label">초대 코드</label>
-          <input class="input-field" id="login-invite-code" placeholder="JYCC-XXXX-XXXX" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px" autocomplete="off">
+          <input class="input-field" id="login-invite-code" placeholder="JYCC-XXXX-XXXX" value="${savedInviteCode}" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px" autocomplete="off">
         </div>
         <div class="field-group" style="width:100%">
           <label class="field-label">이름 (가입할 때 입력한 이름)</label>
@@ -950,9 +953,10 @@ function initAuthEvents(container) {
       state._loginError = '';
       state._loginLoading = false;
 
-      // localStorage에 저장 (자동 로그인)
+      // localStorage에 저장 (자동 로그인) - 초대코드도 저장
       localStorage.setItem('cp_auth', JSON.stringify({
-        user: data.user, token: data.token, role: 'student', group: data.group
+        user: data.user, token: data.token, role: 'student', group: data.group,
+        inviteCode: code
       }));
 
       state.currentScreen = 'main';
@@ -1151,6 +1155,7 @@ function autoLogin() {
     state._authUser = auth.user;
     state._authToken = auth.token;
     state._authRole = auth.role;
+    state._loginError = '';
     if (auth.role === 'student') {
       state._authGroup = auth.group;
       state.mode = 'student';
@@ -1161,9 +1166,27 @@ function autoLogin() {
     state.currentScreen = 'main';
     state.studentTab = 'home';
 
-    // 자동 로그인 시 DB 데이터 로드
-    if (auth.role === 'student') {
-      DB.loadAll().then(() => renderScreen());
+    // 서버에 프로필 검증 (비동기) - 실패 시 로그인 화면으로
+    if (auth.role === 'student' && auth.user.id) {
+      fetch(`/api/student/${auth.user.id}/profile`).then(res => {
+        if (!res.ok) throw new Error('Profile check failed');
+        return res.json();
+      }).then(() => {
+        DB.loadAll().then(() => renderScreen());
+      }).catch(() => {
+        // 서버 검증 실패 → 로그아웃
+        console.log('Auto-login verification failed, logging out');
+        localStorage.removeItem('cp_auth');
+        state._authUser = null;
+        state._authToken = null;
+        state._authRole = null;
+        state._authGroup = null;
+        state._loginError = '';
+        state.currentScreen = 'login';
+        renderScreen();
+      });
+    } else if (auth.role === 'mentor') {
+      fetch('/api/migrate').catch(() => {});
     }
   } catch (e) {
     localStorage.removeItem('cp_auth');
