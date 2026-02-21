@@ -7,6 +7,7 @@ type Bindings = {
   ANTHROPIC_API_KEY: string
   GEMINI_API_KEY: string
   PERPLEXITY_API_KEY: string
+  DB: D1Database
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -487,6 +488,596 @@ ${histSummary}
     return c.json({ error: e.message }, 500)
   }
 })
+
+
+// ==================== AUTH: 비밀번호 해싱 (Web Crypto API) ====================
+
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + '_credit_planner_salt_2026');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const computed = await hashPassword(password);
+  return computed === hash;
+}
+
+// 간단한 세션 토큰 생성
+function generateToken(): string {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 초대코드 생성 (JYCC-XXXX-XXXX)
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const part1 = Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const part2 = Array.from({length: 4}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `JYCC-${part1}-${part2}`;
+}
+
+
+// ==================== AUTH API: 멘토 회원가입 ====================
+
+app.post('/api/auth/mentor/register', async (c) => {
+  try {
+    const { loginId, password, name, academyName, phone } = await c.req.json();
+    if (!loginId || !password || !name) return c.json({ error: '아이디, 비밀번호, 이름은 필수입니다' }, 400);
+    if (password.length < 4) return c.json({ error: '비밀번호는 4자 이상이어야 합니다' }, 400);
+
+    const existing = await c.env.DB.prepare('SELECT id FROM mentors WHERE login_id = ?').bind(loginId).first();
+    if (existing) return c.json({ error: '이미 사용 중인 아이디입니다' }, 409);
+
+    const passwordHash = await hashPassword(password);
+    const result = await c.env.DB.prepare(
+      'INSERT INTO mentors (login_id, password_hash, name, academy_name, phone) VALUES (?, ?, ?, ?, ?)'
+    ).bind(loginId, passwordHash, name, academyName || '', phone || '').run();
+
+    const mentorId = result.meta.last_row_id;
+
+    // 기본 반 1개 자동 생성
+    const inviteCode = generateInviteCode();
+    await c.env.DB.prepare(
+      'INSERT INTO groups (mentor_id, name, invite_code, description) VALUES (?, ?, ?, ?)'
+    ).bind(mentorId, `${name} 선생님 반`, inviteCode, '').run();
+
+    return c.json({ 
+      success: true, 
+      mentorId,
+      message: '멘토 등록이 완료되었습니다',
+      defaultGroupInviteCode: inviteCode
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== AUTH API: 멘토 로그인 ====================
+
+app.post('/api/auth/mentor/login', async (c) => {
+  try {
+    const { loginId, password } = await c.req.json();
+    if (!loginId || !password) return c.json({ error: '아이디와 비밀번호를 입력해주세요' }, 400);
+
+    const mentor: any = await c.env.DB.prepare(
+      'SELECT * FROM mentors WHERE login_id = ?'
+    ).bind(loginId).first();
+
+    if (!mentor) return c.json({ error: '아이디 또는 비밀번호가 틀렸습니다' }, 401);
+
+    const valid = await verifyPassword(password, mentor.password_hash);
+    if (!valid) return c.json({ error: '아이디 또는 비밀번호가 틀렸습니다' }, 401);
+
+    // 멘토의 그룹 목록 조회
+    const groups = await c.env.DB.prepare(
+      'SELECT id, name, invite_code, description, max_students, is_active FROM groups WHERE mentor_id = ?'
+    ).bind(mentor.id).all();
+
+    const token = generateToken();
+
+    return c.json({
+      success: true,
+      token,
+      role: 'mentor',
+      user: {
+        id: mentor.id,
+        loginId: mentor.login_id,
+        name: mentor.name,
+        academyName: mentor.academy_name,
+        phone: mentor.phone,
+      },
+      groups: groups.results
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== AUTH API: 학생 회원가입 (초대코드) ====================
+
+app.post('/api/auth/student/register', async (c) => {
+  try {
+    const { inviteCode, name, password, schoolName, grade } = await c.req.json();
+    if (!inviteCode || !name || !password) return c.json({ error: '초대코드, 이름, 비밀번호는 필수입니다' }, 400);
+    if (password.length < 4) return c.json({ error: '비밀번호는 4자 이상이어야 합니다' }, 400);
+
+    // 초대코드로 그룹 찾기
+    const group: any = await c.env.DB.prepare(
+      'SELECT g.*, m.name as mentor_name, m.academy_name FROM groups g JOIN mentors m ON g.mentor_id = m.id WHERE g.invite_code = ? AND g.is_active = 1'
+    ).bind(inviteCode.toUpperCase()).first();
+
+    if (!group) return c.json({ error: '유효하지 않은 초대코드입니다' }, 404);
+
+    // 같은 그룹에 같은 이름 확인
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM students WHERE group_id = ? AND name = ?'
+    ).bind(group.id, name).first();
+    if (existing) return c.json({ error: '같은 반에 동일한 이름이 있습니다. 이름 뒤에 번호를 붙여주세요 (예: 홍길동2)' }, 409);
+
+    // 정원 확인
+    const count: any = await c.env.DB.prepare(
+      'SELECT COUNT(*) as cnt FROM students WHERE group_id = ? AND is_active = 1'
+    ).bind(group.id).first();
+    if (count.cnt >= group.max_students) return c.json({ error: '이 반의 정원이 가득 찼습니다' }, 409);
+
+    const passwordHash = await hashPassword(password);
+    const emojis = ['😊','😎','🤓','🦊','🐱','🐶','🦁','🐻','🐼','🐨','🦄','🐸','🐰','🐯'];
+    const profileEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO students (group_id, name, password_hash, school_name, grade, profile_emoji) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(group.id, name, passwordHash, schoolName || '', grade || 1, profileEmoji).run();
+
+    return c.json({
+      success: true,
+      studentId: result.meta.last_row_id,
+      message: `${group.name}에 가입되었습니다!`,
+      groupName: group.name,
+      mentorName: group.mentor_name,
+      academyName: group.academy_name,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== AUTH API: 학생 로그인 ====================
+
+app.post('/api/auth/student/login', async (c) => {
+  try {
+    const { inviteCode, name, password } = await c.req.json();
+    if (!inviteCode || !name || !password) return c.json({ error: '초대코드, 이름, 비밀번호를 모두 입력해주세요' }, 400);
+
+    // 초대코드로 그룹 찾기
+    const group: any = await c.env.DB.prepare(
+      'SELECT g.*, m.name as mentor_name, m.academy_name FROM groups g JOIN mentors m ON g.mentor_id = m.id WHERE g.invite_code = ?'
+    ).bind(inviteCode.toUpperCase()).first();
+
+    if (!group) return c.json({ error: '유효하지 않은 초대코드입니다' }, 401);
+
+    const student: any = await c.env.DB.prepare(
+      'SELECT * FROM students WHERE group_id = ? AND name = ? AND is_active = 1'
+    ).bind(group.id, name).first();
+
+    if (!student) return c.json({ error: '이름 또는 비밀번호가 틀렸습니다' }, 401);
+
+    const valid = await verifyPassword(password, student.password_hash);
+    if (!valid) return c.json({ error: '이름 또는 비밀번호가 틀렸습니다' }, 401);
+
+    // 마지막 로그인 시간 업데이트
+    await c.env.DB.prepare(
+      'UPDATE students SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(student.id).run();
+
+    const token = generateToken();
+
+    return c.json({
+      success: true,
+      token,
+      role: 'student',
+      user: {
+        id: student.id,
+        name: student.name,
+        schoolName: student.school_name,
+        grade: student.grade,
+        profileEmoji: student.profile_emoji,
+        xp: student.xp,
+        level: student.level,
+        groupId: student.group_id,
+      },
+      group: {
+        id: group.id,
+        name: group.name,
+        mentorName: group.mentor_name,
+        academyName: group.academy_name,
+      }
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== AUTH API: 초대코드 확인 ====================
+
+app.get('/api/auth/verify-invite/:code', async (c) => {
+  try {
+    const code = c.req.param('code');
+    const group: any = await c.env.DB.prepare(
+      'SELECT g.name, g.description, m.name as mentor_name, m.academy_name FROM groups g JOIN mentors m ON g.mentor_id = m.id WHERE g.invite_code = ? AND g.is_active = 1'
+    ).bind(code.toUpperCase()).first();
+
+    if (!group) return c.json({ valid: false, error: '유효하지 않은 초대코드입니다' }, 404);
+
+    return c.json({
+      valid: true,
+      groupName: group.name,
+      mentorName: group.mentor_name,
+      academyName: group.academy_name,
+      description: group.description,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== MENTOR API: 그룹(반) 관리 ====================
+
+app.post('/api/mentor/groups', async (c) => {
+  try {
+    const { mentorId, name, description, maxStudents } = await c.req.json();
+    if (!mentorId || !name) return c.json({ error: '멘토 ID와 반 이름은 필수입니다' }, 400);
+
+    const inviteCode = generateInviteCode();
+    const result = await c.env.DB.prepare(
+      'INSERT INTO groups (mentor_id, name, invite_code, description, max_students) VALUES (?, ?, ?, ?, ?)'
+    ).bind(mentorId, name, inviteCode, description || '', maxStudents || 30).run();
+
+    return c.json({
+      success: true,
+      groupId: result.meta.last_row_id,
+      inviteCode,
+      message: `"${name}" 반이 생성되었습니다`
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 멘토의 그룹 목록 + 학생 수
+app.get('/api/mentor/:mentorId/groups', async (c) => {
+  try {
+    const mentorId = c.req.param('mentorId');
+    const groups = await c.env.DB.prepare(`
+      SELECT g.*, 
+        (SELECT COUNT(*) FROM students s WHERE s.group_id = g.id AND s.is_active = 1) as student_count
+      FROM groups g WHERE g.mentor_id = ? ORDER BY g.created_at DESC
+    `).bind(mentorId).all();
+
+    return c.json({ groups: groups.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 그룹의 학생 목록
+app.get('/api/mentor/groups/:groupId/students', async (c) => {
+  try {
+    const groupId = c.req.param('groupId');
+    const students = await c.env.DB.prepare(
+      'SELECT id, name, school_name, grade, profile_emoji, xp, level, last_login_at, created_at FROM students WHERE group_id = ? AND is_active = 1 ORDER BY name'
+    ).bind(groupId).all();
+
+    return c.json({ students: students.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 시험 ====================
+
+app.get('/api/student/:studentId/exams', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const exams = await c.env.DB.prepare(
+      'SELECT * FROM exams WHERE student_id = ? ORDER BY start_date DESC'
+    ).bind(studentId).all();
+    return c.json({ exams: exams.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/student/:studentId/exams', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { name, type, startDate, subjects, memo } = await c.req.json();
+    if (!name || !startDate) return c.json({ error: '시험명과 날짜는 필수입니다' }, 400);
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO exams (student_id, name, type, start_date, subjects, memo) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, name, type || 'midterm', startDate, JSON.stringify(subjects || []), memo || '').run();
+
+    return c.json({ success: true, examId: result.meta.last_row_id });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.put('/api/student/exams/:examId', async (c) => {
+  try {
+    const examId = c.req.param('examId');
+    const body = await c.req.json();
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (body.name !== undefined) { fields.push('name = ?'); values.push(body.name); }
+    if (body.type !== undefined) { fields.push('type = ?'); values.push(body.type); }
+    if (body.startDate !== undefined) { fields.push('start_date = ?'); values.push(body.startDate); }
+    if (body.subjects !== undefined) { fields.push('subjects = ?'); values.push(JSON.stringify(body.subjects)); }
+    if (body.status !== undefined) { fields.push('status = ?'); values.push(body.status); }
+    if (body.memo !== undefined) { fields.push('memo = ?'); values.push(body.memo); }
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+
+    values.push(examId);
+    await c.env.DB.prepare(`UPDATE exams SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 시험 결과 ====================
+
+app.post('/api/student/:studentId/exam-results', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { examId, totalScore, grade, subjectsData, overallReflection, wrongAnswers } = await c.req.json();
+    if (!examId) return c.json({ error: '시험 ID는 필수입니다' }, 400);
+
+    // 기존 결과 삭제 (업데이트용)
+    const existingResult: any = await c.env.DB.prepare(
+      'SELECT id FROM exam_results WHERE exam_id = ?'
+    ).bind(examId).first();
+
+    if (existingResult) {
+      await c.env.DB.prepare('DELETE FROM wrong_answer_images WHERE wrong_answer_id IN (SELECT id FROM wrong_answers WHERE exam_result_id = ?)').bind(existingResult.id).run();
+      await c.env.DB.prepare('DELETE FROM wrong_answers WHERE exam_result_id = ?').bind(existingResult.id).run();
+      await c.env.DB.prepare('DELETE FROM exam_results WHERE id = ?').bind(existingResult.id).run();
+    }
+
+    // 시험 결과 저장
+    const result = await c.env.DB.prepare(
+      'INSERT INTO exam_results (exam_id, student_id, total_score, grade, subjects_data, overall_reflection) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(examId, studentId, totalScore || 0, grade || 0, JSON.stringify(subjectsData || []), overallReflection || '').run();
+
+    const resultId = result.meta.last_row_id;
+
+    // 오답 저장
+    if (wrongAnswers && wrongAnswers.length > 0) {
+      for (const wa of wrongAnswers) {
+        const waResult = await c.env.DB.prepare(
+          'INSERT INTO wrong_answers (exam_result_id, student_id, subject, question_number, topic, error_type, my_answer, correct_answer, reason, reflection) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(resultId, studentId, wa.subject || '', wa.number || 0, wa.topic || '', wa.type || '', wa.myAnswer || '', wa.correctAnswer || '', wa.reason || '', wa.reflection || '').run();
+
+        // 오답 사진 저장
+        if (wa.images && wa.images.length > 0) {
+          for (let i = 0; i < wa.images.length; i++) {
+            await c.env.DB.prepare(
+              'INSERT INTO wrong_answer_images (wrong_answer_id, image_data, sort_order) VALUES (?, ?, ?)'
+            ).bind(waResult.meta.last_row_id, wa.images[i], i).run();
+          }
+        }
+      }
+    }
+
+    // 시험 상태 업데이트
+    await c.env.DB.prepare('UPDATE exams SET status = ? WHERE id = ?').bind('completed', examId).run();
+
+    return c.json({ success: true, resultId });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/student/:studentId/exam-results', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const results = await c.env.DB.prepare(`
+      SELECT er.*, e.name as exam_name, e.type as exam_type, e.start_date
+      FROM exam_results er
+      JOIN exams e ON er.exam_id = e.id
+      WHERE er.student_id = ?
+      ORDER BY e.start_date DESC
+    `).bind(studentId).all();
+
+    // 각 결과에 오답 데이터 추가
+    const fullResults = [];
+    for (const r of results.results as any[]) {
+      const wrongAnswers = await c.env.DB.prepare(
+        'SELECT * FROM wrong_answers WHERE exam_result_id = ? ORDER BY id'
+      ).bind(r.id).all();
+
+      const waWithImages = [];
+      for (const wa of wrongAnswers.results as any[]) {
+        const images = await c.env.DB.prepare(
+          'SELECT image_data FROM wrong_answer_images WHERE wrong_answer_id = ? ORDER BY sort_order'
+        ).bind(wa.id).all();
+        waWithImages.push({
+          ...wa,
+          images: (images.results as any[]).map((img: any) => img.image_data)
+        });
+      }
+
+      fullResults.push({ ...r, wrongAnswers: waWithImages });
+    }
+
+    return c.json({ results: fullResults });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 과제 ====================
+
+app.get('/api/student/:studentId/assignments', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const assignments = await c.env.DB.prepare(
+      'SELECT * FROM assignments WHERE student_id = ? ORDER BY due_date DESC'
+    ).bind(studentId).all();
+    return c.json({ assignments: assignments.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/student/:studentId/assignments', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { subject, title, description, teacherName, dueDate, color, planData } = await c.req.json();
+    if (!title || !dueDate) return c.json({ error: '과제명과 마감일은 필수입니다' }, 400);
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO assignments (student_id, subject, title, description, teacher_name, due_date, color, plan_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject || '', title, description || '', teacherName || '', dueDate, color || '#6C5CE7', JSON.stringify(planData || [])).run();
+
+    return c.json({ success: true, assignmentId: result.meta.last_row_id });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.put('/api/student/assignments/:assignmentId', async (c) => {
+  try {
+    const assignmentId = c.req.param('assignmentId');
+    const body = await c.req.json();
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (body.status !== undefined) { fields.push('status = ?'); values.push(body.status); }
+    if (body.progress !== undefined) { fields.push('progress = ?'); values.push(body.progress); }
+    if (body.planData !== undefined) { fields.push('plan_data = ?'); values.push(JSON.stringify(body.planData)); }
+    if (body.title !== undefined) { fields.push('title = ?'); values.push(body.title); }
+    if (body.dueDate !== undefined) { fields.push('due_date = ?'); values.push(body.dueDate); }
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+
+    values.push(assignmentId);
+    await c.env.DB.prepare(`UPDATE assignments SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 수업 기록 ====================
+
+app.get('/api/student/:studentId/class-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const records = await c.env.DB.prepare(
+      'SELECT * FROM class_records WHERE student_id = ? ORDER BY date DESC'
+    ).bind(studentId).all();
+    return c.json({ records: records.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post('/api/student/:studentId/class-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { subject, date, content, keywords, understanding, memo } = await c.req.json();
+    if (!subject || !date) return c.json({ error: '과목과 날짜는 필수입니다' }, 400);
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '').run();
+
+    return c.json({ success: true, recordId: result.meta.last_row_id });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: 질문 코칭 기록 ====================
+
+app.post('/api/student/:studentId/question-records', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { subject, questionText, questionLevel, questionLabel, axis, coachingMessages, xpEarned, isComplete } = await c.req.json();
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO question_records (student_id, subject, question_text, question_level, question_label, axis, coaching_messages, xp_earned, is_complete) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject || '', questionText || '', questionLevel || '', questionLabel || '', axis || 'curiosity', JSON.stringify(coachingMessages || []), xpEarned || 0, isComplete ? 1 : 0).run();
+
+    // XP 업데이트
+    if (xpEarned) {
+      await c.env.DB.prepare('UPDATE students SET xp = xp + ? WHERE id = ?').bind(xpEarned, studentId).run();
+    }
+
+    return c.json({ success: true, recordId: result.meta.last_row_id });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
+// ==================== STUDENT DATA API: XP/레벨 조회 ====================
+
+app.get('/api/student/:studentId/profile', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const student: any = await c.env.DB.prepare(
+      'SELECT s.*, g.name as group_name, g.invite_code FROM students s JOIN groups g ON s.group_id = g.id WHERE s.id = ?'
+    ).bind(studentId).first();
+
+    if (!student) return c.json({ error: '학생을 찾을 수 없습니다' }, 404);
+
+    // 통계
+    const examCount: any = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM exams WHERE student_id = ?').bind(studentId).first();
+    const assignmentCount: any = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM assignments WHERE student_id = ?').bind(studentId).first();
+    const questionCount: any = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM question_records WHERE student_id = ?').bind(studentId).first();
+    const classCount: any = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM class_records WHERE student_id = ?').bind(studentId).first();
+
+    return c.json({
+      id: student.id,
+      name: student.name,
+      schoolName: student.school_name,
+      grade: student.grade,
+      profileEmoji: student.profile_emoji,
+      xp: student.xp,
+      level: student.level,
+      groupName: student.group_name,
+      inviteCode: student.invite_code,
+      stats: {
+        exams: examCount.cnt,
+        assignments: assignmentCount.cnt,
+        questions: questionCount.cnt,
+        classRecords: classCount.cnt,
+      },
+      lastLoginAt: student.last_login_at,
+      createdAt: student.created_at,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
 
 
 // ==================== 헬스체크 ====================
