@@ -2286,7 +2286,7 @@ function renderRecordTab() {
         ${[
           { screen:'record-class', icon:'📝', bg:'rgba(108,92,231,0.15)', title:'수업 기록', desc:'30초 만에 오늘 수업을 기록', xp:'+10' },
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
-          { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 정율 코칭', xp:'+8~30' },
+          { screen:'__qa-new__', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 정율 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창의적 체험활동', desc:'비교과 활동 기록', xp:'+20' },
           { screen:'exam-list', icon:'📝', bg:'rgba(116,185,255,0.15)', title:'시험 관리', desc:'중간·기말·모의·수행평가', xp:'+25' },
@@ -5141,8 +5141,8 @@ function renderClassEndPopup() {
           <span>❓ 질문이 있었나요?</span>
           <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">정율이 2축 9단계로 질문을 코칭해줘요!</p>
           <div style="display:flex;gap:8px">
-            <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">🪜 호기심 질문</button>
-            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="state._questionAxis='reflection';goScreen('record-question')">🪞 성찰 질문</button>
+            <button class="btn-secondary" style="flex:1" onclick="openMyQaIframe('/new')">🪜 호기심 질문</button>
+            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="openMyQaIframe('/new')">🪞 성찰 질문</button>
           </div>
           <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:12px">질문 없어요</button>
         </div>
@@ -5268,8 +5268,8 @@ function renderRecordClass() {
           <p>❓ 질문이 떠올랐나요?</p>
           <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px">2축 9단계 정율 코칭으로 사고의 깊이를 키워보세요!</p>
           <div style="display:flex;gap:12px">
-            <button class="btn-secondary" style="flex:1" onclick="goScreen('record-question')">🪜 호기심 질문</button>
-            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="state._questionAxis='reflection';goScreen('record-question')">🪞 성찰 질문</button>
+            <button class="btn-secondary" style="flex:1" onclick="openMyQaIframe('/new')">🪜 호기심 질문</button>
+            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="openMyQaIframe('/new')">🪞 성찰 질문</button>
           </div>
         </div>
 
@@ -8212,14 +8212,16 @@ async function loadMyQaStats() {
 }
 
 // QA앱을 iframe으로 전체화면 열기
-async function openMyQaIframe() {
+// targetPath: 선택적 경로 (예: '/new' → 질문 등록 화면)
+async function openMyQaIframe(targetPath) {
   // 이미 열려있으면 무시
   if (document.getElementById('myqa-iframe-overlay')) return;
 
   const studentId = state._authUser?.id;
   const studentName = state._authUser?.name || '학생';
+  const basePath = targetPath || '';
   
-  let qaUrl = QA_APP_URL;
+  let qaUrl = QA_APP_URL + basePath;
 
   // 자동 로그인 토큰 발급
   if (studentId) {
@@ -8231,22 +8233,27 @@ async function openMyQaIframe() {
       });
       const data = await res.json();
       if (data.success) {
-        // QA앱에 외부 인증 파라미터 전달 + 내 질문 필터 자동 적용
+        // QA앱에 외부 인증 파라미터 전달
         const params = new URLSearchParams({
           ext_auth: '1',
           user_id: data.userId,
           nick_name: data.nickName,
           timestamp: data.timestamp,
           signature: data.signature,
-          from: 'creditplanner',
-          filter: 'my'
+          from: 'creditplanner'
         });
-        qaUrl = QA_APP_URL + '?' + params.toString();
+        // 목록 화면일 때만 내 질문 필터 자동 적용
+        if (!targetPath) params.set('filter', 'my');
+        qaUrl = QA_APP_URL + basePath + '?' + params.toString();
       }
     } catch (e) {
       console.error('QA 토큰 발급 실패:', e);
     }
   }
+
+  // 진입 전 현재 탭/화면 저장 (돌아가기용)
+  const returnTab = state.studentTab;
+  const returnScreen = state.currentScreen;
 
   // iframe 오버레이 생성
   const overlay = document.createElement('div');
@@ -8267,14 +8274,15 @@ async function openMyQaIframe() {
   backBtn.onmouseout = () => { backBtn.style.background = 'rgba(108,92,231,0.2)'; };
   backBtn.onclick = () => {
     overlay.remove();
-    state.studentTab = 'home';
-    state.currentScreen = 'main';
+    state.studentTab = returnTab;
+    state.currentScreen = returnScreen;
     loadMyQaStats(); // 통계 갱신
     renderScreen();
   };
 
+  const titleLabel = targetPath === '/new' ? '✏️ 질문 등록' : '❓ 나만의 질문방';
   const title = document.createElement('span');
-  title.innerHTML = '❓ 나만의 질문방';
+  title.innerHTML = titleLabel;
   title.style.cssText = 'font-size:15px;font-weight:700;color:#fff';
 
   leftGroup.appendChild(backBtn);
@@ -9321,6 +9329,11 @@ const _screenHistory = ['onboarding-welcome'];
 let _isPopState = false;
 
 function goScreen(screen) {
+  // QA앱 iframe 진입점 인터셉트
+  if (screen === '__qa-new__') {
+    openMyQaIframe('/new');
+    return;
+  }
   // 화면 히스토리에 push (뒤로가기 지원)
   if (!_isPopState) {
     _screenHistory.push(screen);
