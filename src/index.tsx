@@ -16,6 +16,19 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('/api/*', cors())
 app.get('/static/*', serveStatic())
 
+// ==================== XP 내역 기록 헬퍼 ====================
+async function recordXp(db: D1Database, studentId: number, amount: number, source: string, sourceDetail: string = '', refTable: string | null = null, refId: number | null = null) {
+  if (!amount || amount === 0) return
+  try {
+    await db.prepare(
+      'INSERT INTO xp_history (student_id, amount, source, source_detail, ref_table, ref_id) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, amount, source, sourceDetail, refTable, refId).run()
+  } catch (e) {
+    // xp_history 테이블이 아직 없을 수 있음 — 조용히 무시
+    console.error('recordXp failed:', e)
+  }
+}
+
 // ==================== Gemini → OpenAI 폴백 헬퍼 ====================
 // Gemini API가 할당량 초과(429) 등으로 실패할 경우 OpenAI gpt-4o-mini로 자동 폴백
 
@@ -1056,6 +1069,7 @@ app.post('/api/student/:studentId/question-records', async (c) => {
     // XP 업데이트
     if (xpEarned) {
       await c.env.DB.prepare('UPDATE students SET xp = xp + ? WHERE id = ?').bind(xpEarned, studentId).run();
+      await recordXp(c.env.DB, Number(studentId), xpEarned, '질문 코칭', `[${questionLevel || ''}] ${questionLabel || ''} — ${subject || ''}`, 'question_records', result.meta.last_row_id as number)
     }
 
     return c.json({ success: true, recordId: result.meta.last_row_id });
@@ -1092,6 +1106,7 @@ app.post('/api/student/:studentId/teach-records', async (c) => {
 
     if (xpEarned) {
       await c.env.DB.prepare('UPDATE students SET xp = xp + ? WHERE id = ?').bind(xpEarned || 30, studentId).run();
+      await recordXp(c.env.DB, Number(studentId), xpEarned || 30, '교학상장', `${subject || ''} — ${topic}`, 'teach_records', result.meta.last_row_id as number)
     }
 
     return c.json({ success: true, recordId: result.meta.last_row_id });
@@ -1179,6 +1194,7 @@ app.post('/api/student/:studentId/activity-logs', async (c) => {
 
     if (xpEarned) {
       await c.env.DB.prepare('UPDATE students SET xp = xp + ? WHERE id = ?').bind(xpEarned || 20, studentId).run();
+      await recordXp(c.env.DB, Number(studentId), xpEarned || 20, '창의적 체험활동', content.slice(0, 50), 'activity_logs', result.meta.last_row_id as number)
     }
 
     return c.json({ success: true, logId: result.meta.last_row_id });
@@ -1424,10 +1440,11 @@ app.get('/api/admin/export/:table', async (c) => {
 app.post('/api/student/:studentId/xp-sync', async (c) => {
   try {
     const studentId = c.req.param('studentId');
-    const { xpDelta } = await c.req.json();
+    const { xpDelta, source, sourceDetail } = await c.req.json();
     if (!xpDelta || xpDelta <= 0) return c.json({ success: true });
 
     await c.env.DB.prepare('UPDATE students SET xp = xp + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(xpDelta, studentId).run();
+    await recordXp(c.env.DB, Number(studentId), xpDelta, source || '수업 기록', sourceDetail || '')
     
     // 레벨 자동 계산 (100 XP당 1레벨)
     const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first();
@@ -1441,6 +1458,40 @@ app.post('/api/student/:studentId/xp-sync', async (c) => {
     return c.json({ error: e.message }, 500);
   }
 });
+
+// ==================== XP 내역 조회 API ====================
+app.get('/api/student/:studentId/xp-history', async (c) => {
+  try {
+    const studentId = c.req.param('studentId')
+    const limit = Math.min(Number(c.req.query('limit') || 50), 200)
+    const offset = Number(c.req.query('offset') || 0)
+
+    const { results: history } = await c.env.DB.prepare(
+      'SELECT id, amount, source, source_detail, created_at FROM xp_history WHERE student_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    ).bind(studentId, limit, offset).run()
+
+    // 소스별 합계
+    const { results: summary } = await c.env.DB.prepare(
+      'SELECT source, SUM(amount) as total_xp, COUNT(*) as count FROM xp_history WHERE student_id = ? GROUP BY source ORDER BY total_xp DESC'
+    ).bind(studentId).run()
+
+    const totalRow: any = await c.env.DB.prepare(
+      'SELECT COUNT(*) as total_count, SUM(amount) as total_xp FROM xp_history WHERE student_id = ?'
+    ).bind(studentId).first()
+
+    return c.json({
+      history,
+      summary,
+      totalCount: totalRow?.total_count || 0,
+      totalXp: totalRow?.total_xp || 0,
+      limit,
+      offset
+    })
+  } catch (e: any) {
+    // 테이블이 없으면 빈 결과 반환
+    return c.json({ history: [], summary: [], totalCount: 0, totalXp: 0, limit: 50, offset: 0 })
+  }
+})
 
 app.get('/api/student/:studentId/profile', async (c) => {
   try {
@@ -1552,6 +1603,9 @@ app.get('/api/migrate', async (c) => {
       `CREATE INDEX IF NOT EXISTS idx_my_questions_status ON my_questions(student_id, status)`,
       `CREATE INDEX IF NOT EXISTS idx_my_questions_subject ON my_questions(student_id, subject)`,
       `CREATE INDEX IF NOT EXISTS idx_my_answers_question ON my_answers(question_id)`,
+      // ===== XP 내역 기록 테이블 =====
+      `CREATE TABLE IF NOT EXISTS xp_history (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, amount INTEGER NOT NULL, source TEXT NOT NULL, source_detail TEXT DEFAULT '', ref_table TEXT DEFAULT NULL, ref_id INTEGER DEFAULT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
+      `CREATE INDEX IF NOT EXISTS idx_xp_history_student ON xp_history(student_id, created_at DESC)`,
     ];
     for (const sql of stmts) {
       await c.env.DB.prepare(sql).run();
@@ -1577,6 +1631,7 @@ app.post('/api/my-questions', async (c) => {
 
     // XP +3 (질문 등록 보상)
     await c.env.DB.prepare('UPDATE students SET xp = xp + 3, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(studentId).run()
+    await recordXp(c.env.DB, Number(studentId), 3, '질문 등록', `${subject || '기타'} — ${title.trim().slice(0, 40)}`, 'my_questions', result.meta.last_row_id as number)
     // 레벨 자동 계산
     const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first()
     if (student) {
@@ -1685,6 +1740,8 @@ app.post('/api/my-questions/:id/answer', async (c) => {
     if (resolveDays <= 1) totalXp += 3
 
     await c.env.DB.prepare('UPDATE students SET xp = xp + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(totalXp, studentId).run()
+    const bonusText = resolveDays <= 1 ? ' (빠른해결 보너스 +3)' : ''
+    await recordXp(c.env.DB, Number(studentId), totalXp, '답변 등록', `질문 #${questionId} 답변${bonusText}`, 'my_answers', result.meta.last_row_id as number)
     // 레벨 자동 계산
     const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first()
     if (student) {

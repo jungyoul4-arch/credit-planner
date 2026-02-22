@@ -462,6 +462,7 @@ function renderScreen() {
       initStudentEvents(tabletContent);
       initAuthEvents(tabletContent);
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
+      setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
     } else {
       phoneContainer.style.display = 'flex';
       tabletContainer.style.display = 'none';
@@ -469,6 +470,7 @@ function renderScreen() {
       initStudentEvents(container);
       initAuthEvents(container);
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
+      setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
     }
   } else if (state.mode === 'mentor') {
     phoneContainer.style.display = 'none';
@@ -8320,6 +8322,22 @@ function openQuestionFromTimetable(subject, period) {
 // ==================== MY TAB (M-01~M-05) ====================
 
 function renderMyTab() {
+  const userName = state._authUser?.name || '학생';
+  const userEmoji = state._authUser?.emoji || '🎓';
+  const userSchool = state._authUser?.school_name || '';
+  const userGrade = state._authUser?.grade || '';
+  const schoolInfo = userSchool ? `${userSchool}${userGrade ? ' ' + userGrade : ''}` : '';
+
+  // 레벨 계산
+  const currentLevel = state.level || 1;
+  const xpPerLevel = 100;
+  const currentLevelXp = state.xp % xpPerLevel;
+  const nextLevelRemain = xpPerLevel - currentLevelXp;
+  const levelPct = Math.round((currentLevelXp / xpPerLevel) * 100);
+  const tierNames = ['탐험가','학습자','연구자','멘토','설계자','개척자'];
+  const tierIdx = Math.min(Math.floor((currentLevel - 1) / 5), 5);
+  const currentTierName = tierNames[tierIdx] || '탐험가';
+
   return `
     <div class="tab-content animate-in">
       <div class="screen-header">
@@ -8331,11 +8349,11 @@ function renderMyTab() {
           <img src="/static/logo.png" alt="정율사관학원" class="profile-academy-logo">
         </div>
         <div class="profile-avatar">
-          <span>🎓</span>
+          <span>${userEmoji}</span>
         </div>
-        <h2 class="profile-name">김민준</h2>
-        <p class="profile-title">Lv.${state.level} 깊이 파고드는 연구자</p>
-        <p class="profile-school">정율고등학교 2학년 3반 · 공학 계열</p>
+        <h2 class="profile-name">${userName}</h2>
+        <p class="profile-title">Lv.${currentLevel} ${currentTierName}</p>
+        ${schoolInfo ? `<p class="profile-school">${schoolInfo}</p>` : ''}
         <div class="profile-stats">
           <div class="profile-stat">
             <span class="profile-stat-value" style="color:var(--xp-gold)">${state.xp.toLocaleString()}</span>
@@ -8346,7 +8364,7 @@ function renderMyTab() {
             <span class="profile-stat-label">스트릭</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-value">287</span>
+            <span class="profile-stat-value" id="my-total-records">-</span>
             <span class="profile-stat-label">총 기록</span>
           </div>
         </div>
@@ -8355,27 +8373,48 @@ function renderMyTab() {
       <div class="card stagger-2 animate-in">
         <div class="card-title">🏅 레벨 진행</div>
         <div class="level-progress-header">
-          <span>Lv.12 연구자</span>
-          <span style="color:var(--text-muted)">Lv.13까지 260 XP</span>
+          <span>Lv.${currentLevel} ${currentTierName}</span>
+          <span style="color:var(--text-muted)">Lv.${currentLevel+1}까지 ${nextLevelRemain} XP</span>
         </div>
         <div class="progress-bar" style="height:12px;border-radius:6px">
-          <div class="progress-fill level-fill" style="width:83%"></div>
+          <div class="progress-fill level-fill" style="width:${levelPct}%"></div>
         </div>
         <div class="level-tier-row">
           ${[
             {range:'1-5', name:'탐험가'},
             {range:'6-10', name:'학습자'},
-            {range:'11-15', name:'연구자', active:true},
+            {range:'11-15', name:'연구자'},
             {range:'16-20', name:'멘토'},
             {range:'21-25', name:'설계자'},
             {range:'26-30', name:'개척자'},
-          ].map(t => `
-            <span class="level-tier ${t.active?'active':''}">${t.name}</span>
+          ].map((t,i) => `
+            <span class="level-tier ${i===tierIdx?'active':''}">${t.name}</span>
           `).join('')}
         </div>
       </div>
 
+      <!-- XP 상세 내역 -->
       <div class="card stagger-3 animate-in">
+        <div class="card-header-row">
+          <span class="card-title">💰 XP 적립 내역</span>
+          <button class="btn-ghost" style="font-size:12px" onclick="loadXpHistory()">새로고침</button>
+        </div>
+        
+        <!-- 소스별 요약 -->
+        <div id="xp-summary" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+          <div style="padding:6px 12px;border-radius:8px;background:rgba(108,92,231,0.1);color:var(--text-muted);font-size:11px">로딩 중...</div>
+        </div>
+
+        <!-- 내역 리스트 -->
+        <div id="xp-history-list" style="display:flex;flex-direction:column;gap:2px;max-height:400px;overflow-y:auto">
+        </div>
+        
+        <div id="xp-history-more" style="display:none;text-align:center;padding:8px">
+          <button class="btn-ghost" style="font-size:12px" onclick="loadMoreXpHistory()">더보기</button>
+        </div>
+      </div>
+
+      <div class="card stagger-4 animate-in">
         <div class="card-header-row">
           <span class="card-title">🏆 업적 뱃지</span>
           <span class="card-subtitle">5/9 획득</span>
@@ -8468,6 +8507,145 @@ function renderMyTab() {
       </div>
     </div>
   `;
+}
+
+// ==================== XP HISTORY (XP 적립 내역) ====================
+
+let _xpHistoryOffset = 0;
+const _xpHistoryLimit = 20;
+let _xpHistoryHasMore = false;
+
+const XP_SOURCE_META = {
+  '수업 기록':     { icon: '📝', color: '#6C5CE7' },
+  '질문 코칭':     { icon: '🧠', color: '#E17055' },
+  '교학상장':      { icon: '🤝', color: '#00B894' },
+  '창의적 체험활동': { icon: '🎨', color: '#FDCB6E' },
+  '질문 등록':     { icon: '❓', color: '#0984E3' },
+  '답변 등록':     { icon: '💬', color: '#00CEC9' },
+  '과제 기록':     { icon: '📋', color: '#FF9F43' },
+  '시험 관리':     { icon: '📊', color: '#A29BFE' },
+};
+
+function getXpSourceMeta(source) {
+  return XP_SOURCE_META[source] || { icon: '⭐', color: '#8B949E' };
+}
+
+function formatXpDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffMin < 1) return '방금 전';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  if (diffHr < 24) return `${diffHr}시간 전`;
+  if (diffDay < 7) return `${diffDay}일 전`;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+async function loadXpHistory() {
+  const sid = DB.studentId();
+  if (!sid) {
+    const summaryEl = document.getElementById('xp-summary');
+    const listEl = document.getElementById('xp-history-list');
+    if (summaryEl) summaryEl.innerHTML = '<div style="padding:6px 12px;border-radius:8px;background:rgba(139,148,158,0.1);color:var(--text-muted);font-size:11px">로그인 후 확인할 수 있습니다</div>';
+    if (listEl) listEl.innerHTML = '';
+    return;
+  }
+
+  _xpHistoryOffset = 0;
+  try {
+    const res = await fetch(`/api/student/${sid}/xp-history?limit=${_xpHistoryLimit}&offset=0`);
+    const data = await res.json();
+
+    // 소스별 요약 렌더링
+    const summaryEl = document.getElementById('xp-summary');
+    if (summaryEl) {
+      if (data.summary && data.summary.length > 0) {
+        summaryEl.innerHTML = data.summary.map(s => {
+          const meta = getXpSourceMeta(s.source);
+          return `<div style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;background:rgba(${hexToRgb(meta.color)},0.12);font-size:11px;font-weight:600;color:${meta.color}">
+            <span>${meta.icon}</span>
+            <span>${s.source}</span>
+            <span style="font-weight:700">+${s.total_xp}</span>
+            <span style="opacity:0.6;font-size:10px">(${s.count}회)</span>
+          </div>`;
+        }).join('');
+      } else {
+        summaryEl.innerHTML = '<div style="padding:6px 12px;border-radius:8px;background:rgba(139,148,158,0.1);color:var(--text-muted);font-size:11px">아직 XP 적립 내역이 없습니다</div>';
+      }
+    }
+
+    // 히스토리 리스트 렌더링
+    const listEl = document.getElementById('xp-history-list');
+    if (listEl) {
+      if (data.history && data.history.length > 0) {
+        listEl.innerHTML = renderXpHistoryItems(data.history);
+      } else {
+        listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">아직 XP 적립 내역이 없어요.<br>수업 기록, 질문 코칭 등 활동을 시작해보세요! 🚀</div>';
+      }
+    }
+
+    // 더보기 버튼
+    _xpHistoryOffset = _xpHistoryLimit;
+    _xpHistoryHasMore = data.history && data.history.length >= _xpHistoryLimit;
+    const moreEl = document.getElementById('xp-history-more');
+    if (moreEl) moreEl.style.display = _xpHistoryHasMore ? 'block' : 'none';
+
+  } catch (e) {
+    console.error('XP 내역 로드 실패:', e);
+    const summaryEl = document.getElementById('xp-summary');
+    if (summaryEl) summaryEl.innerHTML = '<div style="padding:6px 12px;border-radius:8px;background:rgba(139,148,158,0.1);color:var(--text-muted);font-size:11px">XP 내역을 불러올 수 없습니다</div>';
+  }
+}
+
+async function loadMoreXpHistory() {
+  const sid = DB.studentId();
+  if (!sid || !_xpHistoryHasMore) return;
+
+  try {
+    const res = await fetch(`/api/student/${sid}/xp-history?limit=${_xpHistoryLimit}&offset=${_xpHistoryOffset}`);
+    const data = await res.json();
+
+    const listEl = document.getElementById('xp-history-list');
+    if (listEl && data.history && data.history.length > 0) {
+      listEl.insertAdjacentHTML('beforeend', renderXpHistoryItems(data.history));
+    }
+
+    _xpHistoryOffset += _xpHistoryLimit;
+    _xpHistoryHasMore = data.history && data.history.length >= _xpHistoryLimit;
+    const moreEl = document.getElementById('xp-history-more');
+    if (moreEl) moreEl.style.display = _xpHistoryHasMore ? 'block' : 'none';
+
+  } catch (e) {
+    console.error('XP 내역 추가 로드 실패:', e);
+  }
+}
+
+function renderXpHistoryItems(items) {
+  return items.map(item => {
+    const meta = getXpSourceMeta(item.source);
+    const detail = item.source_detail ? `<span style="color:var(--text-muted);font-size:11px;margin-left:2px">· ${item.source_detail.length > 30 ? item.source_detail.slice(0,30)+'…' : item.source_detail}</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(48,54,61,0.3)">
+      <div style="width:32px;height:32px;border-radius:8px;background:rgba(${hexToRgb(meta.color)},0.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${meta.icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${item.source}</span>
+          ${detail}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${formatXpDate(item.created_at)}</div>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:${meta.color};flex-shrink:0">+${item.amount} XP</div>
+    </div>`;
+  }).join('');
+}
+
+// hex -> rgb 변환 헬퍼
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? `${parseInt(result[1],16)},${parseInt(result[2],16)},${parseInt(result[3],16)}` : '139,148,158';
 }
 
 // ==================== CLASSMATE MANAGEMENT (학생 관리) ====================
