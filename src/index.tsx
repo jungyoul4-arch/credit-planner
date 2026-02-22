@@ -1544,16 +1544,158 @@ app.get('/api/migrate', async (c) => {
       `CREATE INDEX IF NOT EXISTS idx_activity_logs_activity ON activity_logs(activity_record_id)`,
       `CREATE INDEX IF NOT EXISTS idx_activity_logs_student_date ON activity_logs(student_id, date)`,
       `CREATE INDEX IF NOT EXISTS idx_report_records_student ON report_records(student_id)`,
+      // ===== 나만의 질문방 테이블 =====
+      `CREATE TABLE IF NOT EXISTS my_questions (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT DEFAULT '기타', class_record_id INTEGER DEFAULT NULL, title TEXT NOT NULL, content TEXT DEFAULT '', image_key TEXT DEFAULT NULL, thumbnail_key TEXT DEFAULT NULL, status TEXT DEFAULT '미답변', question_level TEXT DEFAULT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
+      `CREATE TABLE IF NOT EXISTS my_answers (id INTEGER PRIMARY KEY AUTOINCREMENT, question_id INTEGER NOT NULL, student_id INTEGER NOT NULL, content TEXT DEFAULT '', image_key TEXT DEFAULT NULL, resolve_hours REAL DEFAULT NULL, resolve_days INTEGER DEFAULT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (question_id) REFERENCES my_questions(id) ON DELETE CASCADE)`,
+      `CREATE INDEX IF NOT EXISTS idx_my_questions_student ON my_questions(student_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_my_questions_status ON my_questions(student_id, status)`,
+      `CREATE INDEX IF NOT EXISTS idx_my_questions_subject ON my_questions(student_id, subject)`,
+      `CREATE INDEX IF NOT EXISTS idx_my_answers_question ON my_answers(question_id)`,
     ];
     for (const sql of stmts) {
       await c.env.DB.prepare(sql).run();
     }
-    return c.json({ success: true, message: 'Migration completed', tables: 14 });
+    return c.json({ success: true, message: 'Migration completed', tables: 16 });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
 });
 
+
+// ==================== 나만의 질문방 API ====================
+
+// 질문 등록
+app.post('/api/my-questions', async (c) => {
+  try {
+    const { studentId, subject, classRecordId, title, content, imageKey, thumbnailKey, questionLevel } = await c.req.json()
+    if (!studentId || !title || title.trim().length < 2) return c.json({ error: '질문 제목을 2자 이상 입력해주세요' }, 400)
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO my_questions (student_id, subject, class_record_id, title, content, image_key, thumbnail_key, question_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject || '기타', classRecordId || null, title.trim(), content || '', imageKey || null, thumbnailKey || null, questionLevel || null).run()
+
+    // XP +3 (질문 등록 보상)
+    await c.env.DB.prepare('UPDATE students SET xp = xp + 3, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(studentId).run()
+    // 레벨 자동 계산
+    const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first()
+    if (student) {
+      const newLevel = Math.max(1, Math.floor(student.xp / 100) + 1)
+      await c.env.DB.prepare('UPDATE students SET level = ? WHERE id = ?').bind(newLevel, studentId).run()
+    }
+
+    return c.json({ success: true, questionId: result.meta.last_row_id, xpEarned: 3 })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 내 질문 목록 조회 (최신순)
+app.get('/api/my-questions', async (c) => {
+  try {
+    const studentId = c.req.query('studentId')
+    const status = c.req.query('status') // '미답변' | '답변완료' | undefined(전체)
+    const subject = c.req.query('subject')
+    if (!studentId) return c.json({ error: 'studentId 필수' }, 400)
+
+    let query = 'SELECT q.*, (SELECT COUNT(*) FROM my_answers a WHERE a.question_id = q.id) as answer_count FROM my_questions q WHERE q.student_id = ?'
+    const binds: any[] = [studentId]
+
+    if (status) { query += ' AND q.status = ?'; binds.push(status) }
+    if (subject && subject !== '전체') { query += ' AND q.subject = ?'; binds.push(subject) }
+    query += ' ORDER BY q.created_at DESC'
+
+    const questions = await c.env.DB.prepare(query).bind(...binds).all()
+    return c.json({ questions: questions.results })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 질문 통계 (IMPORTANT: :id 라우트보다 먼저 정의해야 "stats"가 :id로 매칭되지 않음)
+app.get('/api/my-questions/stats', async (c) => {
+  try {
+    const studentId = c.req.query('studentId')
+    if (!studentId) return c.json({ error: 'studentId 필수' }, 400)
+
+    const [totalCount, unansweredCount, answeredCount, avgResolve, subjectStats, weeklyCount, weeklyAnswered] = await Promise.all([
+      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM my_questions WHERE student_id = ?').bind(studentId).first(),
+      c.env.DB.prepare("SELECT COUNT(*) as cnt FROM my_questions WHERE student_id = ? AND status = '미답변'").bind(studentId).first(),
+      c.env.DB.prepare("SELECT COUNT(*) as cnt FROM my_questions WHERE student_id = ? AND status = '답변완료'").bind(studentId).first(),
+      c.env.DB.prepare('SELECT AVG(resolve_days) as avg_days, AVG(resolve_hours) as avg_hours FROM my_answers WHERE student_id = ?').bind(studentId).first(),
+      c.env.DB.prepare('SELECT subject, COUNT(*) as cnt FROM my_questions WHERE student_id = ? GROUP BY subject ORDER BY cnt DESC').bind(studentId).all(),
+      c.env.DB.prepare("SELECT COUNT(*) as cnt FROM my_questions WHERE student_id = ? AND created_at >= datetime('now', '-7 days')").bind(studentId).first(),
+      c.env.DB.prepare("SELECT COUNT(*) as cnt FROM my_questions WHERE student_id = ? AND status = '답변완료' AND created_at >= datetime('now', '-7 days')").bind(studentId).first(),
+    ])
+
+    return c.json({
+      total: (totalCount as any)?.cnt || 0,
+      unanswered: (unansweredCount as any)?.cnt || 0,
+      answered: (answeredCount as any)?.cnt || 0,
+      avgResolveDays: Math.round(((avgResolve as any)?.avg_days || 0) * 10) / 10,
+      avgResolveHours: Math.round(((avgResolve as any)?.avg_hours || 0) * 10) / 10,
+      subjectStats: (subjectStats as any)?.results || [],
+      weeklyQuestions: (weeklyCount as any)?.cnt || 0,
+      weeklyAnswered: (weeklyAnswered as any)?.cnt || 0,
+    })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 질문 상세 + 답변 조회
+app.get('/api/my-questions/:id', async (c) => {
+  try {
+    const id = c.req.param('id')
+    const question: any = await c.env.DB.prepare('SELECT * FROM my_questions WHERE id = ?').bind(id).first()
+    if (!question) return c.json({ error: '질문을 찾을 수 없습니다' }, 404)
+
+    const answers = await c.env.DB.prepare('SELECT * FROM my_answers WHERE question_id = ? ORDER BY created_at DESC').bind(id).all()
+
+    return c.json({ question, answers: answers.results })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 본인이 직접 답변 등록
+app.post('/api/my-questions/:id/answer', async (c) => {
+  try {
+    const questionId = c.req.param('id')
+    const { studentId, content, imageKey } = await c.req.json()
+    if (!studentId || !content || content.trim().length < 2) return c.json({ error: '답변 내용을 2자 이상 입력해주세요' }, 400)
+
+    // 소요 시간 자동 계산
+    const question: any = await c.env.DB.prepare('SELECT created_at FROM my_questions WHERE id = ?').bind(questionId).first()
+    if (!question) return c.json({ error: '질문을 찾을 수 없습니다' }, 404)
+
+    const resolveHours = (Date.now() - new Date(question.created_at).getTime()) / (1000 * 60 * 60)
+    const resolveDays = Math.ceil(resolveHours / 24)
+
+    const result = await c.env.DB.prepare(
+      'INSERT INTO my_answers (question_id, student_id, content, image_key, resolve_hours, resolve_days) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(questionId, studentId, content.trim(), imageKey || null, Math.round(resolveHours * 10) / 10, resolveDays).run()
+
+    // 질문 상태를 '답변완료'로 업데이트
+    await c.env.DB.prepare("UPDATE my_questions SET status = '답변완료' WHERE id = ?").bind(questionId).run()
+
+    // XP +5 (답변 등록 보상)
+    let totalXp = 5
+    // 1일 이내 해결 시 보너스 +3
+    if (resolveDays <= 1) totalXp += 3
+
+    await c.env.DB.prepare('UPDATE students SET xp = xp + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(totalXp, studentId).run()
+    // 레벨 자동 계산
+    const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first()
+    if (student) {
+      const newLevel = Math.max(1, Math.floor(student.xp / 100) + 1)
+      await c.env.DB.prepare('UPDATE students SET level = ? WHERE id = ?').bind(newLevel, studentId).run()
+    }
+
+    return c.json({ success: true, answerId: result.meta.last_row_id, resolveHours: Math.round(resolveHours * 10) / 10, resolveDays, xpEarned: totalXp, fastBonus: resolveDays <= 1 })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
 
 // ==================== 헬스체크 ====================
 app.get('/api/health', (c) => {
