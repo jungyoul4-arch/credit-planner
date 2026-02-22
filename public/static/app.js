@@ -617,8 +617,7 @@ function renderSidebar() {
     <div class="sidebar">
       <!-- 로고 영역 -->
       <div class="sidebar-logo">
-        <img src="/static/logo.png" alt="" class="sidebar-logo-img">
-        <span class="sidebar-logo-text">학점플래너</span>
+        <img src="/static/logo.png" alt="정율사관학원" class="sidebar-logo-img">
       </div>
 
       <!-- 메인 네비게이션 -->
