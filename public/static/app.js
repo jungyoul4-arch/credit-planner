@@ -1874,6 +1874,8 @@ function renderClassRecordEdit() {
   const keywords = r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []);
   const teacherNote = r._teacherNote || '';
   const photos = r._photos || [];
+  const assignmentText = r._assignmentText || '';
+  const assignmentDue = r._assignmentDue || '';
 
   const photoThumbs = photos.map((p, i) => `
     <div class="class-photo-thumb" style="position:relative;width:72px;height:72px;flex-shrink:0;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
@@ -1933,6 +1935,15 @@ function renderClassRecordEdit() {
           <input class="input-field" id="edit-cr-teacher-note" value="${teacherNote}" placeholder='예: "서술형 나옴"'>
         </div>
 
+        <div class="field-group" style="background:var(--bg-input);border-radius:12px;padding:14px;border:1px solid var(--border)">
+          <label class="field-label" style="margin-bottom:8px">📋 과제 <span style="color:var(--text-muted)">(있으면 적어줘!)</span></label>
+          <input class="input-field" id="edit-cr-assignment" value="${assignmentText}" placeholder="예: 워크북 p.30~32 풀어오기" oninput="toggleEditDeadline()">
+          <div class="edit-deadline-section" style="display:${assignmentText ? 'block' : 'none'};margin-top:12px">
+            <label class="field-label" style="margin-bottom:8px">📅 마감일</label>
+            <input type="date" class="input-field" id="edit-cr-due" value="${assignmentDue}" style="font-size:13px">
+          </div>
+        </div>
+
         ${r.question ? `
         <div class="card" style="margin-top:12px;background:var(--bg-input);border-color:var(--primary)22">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -1982,6 +1993,15 @@ function removeEditPhoto(photoIdx) {
   renderScreen();
 }
 
+// 수정 화면 과제 입력시 마감일 토글
+function toggleEditDeadline() {
+  const input = document.getElementById('edit-cr-assignment');
+  const section = document.querySelector('.edit-deadline-section');
+  if (input && section) {
+    section.style.display = input.value.trim().length > 0 ? 'block' : 'none';
+  }
+}
+
 // 수업 기록 수정 저장
 function saveClassRecordEdit(idx) {
   const r = state.todayRecords[idx];
@@ -1993,6 +2013,10 @@ function saveClassRecordEdit(idx) {
   const teacherNote = document.getElementById('edit-cr-teacher-note')?.value?.trim() || '';
   const keywords = keywordsInput.split(/[,，、\n]+/).map(k => k.trim()).filter(k => k);
   const photos = r._photos || [];
+  
+  // 과제 정보
+  const assignmentText = document.getElementById('edit-cr-assignment')?.value?.trim() || '';
+  const assignmentDue = document.getElementById('edit-cr-due')?.value || '';
 
   // state 업데이트
   r.summary = topic || keywords.join(', ') || r.summary;
@@ -2000,6 +2024,8 @@ function saveClassRecordEdit(idx) {
   r._pages = pages;
   r._keywords = keywords;
   r._teacherNote = teacherNote;
+  r._assignmentText = assignmentText;
+  r._assignmentDue = assignmentDue;
 
   // DB 업데이트
   if (r._dbRecordId && DB.studentId()) {
@@ -2012,6 +2038,46 @@ function saveClassRecordEdit(idx) {
       photos,
       teacher_note: teacherNote,
     });
+  }
+  
+  // 과제가 새로 추가되었으면 플래너에 등록
+  if (assignmentText && !r._assignmentRegistered) {
+    state._classAssignmentDue = assignmentDue;
+    const assignInput = { value: assignmentText };
+    // 임시로 DOM에 의존하지 않고 직접 등록
+    const dueDate = assignmentDue || new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10);
+    const subjectColors = {
+      '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+      '사회':'#74B9FF','한국사':'#E056A0','제2외국어':'#A29BFE','기술가정':'#FF9F43',
+    };
+    const newAssignment = {
+      id: 'auto-' + Date.now(),
+      subject: r.subject || '미지정',
+      title: assignmentText,
+      desc: `${r.period || ''}교시 수업 중 등록 (수정에서 추가)`,
+      type: '과제',
+      teacher: '',
+      dueDate: dueDate,
+      createdDate: new Date().toISOString().split('T')[0],
+      color: subjectColors[r.subject] || '#636e72',
+      status: 'pending',
+      progress: 0,
+      plan: []
+    };
+    if (!state.assignments) state.assignments = [];
+    state.assignments.push(newAssignment);
+    if (DB.studentId()) {
+      DB.saveAssignment({
+        subject: r.subject || '미지정',
+        title: assignmentText,
+        description: `${r.period || ''}교시 수업 중 등록`,
+        teacherName: '',
+        dueDate: dueDate,
+        color: subjectColors[r.subject] || '#636e72',
+        planData: [],
+      });
+    }
+    r._assignmentRegistered = true;
   }
 
   goScreen('main');
@@ -5553,6 +5619,13 @@ function saveClassRecordFromForm() {
     nextRecord._keywords = keywordTexts;
     nextRecord._photos = photos;
     nextRecord._teacherNote = teacherNote;
+    
+    // 과제 데이터를 레코드에 저장 (수정 화면에서 다시 볼 수 있도록)
+    const assignInput = document.querySelector('.class-assignment-input');
+    const assignText = assignInput ? assignInput.value.trim() : '';
+    nextRecord._assignmentText = assignText;
+    nextRecord._assignmentDue = state._classAssignmentDue || '';
+    
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
   }
@@ -5575,12 +5648,13 @@ function saveClassRecordFromForm() {
   
   // 과제가 있으면 플래너에 자동 등록
   registerAssignmentFromClassRecord(subject, period);
+  if (nextRecord) nextRecord._assignmentRegistered = !!assignText;
   
   // 사진 상태 리셋
   state._classPhotos = [];
   
   // 1차 XP 지급
-  showXpPopup(10, '수업 기록 완료!');
+  showXpPopup(10, '수업 기록 완료!', { stayOnScreen: true });
   
   // 기록 완료 → UI 전환: 입력 필드 비활성화, 기록 버튼 숨기고 질문 섹션 표시
   showPostRecordQuestion();
@@ -10025,6 +10099,13 @@ function completeClassRecord(idx) {
     r._keywords = keywordTexts;
     r._photos = photos;
     r._teacherNote = teacherNote;
+    
+    // 과제 데이터를 레코드에 저장 (수정 화면에서 다시 볼 수 있도록)
+    const assignInput2 = document.querySelector('.class-assignment-input');
+    const assignText2 = assignInput2 ? assignInput2.value.trim() : '';
+    r._assignmentText = assignText2;
+    r._assignmentDue = state._classAssignmentDue || '';
+    
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
 
@@ -10049,18 +10130,23 @@ function completeClassRecord(idx) {
   const rSubject = (idx >= 0 && idx < state.todayRecords.length) ? (state.todayRecords[idx].subject || '미지정') : '미지정';
   const rPeriod = (idx >= 0 && idx < state.todayRecords.length) ? (state.todayRecords[idx].period || '') : '';
   registerAssignmentFromClassRecord(rSubject, rPeriod);
+  if (idx >= 0 && idx < state.todayRecords.length) {
+    const assignText3 = document.querySelector('.class-assignment-input');
+    state.todayRecords[idx]._assignmentRegistered = !!(assignText3 && assignText3.value.trim());
+  }
   
   // 사진 상태 리셋
   state._classPhotos = [];
   
   // 1차 XP 지급
-  showXpPopup(10, '수업 기록 완료!');
+  showXpPopup(10, '수업 기록 완료!', { stayOnScreen: true });
   
   // 기록 완료 → UI 전환: 입력 필드 비활성화, 기록 버튼 숨기고 질문 섹션 표시
   showPostRecordQuestion();
 }
 
-function showXpPopup(amount, label) {
+function showXpPopup(amount, label, options) {
+  const skipNavigate = options && options.stayOnScreen;
   state.xp += amount;
   
   // XP를 DB에 동기화 (디바운스: 마지막 호출 후 2초 뒤 실행)
@@ -10122,7 +10208,7 @@ function showXpPopup(amount, label) {
     setTimeout(() => {
       if (document.body.contains(overlay)) overlay.remove();
       if (document.body.contains(popup)) popup.remove();
-      state.currentScreen='main'; renderScreen();
+      if (!skipNavigate) { state.currentScreen='main'; renderScreen(); }
     }, 200);
   };
   overlay.addEventListener('click', close);
