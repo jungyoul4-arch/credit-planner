@@ -298,10 +298,9 @@ body {
 #device-preview-frame.preview-tablet-landscape .sidebar-user { flex-direction: row !important; gap: 6px !important; align-items: center !important; }
 #device-preview-frame.preview-tablet-landscape .sidebar-user-name { display: block !important; font-size: 16px; font-weight: 900; color: #FFFFFF; max-width: none; text-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 #device-preview-frame.preview-tablet-landscape .sidebar-streak { display: block !important; }
-#device-preview-frame.preview-tablet-landscape .sidebar-logout span { display: inline !important; font-size: 11px; }
 #device-preview-frame.preview-tablet-landscape .sidebar-footer { align-items: stretch !important; padding: 0 !important; gap: 0 !important; background: linear-gradient(180deg, rgba(108,92,231,0.15) 0%, transparent 100%) !important; border-top: 2px solid rgba(108,92,231,0.35) !important; }
 #device-preview-frame.preview-tablet-landscape .sidebar-logout span { display: inline !important; font-size: 13px; font-weight: 700; }
-#device-preview-frame.preview-tablet-landscape .sidebar-xp-bar { height: 3px !important; }
+#device-preview-frame.preview-tablet-landscape .sidebar-xp-bar { height: 5px !important; }
 #device-preview-frame.preview-tablet-landscape .sidebar-badge { position: static !important; margin-left: auto; }
 #device-preview-frame.preview-tablet-landscape #tablet-main-area {
   flex: 1 !important;
