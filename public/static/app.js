@@ -25,6 +25,8 @@ const state = {
   selectedStudent: null,
   inputMode: 'keyword',
   _classPhotos: [], // 수업 기록 사진 배열
+  _classAssignmentText: '', // 과제 내용
+  _classAssignmentDue: '', // 과제 마감일 (YYYY-MM-DD)
   todayRecords: [
     { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B', startTime:'09:00', endTime:'09:50', _dbRecordId: null },
     { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7', startTime:'10:00', endTime:'10:50', _dbRecordId: null },
@@ -5141,6 +5143,37 @@ function renderClassEndPopup() {
 }
 
 // ==================== 수업 기록 공통 필드 ====================
+function getDeadlineOptions() {
+  const today = new Date();
+  const dayNames = ['일','월','화','수','목','금','토'];
+  
+  function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+  function fmt(d) { return `${d.getMonth()+1}/${d.getDate()}(${dayNames[d.getDay()]})`; }
+  function iso(d) { return d.toISOString().slice(0,10); }
+  
+  // 내일
+  const tomorrow = addDays(today, 1);
+  // 모레
+  const dayAfter = addDays(today, 2);
+  // 이번주 금요일
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const daysToFri = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 + 7 - dayOfWeek);
+  const thisFri = addDays(today, daysToFri || 7);
+  // 다음주 월요일
+  const daysToMon = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+  const nextMon = addDays(today, daysToMon);
+  // 다음주 수요일
+  const nextWed = addDays(nextMon, 2);
+  
+  return [
+    { label: '내일', sub: fmt(tomorrow), value: iso(tomorrow) },
+    { label: '모레', sub: fmt(dayAfter), value: iso(dayAfter) },
+    { label: '이번주 금', sub: fmt(thisFri), value: iso(thisFri) },
+    { label: '다음주 월', sub: fmt(nextMon), value: iso(nextMon) },
+    { label: '다음주 수', sub: fmt(nextWed), value: iso(nextWed) },
+  ];
+}
+
 function renderClassRecordFields(subject) {
   const photoCount = (state._classPhotos || []).length;
   const photoThumbs = (state._classPhotos || []).map((p, i) => `
@@ -5148,6 +5181,15 @@ function renderClassRecordFields(subject) {
       <img src="${p}" style="width:100%;height:100%;object-fit:cover" onclick="viewClassPhoto(${i})">
       <button onclick="removeClassPhoto(${i})" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer">&times;</button>
     </div>
+  `).join('');
+
+  const deadlineOpts = getDeadlineOptions();
+  const selectedDue = state._classAssignmentDue || '';
+  const deadlineBtns = deadlineOpts.map(o => `
+    <button type="button" class="deadline-btn ${selectedDue === o.value ? 'active' : ''}" data-due="${o.value}" onclick="selectDeadline(this)" style="flex:1;min-width:0;padding:8px 4px;border-radius:8px;border:1px solid ${selectedDue === o.value ? 'var(--primary-light)' : 'var(--border)'};background:${selectedDue === o.value ? 'rgba(108,92,231,0.15)' : 'var(--bg-input)'};color:${selectedDue === o.value ? 'var(--primary-light)' : 'var(--text-primary)'};font-size:11px;text-align:center;cursor:pointer;transition:all 0.2s;line-height:1.3">
+      <div style="font-weight:600">${o.label}</div>
+      <div style="font-size:10px;color:${selectedDue === o.value ? 'var(--primary-light)' : 'var(--text-muted)'}; margin-top:2px">${o.sub}</div>
+    </button>
   `).join('');
 
   return `
@@ -5163,7 +5205,7 @@ function renderClassRecordFields(subject) {
 
     <div class="field-group">
       <label class="field-label">📝 핵심 키워드 <span style="color:var(--accent)">*필수</span></label>
-      <textarea class="input-field class-keyword-input" placeholder="예: 감수분열, 상동염색체, 2가" rows="2" oninput="validateClassRecordForm()"></textarea>
+      <textarea class="input-field class-keyword-input" placeholder="예: 감수분열, 상동염색체, 2가 염색체" rows="2" oninput="validateClassRecordForm()"></textarea>
     </div>
 
     <div class="field-group">
@@ -5183,7 +5225,97 @@ function renderClassRecordFields(subject) {
       <label class="field-label">⭐ 선생님 강조 <span style="color:var(--text-muted)">(선택)</span></label>
       <input class="input-field class-teacher-note-input" placeholder='예: "서술형 나옴"'>
     </div>
+
+    <div class="field-group assignment-section" style="background:var(--bg-input);border-radius:12px;padding:14px;border:1px solid var(--border)">
+      <label class="field-label" style="margin-bottom:8px">📋 과제 <span style="color:var(--text-muted)">(있으면 적어줘!)</span></label>
+      <input class="input-field class-assignment-input" placeholder="예: 워크북 p.30~32 풀어오기" oninput="toggleDeadlineSection()">
+      
+      <div class="deadline-section" style="display:${state._classAssignmentText ? 'block' : 'none'};margin-top:12px">
+        <label class="field-label" style="margin-bottom:8px">📅 마감일</label>
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto">
+          ${deadlineBtns}
+          <button type="button" class="deadline-btn deadline-custom-btn" onclick="openCustomDeadline()" style="flex:0 0 auto;min-width:52px;padding:8px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-muted);font-size:11px;text-align:center;cursor:pointer;transition:all 0.2s;line-height:1.3">
+            <div>📅</div>
+            <div style="font-size:10px;margin-top:2px">직접 선택</div>
+          </button>
+        </div>
+        <input type="date" class="custom-date-picker" style="display:none;margin-top:8px;width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:13px" onchange="selectCustomDeadline(this)">
+      </div>
+    </div>
   `;
+}
+
+// 과제 입력 시 마감일 섹션 토글
+function toggleDeadlineSection() {
+  const input = document.querySelector('.class-assignment-input');
+  const section = document.querySelector('.deadline-section');
+  if (input && section) {
+    const hasText = input.value.trim().length > 0;
+    section.style.display = hasText ? 'block' : 'none';
+    state._classAssignmentText = input.value.trim();
+  }
+}
+
+// 마감일 버튼 선택
+function selectDeadline(btn) {
+  const due = btn.dataset.due;
+  state._classAssignmentDue = due;
+  
+  // 모든 deadline 버튼 비활성화
+  document.querySelectorAll('.deadline-btn').forEach(b => {
+    b.style.borderColor = 'var(--border)';
+    b.style.background = 'var(--bg-input)';
+    b.style.color = 'var(--text-primary)';
+    b.querySelectorAll('div').forEach(d => d.style.color = '');
+  });
+  
+  // 선택된 버튼 활성화
+  btn.style.borderColor = 'var(--primary-light)';
+  btn.style.background = 'rgba(108,92,231,0.15)';
+  btn.style.color = 'var(--primary-light)';
+  btn.querySelectorAll('div').forEach(d => d.style.color = 'var(--primary-light)');
+  
+  // custom date picker 숨기기
+  const picker = document.querySelector('.custom-date-picker');
+  if (picker) picker.style.display = 'none';
+}
+
+// 직접 선택 → date picker 표시
+function openCustomDeadline() {
+  const picker = document.querySelector('.custom-date-picker');
+  if (picker) {
+    picker.style.display = 'block';
+    // 최소 날짜를 내일로 설정
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    picker.min = tomorrow.toISOString().slice(0,10);
+    picker.focus();
+  }
+}
+
+// 직접 선택 날짜 적용
+function selectCustomDeadline(input) {
+  if (!input.value) return;
+  state._classAssignmentDue = input.value;
+  
+  // 기존 버튼 비활성화
+  document.querySelectorAll('.deadline-btn').forEach(b => {
+    b.style.borderColor = 'var(--border)';
+    b.style.background = 'var(--bg-input)';
+    b.style.color = 'var(--text-primary)';
+    b.querySelectorAll('div').forEach(d => d.style.color = '');
+  });
+  
+  // 직접 선택 버튼 활성화
+  const customBtn = document.querySelector('.deadline-custom-btn');
+  if (customBtn) {
+    customBtn.style.borderColor = 'var(--primary-light)';
+    customBtn.style.background = 'rgba(108,92,231,0.15)';
+    customBtn.style.color = 'var(--primary-light)';
+    const d = new Date(input.value + 'T00:00:00');
+    const dayNames = ['일','월','화','수','목','금','토'];
+    customBtn.innerHTML = `<div style="font-weight:600;color:var(--primary-light)">${d.getMonth()+1}/${d.getDate()}</div><div style="font-size:10px;color:var(--primary-light);margin-top:2px">(${dayNames[d.getDay()]})</div>`;
+  }
 }
 
 // 사진 업로드 핸들러 (다중)
@@ -5388,6 +5520,9 @@ function saveClassRecordFromForm() {
     });
   }
   
+  // 과제가 있으면 플래너에 자동 등록
+  registerAssignmentFromClassRecord(subject, period);
+  
   // 사진 상태 리셋
   state._classPhotos = [];
   
@@ -5398,7 +5533,66 @@ function saveClassRecordFromForm() {
   showPostRecordQuestion();
 }
 
-// 기록 완료 후 UI 전환 — 질문하기 섹션 표시
+// 수업 기록에서 과제 자동 등록
+function registerAssignmentFromClassRecord(subject, period) {
+  const assignInput = document.querySelector('.class-assignment-input');
+  const assignText = assignInput ? assignInput.value.trim() : '';
+  if (!assignText) {
+    state._classAssignmentText = '';
+    state._classAssignmentDue = '';
+    return;
+  }
+  
+  const dueDate = state._classAssignmentDue || new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10); // 기본 1주 후
+  
+  const subjectColors = {
+    '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+    '사회':'#74B9FF','한국사':'#E056A0','제2외국어':'#A29BFE','기술가정':'#FF9F43',
+    '음악':'#fd79a8','미술':'#00cec9','체육':'#e17055','정보':'#0984e3',
+  };
+  
+  // 플래너 state에 추가
+  const newAssignment = {
+    id: 'auto-' + Date.now(),
+    subject: subject,
+    title: assignText,
+    desc: `${period}교시 수업 중 등록`,
+    type: '과제',
+    teacher: '',
+    dueDate: dueDate,
+    createdDate: new Date().toISOString().split('T')[0],
+    color: subjectColors[subject] || '#636e72',
+    status: 'pending',
+    progress: 0,
+    plan: []
+  };
+  
+  if (!state.assignments) state.assignments = [];
+  state.assignments.push(newAssignment);
+  
+  // DB 저장 (비동기)
+  if (DB.studentId()) {
+    DB.saveAssignment({
+      subject: subject,
+      title: assignText,
+      description: `${period}교시 수업 중 등록`,
+      teacherName: '',
+      dueDate: dueDate,
+      color: subjectColors[subject] || '#636e72',
+      planData: [],
+    }).then(dbId => {
+      if (dbId) {
+        newAssignment._dbId = dbId;
+        newAssignment.id = String(dbId);
+      }
+    });
+  }
+  
+  // 과제 상태 리셋
+  state._classAssignmentText = '';
+  state._classAssignmentDue = '';
+}
+
 function showPostRecordQuestion() {
   // 기록 완료 버튼 숨기기
   document.querySelectorAll('.class-record-submit').forEach(btn => {
@@ -5411,9 +5605,16 @@ function showPostRecordQuestion() {
   });
   
   // 입력 필드 비활성화 (수정 불가)
-  document.querySelectorAll('.class-topic-input, .class-pages-input, .class-keyword-input, .class-teacher-note-input').forEach(el => {
+  document.querySelectorAll('.class-topic-input, .class-pages-input, .class-keyword-input, .class-teacher-note-input, .class-assignment-input').forEach(el => {
     el.disabled = true;
     el.style.opacity = '0.6';
+  });
+  
+  // 마감일 버튼 비활성화
+  document.querySelectorAll('.deadline-btn, .deadline-custom-btn').forEach(el => {
+    el.disabled = true;
+    el.style.opacity = '0.6';
+    el.style.pointerEvents = 'none';
   });
   
   // 사진 추가 버튼 숨기기
@@ -9785,6 +9986,11 @@ function completeClassRecord(idx) {
       });
     }
   }
+  
+  // 과제가 있으면 플래너에 자동 등록
+  const rSubject = (idx >= 0 && idx < state.todayRecords.length) ? (state.todayRecords[idx].subject || '미지정') : '미지정';
+  const rPeriod = (idx >= 0 && idx < state.todayRecords.length) ? (state.todayRecords[idx].period || '') : '';
+  registerAssignmentFromClassRecord(rSubject, rPeriod);
   
   // 사진 상태 리셋
   state._classPhotos = [];
