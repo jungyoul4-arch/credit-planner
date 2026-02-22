@@ -8231,14 +8231,15 @@ async function openMyQaIframe() {
       });
       const data = await res.json();
       if (data.success) {
-        // QA앱에 외부 인증 파라미터 전달
+        // QA앱에 외부 인증 파라미터 전달 + 내 질문 필터 자동 적용
         const params = new URLSearchParams({
           ext_auth: '1',
           user_id: data.userId,
           nick_name: data.nickName,
           timestamp: data.timestamp,
           signature: data.signature,
-          from: 'creditplanner'
+          from: 'creditplanner',
+          filter: 'my'
         });
         qaUrl = QA_APP_URL + '?' + params.toString();
       }
