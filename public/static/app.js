@@ -2515,8 +2515,8 @@ function renderHomeTab() {
           </div>
         </div>
         <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
-          <span class="date-day">${now.getMonth()+1}/${now.getDate()}</span>
-          <span class="date-month">${now.getDate()}일(${dayNames[now.getDay()]})</span>
+          <span class="date-day">${now.getDate()}</span>
+          <span class="date-month">${now.getMonth()+1}월 (${dayNames[now.getDay()]})</span>
           ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
         </div>
       </div>
