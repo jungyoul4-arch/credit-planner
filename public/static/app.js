@@ -86,26 +86,6 @@ const state = {
       ]
     },
     {
-      id: 2,
-      subject: '영어',
-      title: '영작문 에세이 제출',
-      desc: 'My Future Career Plan 주제, A4 2장 분량',
-      type: '에세이/작문',
-      teacher: '이정민',
-      dueDate: '2026-02-25',
-      createdDate: '2026-02-17',
-      color: '#00B894',
-      status: 'in-progress',
-      progress: 40,
-      plan: [
-        { step: 1, title: '주제 브레인스토밍 & 아웃라인', date: '2/18', done: true },
-        { step: 2, title: '초안 작성 (body)', date: '2/20', done: true },
-        { step: 3, title: '서론/결론 작성', date: '2/22', done: false },
-        { step: 4, title: '문법 체크 & 수정', date: '2/24', done: false },
-        { step: 5, title: '최종 제출', date: '2/25', done: false },
-      ]
-    },
-    {
       id: 3,
       subject: '과학',
       title: '산화환원 실험 보고서',
@@ -287,22 +267,18 @@ const state = {
     { id:'p6', date:'2026-02-21', time:'13:20', endTime:'14:10', title:'5교시 한국사', category:'class', color:'#74B9FF', icon:'🏛️', done:false, aiGenerated:false },
     { id:'p7', date:'2026-02-21', time:'14:20', endTime:'15:10', title:'6교시 체육', category:'class', color:'#A29BFE', icon:'⚽', done:false, aiGenerated:false },
     { id:'p8', date:'2026-02-21', time:'15:30', endTime:'16:30', title:'[과제] 수학 11~15번 풀기', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1, detail:'치환적분 연습문제 심화' },
-    { id:'p9', date:'2026-02-21', time:'16:30', endTime:'17:30', title:'[과제] 영어 에세이 서론/결론', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'My Future Career Plan' },
     { id:'p10', date:'2026-02-21', time:'17:30', endTime:'18:30', title:'코딩동아리 프로젝트', category:'activity', color:'#00CEC9', icon:'💻', done:false, aiGenerated:false, detail:'Python 그래프 시각화' },
     { id:'p11', date:'2026-02-21', time:'19:00', endTime:'20:00', title:'수학 복습 & 질문 정리', category:'study', color:'#6C5CE7', icon:'📝', done:false, aiGenerated:true, detail:'치환적분 오답노트' },
     { id:'p12', date:'2026-02-21', time:'20:00', endTime:'20:30', title:'저녁 루틴 & 하루 마무리', category:'routine', color:'#A29BFE', icon:'🌙', done:false, aiGenerated:false },
     // == 2/16 (일) ==
-    { id:'p13', date:'2026-02-22', time:'09:00', endTime:'10:30', title:'[과제] 영어 에세이 마무리', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
     { id:'p14', date:'2026-02-22', time:'10:30', endTime:'12:00', title:'[탐구] 치환적분 알고리즘 탐구', category:'explore', color:'#FF6B6B', icon:'🔬', done:false, aiGenerated:true, detail:'멘토 제안 탐구 주제' },
     { id:'p15', date:'2026-02-22', time:'14:00', endTime:'15:30', title:'자유 독서 & 메모', category:'personal', color:'#636e72', icon:'📚', done:false, aiGenerated:false, detail:'진로 관련 도서' },
     { id:'p16', date:'2026-02-22', time:'16:00', endTime:'17:00', title:'이서연에게 수학 가르치기', category:'teach', color:'#00B894', icon:'🤝', done:false, aiGenerated:false, detail:'치환적분 복습' },
     // == 2/17 (월) ==
     { id:'p17', date:'2026-02-23', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
     { id:'p18', date:'2026-02-23', time:'15:30', endTime:'17:00', title:'[과제] 과학 실험 데이터 정리', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
-    { id:'p19', date:'2026-02-23', time:'17:00', endTime:'18:00', title:'[과제] 영어 에세이 문법 체크', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2 },
     // == 2/18 (화) ==
     { id:'p20', date:'2026-02-24', time:'08:30', endTime:'15:10', title:'학교 수업 (6교시)', category:'class', color:'#6C5CE7', icon:'🏫', done:false, aiGenerated:false },
-    { id:'p21', date:'2026-02-24', time:'15:30', endTime:'16:00', title:'[과제] 영어 에세이 최종 제출 🚨', category:'assignment', color:'#00B894', icon:'📋', done:false, aiGenerated:true, assignmentId:2, detail:'⚠️ 마감일!' },
     { id:'p22', date:'2026-02-24', time:'16:00', endTime:'17:30', title:'[과제] 수학 오답정리', category:'assignment', color:'#6C5CE7', icon:'📋', done:false, aiGenerated:true, assignmentId:1 },
     // == 2/19~20 ==
     { id:'p23', date:'2026-02-25', time:'15:30', endTime:'17:00', title:'[과제] 과학 그래프 작성', category:'assignment', color:'#FDCB6E', icon:'📋', done:false, aiGenerated:true, assignmentId:3 },
