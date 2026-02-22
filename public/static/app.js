@@ -1869,8 +1869,18 @@ function renderClassRecordEdit() {
   const r = state.todayRecords[idx];
   if (!r) { goScreen('main'); return ''; }
 
-  const keywordsArr = r.summary ? r.summary.split(', ').filter(k => k) : [];
-  const understanding = r._understanding || 3;
+  const topic = r._topic || '';
+  const pages = r._pages || '';
+  const keywords = r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []);
+  const teacherNote = r._teacherNote || '';
+  const photos = r._photos || [];
+
+  const photoThumbs = photos.map((p, i) => `
+    <div class="class-photo-thumb" style="position:relative;width:72px;height:72px;flex-shrink:0;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+      <img src="${p}" style="width:100%;height:100%;object-fit:cover" onclick="viewClassPhoto(${i})">
+      <button onclick="removeEditPhoto(${i})" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer">&times;</button>
+    </div>
+  `).join('');
 
   return `
     <div class="full-screen animate-slide">
@@ -1882,7 +1892,7 @@ function renderClassRecordEdit() {
 
       <div class="form-body">
         <div class="card" style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:12px">
             <div class="tt-period-badge done" style="width:36px;height:36px;font-size:14px">${r.period}</div>
             <div>
               <div style="font-size:17px;font-weight:700;color:${r.color}">${r.subject}</div>
@@ -1892,31 +1902,35 @@ function renderClassRecordEdit() {
         </div>
 
         <div class="field-group">
-          <label class="field-label">📝 키워드</label>
-          <input class="input-field" id="edit-cr-keywords" value="${keywordsArr.join(', ')}" placeholder="쉼표로 구분 (예: 치환적분, 부분적분, 역함수)">
-          <span style="font-size:11px;color:var(--text-muted)">쉼표(,)로 구분해서 입력하세요</span>
+          <label class="field-label">📖 단원/주제</label>
+          <input class="input-field" id="edit-cr-topic" value="${topic}" placeholder="예: 3단원 세포 분열">
         </div>
 
         <div class="field-group">
-          <label class="field-label">💭 수업 내용 / 느낀 점</label>
-          <textarea class="input-field" id="edit-cr-content" rows="4" placeholder="이 수업에서 배운 것, 느낀 점...">${r._content || r.summary || ''}</textarea>
+          <label class="field-label">📄 교과서 쪽수</label>
+          <input class="input-field" id="edit-cr-pages" value="${pages}" placeholder="예: p.84~89">
         </div>
 
         <div class="field-group">
-          <label class="field-label">📊 이해도</label>
-          <div class="understanding-selector" id="edit-cr-understanding">
-            ${[1,2,3,4,5].map(v => `
-              <button class="understanding-btn ${understanding===v?'active':''}" data-value="${v}" onclick="document.querySelectorAll('#edit-cr-understanding .understanding-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">
-                <span style="font-size:18px">${['😵','😟','😐','🙂','😄'][v-1]}</span>
-                <span style="font-size:10px">${['모르겠음','어려움','보통','이해함','완벽'][v-1]}</span>
-              </button>
-            `).join('')}
+          <label class="field-label">📝 핵심 키워드 <span style="color:var(--accent)">*필수</span></label>
+          <textarea class="input-field" id="edit-cr-keywords" rows="2" placeholder="예: 감수분열, 상동염색체, 2가 염색체">${keywords.join(', ')}</textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">📸 필기 사진</label>
+          <div class="edit-photos-container" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            ${photoThumbs}
+            <label style="width:72px;height:72px;flex-shrink:0;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);font-size:11px;gap:2px">
+              <i class="fas fa-plus" style="font-size:16px"></i>
+              <span>추가</span>
+              <input type="file" accept="image/*" multiple style="display:none" onchange="handleEditPhotoUpload(this)">
+            </label>
           </div>
         </div>
 
         <div class="field-group">
-          <label class="field-label">📎 메모 <span style="color:var(--text-muted)">(선택)</span></label>
-          <input class="input-field" id="edit-cr-memo" value="${r._memo || r.period + '교시'}" placeholder="추가 메모...">
+          <label class="field-label">⭐ 선생님 강조</label>
+          <input class="input-field" id="edit-cr-teacher-note" value="${teacherNote}" placeholder='예: "서술형 나옴"'>
         </div>
 
         ${r.question ? `
@@ -1937,32 +1951,66 @@ function renderClassRecordEdit() {
   `;
 }
 
+// 수정 화면 사진 업로드
+function handleEditPhotoUpload(input) {
+  if (!input.files || input.files.length === 0) return;
+  const idx = state._editingClassRecordIdx;
+  const r = state.todayRecords[idx];
+  if (!r) return;
+  if (!r._photos) r._photos = [];
+
+  const files = Array.from(input.files).slice(0, 20 - r._photos.length);
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      r._photos.push(e.target.result);
+      loaded++;
+      if (loaded === files.length) renderScreen();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+// 수정 화면 사진 삭제
+function removeEditPhoto(photoIdx) {
+  const idx = state._editingClassRecordIdx;
+  const r = state.todayRecords[idx];
+  if (!r || !r._photos) return;
+  r._photos.splice(photoIdx, 1);
+  renderScreen();
+}
+
 // 수업 기록 수정 저장
 function saveClassRecordEdit(idx) {
   const r = state.todayRecords[idx];
   if (!r) return;
 
+  const topic = document.getElementById('edit-cr-topic')?.value?.trim() || '';
+  const pages = document.getElementById('edit-cr-pages')?.value?.trim() || '';
   const keywordsInput = document.getElementById('edit-cr-keywords')?.value || '';
-  const content = document.getElementById('edit-cr-content')?.value?.trim() || '';
-  const memo = document.getElementById('edit-cr-memo')?.value?.trim() || '';
-  const activeUnderstanding = document.querySelector('#edit-cr-understanding .understanding-btn.active');
-  const understanding = activeUnderstanding ? parseInt(activeUnderstanding.dataset.value) : 3;
-
-  const keywords = keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+  const teacherNote = document.getElementById('edit-cr-teacher-note')?.value?.trim() || '';
+  const keywords = keywordsInput.split(/[,，、\n]+/).map(k => k.trim()).filter(k => k);
+  const photos = r._photos || [];
 
   // state 업데이트
-  r.summary = keywords.join(', ') || content || r.summary;
-  r._content = content;
-  r._memo = memo;
-  r._understanding = understanding;
+  r.summary = topic || keywords.join(', ') || r.summary;
+  r._topic = topic;
+  r._pages = pages;
+  r._keywords = keywords;
+  r._teacherNote = teacherNote;
 
   // DB 업데이트
   if (r._dbRecordId && DB.studentId()) {
     DB.updateClassRecord(r._dbRecordId, {
-      content,
+      content: topic,
       keywords,
-      understanding,
-      memo,
+      memo: JSON.stringify({ period: r.period || '', pages: pages, teacherNote: teacherNote, photoCount: photos.length }),
+      topic,
+      pages,
+      photos,
+      teacher_note: teacherNote,
     });
   }
 
@@ -5500,6 +5548,11 @@ function saveClassRecordFromForm() {
   if (nextRecord) {
     nextRecord.done = true;
     nextRecord.summary = topic || keywordTexts.join(', ') || '수업 기록 완료';
+    nextRecord._topic = topic;
+    nextRecord._pages = pages;
+    nextRecord._keywords = keywordTexts;
+    nextRecord._photos = photos;
+    nextRecord._teacherNote = teacherNote;
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
   }
@@ -9967,6 +10020,11 @@ function completeClassRecord(idx) {
     
     r.done = true;
     r.summary = topic || keywordTexts.join(', ') || '수업 기록 완료';
+    r._topic = topic;
+    r._pages = pages;
+    r._keywords = keywordTexts;
+    r._photos = photos;
+    r._teacherNote = teacherNote;
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
 
