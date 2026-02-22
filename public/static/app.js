@@ -1468,15 +1468,22 @@ const DB = {
           _dbId: a.id,
           subject: a.subject,
           title: a.title,
-          description: a.description,
-          teacherName: a.teacher_name,
+          desc: a.description || '',
+          type: '과제',
+          teacher: a.teacher_name || '',
           dueDate: a.due_date,
+          createdDate: a.created_at ? a.created_at.slice(0,10) : '',
           status: a.status,
           progress: a.progress,
           color: a.color,
           plan: JSON.parse(a.plan_data || '[]'),
-          createdAt: a.created_at,
         }));
+        // 과제를 플래너 타임라인에도 반영
+        state.assignments.forEach(a => {
+          if (a.status !== 'completed' && a.dueDate) {
+            addAssignmentToPlannerItems(a);
+          }
+        });
       }
     } catch (e) { console.error('loadAssignments:', e); }
   },
@@ -2077,6 +2084,8 @@ function saveClassRecordEdit(idx) {
         planData: [],
       });
     }
+    // 플래너 일간 뷰에도 마감일 항목 추가
+    addAssignmentToPlannerItems(newAssignment);
     r._assignmentRegistered = true;
   }
 
@@ -2321,7 +2330,7 @@ function renderHomeTab() {
               const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
               const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
               return `
-              <div class="upcoming-assignment-card ${urgency}" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+              <div class="upcoming-assignment-card ${urgency}" onclick="state.viewingAssignment='${a.id}';goScreen('assignment-plan')">
                 <div class="ua-left">
                   <div class="ua-dday-badge ${urgency}">${dDayText}</div>
                 </div>
@@ -2466,7 +2475,7 @@ function renderRecordTab() {
           const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
           const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
           return `
-          <div class="assignment-mini-row" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+          <div class="assignment-mini-row" onclick="state.viewingAssignment='${a.id}';goScreen('assignment-plan')">
             <div class="assignment-mini-dot" style="background:${a.color}"></div>
             <div class="assignment-mini-info">
               <span class="assignment-mini-subject">${a.subject}</span>
@@ -5715,9 +5724,37 @@ function registerAssignmentFromClassRecord(subject, period) {
     });
   }
   
+  // 플래너 일간 뷰에도 마감일 항목 추가
+  addAssignmentToPlannerItems(newAssignment);
+  
   // 과제 상태 리셋
   state._classAssignmentText = '';
   state._classAssignmentDue = '';
+}
+
+// 과제를 플래너 일간 타임라인에 등록하는 헬퍼
+function addAssignmentToPlannerItems(assignment) {
+  if (!assignment || !assignment.dueDate) return;
+  
+  // 이미 같은 과제가 등록되어 있으면 중복 방지
+  const exists = state.plannerItems.find(p => 
+    p.category === 'assignment' && p.title === '[과제] ' + assignment.title && p.date === assignment.dueDate
+  );
+  if (exists) return;
+  
+  state.plannerItems.push({
+    id: 'passign-' + Date.now(),
+    date: assignment.dueDate,
+    time: '23:00',
+    endTime: '23:59',
+    title: '[과제] ' + assignment.title,
+    category: 'assignment',
+    color: assignment.color || '#636e72',
+    icon: '📋',
+    done: false,
+    aiGenerated: false,
+    detail: assignment.subject + ' · ' + (assignment.desc || '과제 제출')
+  });
 }
 
 function showPostRecordQuestion() {
@@ -6855,7 +6892,7 @@ function renderAssignmentPlan() {
 
         <!-- Action Buttons -->
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn-secondary" style="flex:1" onclick="state.editingAssignment=${a.id};goScreen('record-assignment')">
+          <button class="btn-secondary" style="flex:1" onclick="state.editingAssignment='${a.id}';goScreen('record-assignment')">
             <i class="fas fa-edit"></i> 수정
           </button>
           <button class="btn-primary" style="flex:2" onclick="goScreen('assignment-list')">
@@ -6941,7 +6978,7 @@ function renderAssignmentList() {
           const urgency = a.status === 'completed' ? 'completed' : dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
           const donePlanSteps = a.plan.filter(p => p.done).length;
           return `
-          <div class="assignment-card ${urgency} stagger-${i+1} animate-in" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+          <div class="assignment-card ${urgency} stagger-${i+1} animate-in" onclick="state.viewingAssignment='${a.id}';goScreen('assignment-plan')">
             <div class="ac-top">
               <div class="ac-subject-badge" style="background:${a.color}22;color:${a.color};border:1px solid ${a.color}44">${a.subject}</div>
               <span class="ac-type">${a.type}</span>
@@ -8132,7 +8169,7 @@ function renderPlannerWeekly() {
         const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
         const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
         return `
-        <div class="pw-assignment-row" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+        <div class="pw-assignment-row" onclick="state.viewingAssignment='${a.id}';goScreen('assignment-plan')">
           <span class="assignment-dday ${urgency}">${dDayText}</span>
           <span style="font-weight:600;flex:1;margin-left:8px">${a.subject} · ${a.title}</span>
           <span style="font-size:11px;color:var(--text-muted)">${a.progress}%</span>
@@ -8211,7 +8248,7 @@ function renderPlannerMonthly() {
         const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
         const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
         return `
-        <div class="pw-assignment-row" onclick="state.viewingAssignment=${a.id};goScreen('assignment-plan')">
+        <div class="pw-assignment-row" onclick="state.viewingAssignment='${a.id}';goScreen('assignment-plan')">
           <span class="assignment-dday ${urgency}">${dDayText}</span>
           <span style="font-weight:600;flex:1;margin-left:8px">${a.subject} · ${a.title}</span>
           <span style="font-size:11px;color:var(--text-muted)">${formatDate(a.dueDate)}</span>
