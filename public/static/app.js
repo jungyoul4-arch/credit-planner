@@ -562,6 +562,8 @@ function renderStudentApp() {
   if (state.currentScreen === 'activity-add') return renderActivityAdd();
   if (state.currentScreen === 'record-schoolrecord') return renderSchoolRecord();
   if (state.currentScreen === 'class-record-edit') return renderClassRecordEdit();
+  if (state.currentScreen === 'class-record-history') return renderClassRecordHistory();
+  if (state.currentScreen === 'class-record-detail') return renderClassRecordDetail();
 
   let content = '';
   content += renderXpBar();
@@ -1531,6 +1533,11 @@ const DB = {
           keywords: JSON.parse(r.keywords || '[]'),
           understanding: r.understanding,
           memo: r.memo,
+          topic: r.topic || '',
+          pages: r.pages || '',
+          photos: (() => { try { return JSON.parse(r.photos || '[]'); } catch(e) { return []; } })(),
+          teacher_note: r.teacher_note || '',
+          created_at: r.created_at || '',
         }));
       }
     } catch (e) { console.error('loadClassRecords:', e); }
@@ -1540,14 +1547,34 @@ const DB = {
     const sid = this.studentId();
     if (!sid) return null;
     try {
+      // photos 배열에서 base64 데이터를 분리 (photos 필드엔 ID 참조만 저장)
+      const photosRaw = recordData.photos || [];
+      const recordToSave = { ...recordData };
+      
       const res = await fetch(`/api/student/${sid}/class-records`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recordData)
+        body: JSON.stringify(recordToSave)
       });
       if (res.ok) {
         const data = await res.json();
-        return data.recordId;
+        const recordId = data.recordId;
+        
+        // 사진이 있으면 별도 테이블에도 저장 (열람용)
+        if (photosRaw.length > 0) {
+          try {
+            await fetch(`/api/student/${sid}/class-record-photos`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ photos: photosRaw, classRecordId: recordId })
+            });
+          } catch (pe) { console.error('saveClassRecordPhotos:', pe); }
+        }
+        
+        // DB 기록 자동 리프레시 (다른 기기에서도 바로 열람 가능)
+        try { await this.loadClassRecords(); } catch (_) {}
+        
+        return recordId;
       }
     } catch (e) { console.error('saveClassRecord:', e); }
     return null;
@@ -1560,6 +1587,8 @@ const DB = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
+      // 수정 후 DB 기록 자동 리프레시
+      try { await this.loadClassRecords(); } catch (_) {}
     } catch (e) { console.error('updateClassRecord:', e); }
   },
 
@@ -1862,6 +1891,362 @@ function showClassEndNotification(record) {
   document.body.appendChild(banner);
   // 10초 후 자동 닫기
   setTimeout(() => { if (document.body.contains(banner)) banner.remove(); }, 10000);
+}
+
+// ==================== 수업 기록 열람 ====================
+
+// 오늘 기록 상세 보기 (todayRecords 기반)
+function viewTodayRecord(idx) {
+  state._viewingTodayRecordIdx = idx;
+  goScreen('class-record-detail');
+}
+
+// 수업 기록 히스토리 (DB 기반 + 오늘 기록 통합)
+function renderClassRecordHistory() {
+  const dbRecords = (state._dbClassRecords || []).map(r => ({ ...r, _source: 'db' }));
+  
+  // 오늘 todayRecords 중 done인 항목도 통합 (DB에 아직 없을 수 있음)
+  const today = new Date().toISOString().slice(0,10);
+  const todayDone = (state.todayRecords || []).filter(r => r.done).map((r, idx) => {
+    // DB에 이미 있는지 확인 (subject + date + topic 기준)
+    const topic = r._topic || '';
+    const alreadyInDb = dbRecords.some(db => db.date === today && db.subject === r.subject && (db.topic === topic || db.content === topic));
+    if (alreadyInDb) return null;
+    return {
+      id: 'today-' + idx,
+      subject: r.subject || '미지정',
+      date: today,
+      topic: r._topic || '',
+      pages: r._pages || '',
+      keywords: r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []),
+      photos: r._photos || [],
+      teacher_note: r._teacherNote || '',
+      memo: JSON.stringify({ period: r.period }),
+      _source: 'today',
+      _todayIdx: idx
+    };
+  }).filter(Boolean);
+  
+  const allRecords = [...todayDone, ...dbRecords];
+  
+  // 날짜별 그룹핑
+  const grouped = {};
+  allRecords.forEach(r => {
+    if (!grouped[r.date]) grouped[r.date] = [];
+    grouped[r.date].push(r);
+  });
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a)); // 최신순
+  
+  // 전체 통계
+  const totalCount = allRecords.length;
+  const totalPhotos = allRecords.reduce((sum, r) => sum + (Array.isArray(r.photos) ? r.photos.length : 0), 0);
+  const subjectSet = new Set(allRecords.map(r => r.subject));
+  
+  const subjectColors = {
+    '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+    '사회':'#74B9FF','한국사':'#E056A0','제2외국어':'#A29BFE','기술가정':'#FF9F43',
+    '음악':'#fd79a8','미술':'#00cec9','체육':'#e17055','정보':'#0984e3',
+  };
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📚 나의 수업 기록</h1>
+      </div>
+      <div class="form-body">
+        <!-- 통계 요약 -->
+        <div class="card" style="margin-bottom:16px;padding:14px;background:linear-gradient(135deg,rgba(108,92,231,0.08),rgba(162,155,254,0.08))">
+          <div style="display:flex;justify-content:space-around;text-align:center">
+            <div>
+              <div style="font-size:22px;font-weight:800;color:var(--primary-light)">${totalCount}</div>
+              <div style="font-size:11px;color:var(--text-muted)">총 기록</div>
+            </div>
+            <div>
+              <div style="font-size:22px;font-weight:800;color:#FF9F43">${totalPhotos}</div>
+              <div style="font-size:11px;color:var(--text-muted)">첨부 사진</div>
+            </div>
+            <div>
+              <div style="font-size:22px;font-weight:800;color:#00B894">${subjectSet.size}</div>
+              <div style="font-size:11px;color:var(--text-muted)">과목</div>
+            </div>
+            <div>
+              <div style="font-size:22px;font-weight:800;color:#FF6B6B">${dates.length}</div>
+              <div style="font-size:11px;color:var(--text-muted)">기록일</div>
+            </div>
+          </div>
+        </div>
+        
+        ${allRecords.length === 0 ? `
+          <div style="text-align:center;padding:60px 0;color:var(--text-muted)">
+            <span style="font-size:48px;display:block;margin-bottom:16px">📝</span>
+            <p style="font-size:16px;font-weight:600;margin:0 0 8px">아직 기록이 없어요</p>
+            <p style="font-size:13px;margin:0">수업 시간에 기록을 시작해보세요!</p>
+            <button class="btn-primary" style="margin-top:16px;padding:10px 24px" onclick="goScreen('record-class')">
+              <i class="fas fa-pen" style="margin-right:6px"></i>수업 기록하러 가기
+            </button>
+          </div>
+        ` : dates.map(date => {
+          const dayRecords = grouped[date];
+          const d = new Date(date);
+          const dayNames = ['일','월','화','수','목','금','토'];
+          const dateLabel = date + ' (' + dayNames[d.getDay()] + ')';
+          const isToday = date === today;
+          return `
+          <div style="margin-bottom:20px">
+            <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:8px;padding-left:4px">
+              📅 ${dateLabel} ${isToday ? '<span style="color:var(--primary-light);font-size:10px;padding:2px 6px;border-radius:8px;background:rgba(108,92,231,0.1)">오늘</span>' : ''} <span style="font-weight:400;margin-left:6px">${dayRecords.length}교시 기록</span>
+            </div>
+            ${dayRecords.map(r => {
+              const color = subjectColors[r.subject] || '#636e72';
+              const keywords = Array.isArray(r.keywords) ? r.keywords : [];
+              const photoCount = Array.isArray(r.photos) ? r.photos.length : 0;
+              const memo = (() => { try { return JSON.parse(r.memo || '{}'); } catch(e) { return {}; } })();
+              // 오늘 기록인 경우 todayRecord 상세, DB 기록인 경우 DB 상세
+              const clickAction = r._source === 'today' 
+                ? "state._viewingTodayRecordIdx=" + r._todayIdx + ";goScreen('class-record-detail')"
+                : "state._viewingDbRecord='" + String(r.id) + "';goScreen('class-record-detail')";
+              return `
+              <div class="card" style="margin-bottom:8px;padding:14px;cursor:pointer;border-left:3px solid ${color}" onclick="${clickAction}">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:14px;font-weight:700;color:${color}">${r.subject}</span>
+                  ${memo.period ? '<span style="font-size:11px;color:var(--text-muted)">' + memo.period + '교시</span>' : ''}
+                  ${photoCount > 0 ? '<span style="font-size:11px;color:var(--text-muted);margin-left:auto"><i class="fas fa-camera"></i> ' + photoCount + '</span>' : ''}
+                </div>
+                ${r.topic ? '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">' + r.topic + '</div>' : ''}
+                ${keywords.length > 0 ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">' + keywords.slice(0,5).map(k => '<span style="font-size:11px;padding:2px 8px;border-radius:12px;background:' + color + '15;color:' + color + ';border:1px solid ' + color + '30">' + k + '</span>').join('') + '</div>' : ''}
+                ${r.teacher_note ? '<div style="font-size:11px;color:var(--accent)"><i class="fas fa-star" style="margin-right:4px"></i>' + r.teacher_note + '</div>' : ''}
+              </div>`;
+            }).join('')}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// 수업 기록 상세 열람
+function renderClassRecordDetail() {
+  // todayRecords 기반 또는 DB 기반
+  let record = null;
+  let fromToday = false;
+  
+  if (state._viewingTodayRecordIdx !== undefined && state._viewingTodayRecordIdx !== null) {
+    const idx = state._viewingTodayRecordIdx;
+    const r = state.todayRecords[idx];
+    if (r && r.done) {
+      record = {
+        subject: r.subject,
+        date: new Date().toISOString().slice(0,10),
+        topic: r._topic || '',
+        pages: r._pages || '',
+        keywords: r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []),
+        photos: r._photos || [],
+        teacher_note: r._teacherNote || '',
+        memo: JSON.stringify({ period: r.period }),
+        teacher: r.teacher || '',
+        color: r.color || '#636e72',
+        period: r.period,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        question: r.question,
+        _assignmentText: r._assignmentText || '',
+        _assignmentDue: r._assignmentDue || '',
+        _todayIdx: idx,
+      };
+      fromToday = true;
+    }
+  }
+  
+  if (!record && state._viewingDbRecord) {
+    const dbRec = (state._dbClassRecords || []).find(r => String(r.id) === String(state._viewingDbRecord));
+    if (dbRec) {
+      const memo = (() => { try { return JSON.parse(dbRec.memo || '{}'); } catch(e) { return {}; } })();
+      record = {
+        subject: dbRec.subject,
+        date: dbRec.date,
+        topic: dbRec.topic || dbRec.content || '',
+        pages: dbRec.pages || memo.pages || '',
+        keywords: Array.isArray(dbRec.keywords) ? dbRec.keywords : [],
+        photos: Array.isArray(dbRec.photos) ? dbRec.photos : [],
+        teacher_note: dbRec.teacher_note || memo.teacherNote || '',
+        memo: dbRec.memo,
+        period: memo.period || '',
+        color: '#636e72',
+        _dbId: dbRec.id,
+      };
+    }
+  }
+  
+  if (!record) { 
+    state._viewingTodayRecordIdx = null;
+    state._viewingDbRecord = null;
+    goScreen('main'); 
+    return ''; 
+  }
+  
+  const subjectColors = {
+    '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+    '사회':'#74B9FF','한국사':'#E056A0','제2외국어':'#A29BFE','기술가정':'#FF9F43',
+    '음악':'#fd79a8','미술':'#00cec9','체육':'#e17055','정보':'#0984e3',
+  };
+  const color = record.color !== '#636e72' ? record.color : (subjectColors[record.subject] || '#636e72');
+  const keywords = record.keywords || [];
+  const photos = record.photos || [];
+  
+  const backAction = fromToday 
+    ? "state._viewingTodayRecordIdx=null;goScreen('main')" 
+    : "state._viewingDbRecord=null;goScreen('class-record-history')";
+  
+  const editAction = fromToday 
+    ? `state._viewingTodayRecordIdx=null;openClassRecordEdit(${record._todayIdx})` 
+    : "goScreen('class-record-history')";
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="${backAction}"><i class="fas fa-arrow-left"></i></button>
+        <h1>📖 수업 기록</h1>
+        ${fromToday ? '<button class="header-action-btn" onclick="' + editAction + '" style="color:var(--primary-light)"><i class="fas fa-edit"></i></button>' : ''}
+      </div>
+      <div class="form-body">
+        <!-- 과목 헤더 -->
+        <div class="card" style="margin-bottom:16px;border-left:4px solid ${color}">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:44px;height:44px;border-radius:12px;background:${color}15;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:${color}">
+              ${record.period || '📖'}
+            </div>
+            <div style="flex:1">
+              <div style="font-size:18px;font-weight:700;color:${color}">${record.subject}</div>
+              <div style="font-size:12px;color:var(--text-muted)">
+                ${record.date}${record.period ? ' · ' + record.period + '교시' : ''}${record.teacher ? ' · ' + record.teacher + ' 선생님' : ''}${record.startTime ? ' · ' + record.startTime + '~' + record.endTime : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 단원/주제 -->
+        ${record.topic ? `
+        <div class="field-group" style="margin-bottom:14px">
+          <label class="field-label" style="font-size:11px;color:var(--text-muted)">📖 단원/주제</label>
+          <div style="font-size:15px;font-weight:600;color:var(--text-primary);padding:8px 0">${record.topic}</div>
+        </div>
+        ` : ''}
+
+        <!-- 교과서 쪽수 -->
+        ${record.pages ? `
+        <div class="field-group" style="margin-bottom:14px">
+          <label class="field-label" style="font-size:11px;color:var(--text-muted)">📄 교과서 쪽수</label>
+          <div style="font-size:14px;color:var(--text-primary);padding:8px 0">${record.pages}</div>
+        </div>
+        ` : ''}
+
+        <!-- 핵심 키워드 -->
+        ${keywords.length > 0 ? `
+        <div class="field-group" style="margin-bottom:14px">
+          <label class="field-label" style="font-size:11px;color:var(--text-muted)">📝 핵심 키워드</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0">
+            ${keywords.map(k => `<span style="font-size:13px;padding:4px 12px;border-radius:16px;background:${color}12;color:${color};border:1px solid ${color}30;font-weight:500">${k}</span>`).join('')}
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- 필기 사진 -->
+        ${photos.length > 0 ? `
+        <div class="field-group" style="margin-bottom:14px">
+          <label class="field-label" style="font-size:11px;color:var(--text-muted)">📸 필기 사진 (${photos.length}장)</label>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));gap:8px;padding:8px 0">
+            ${photos.map((p, i) => `
+              <div style="aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="openPhotoViewer(${i})">
+                <img src="${p}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- 선생님 강조 -->
+        ${record.teacher_note ? `
+        <div class="field-group" style="margin-bottom:14px">
+          <label class="field-label" style="font-size:11px;color:var(--text-muted)">⭐ 선생님 강조</label>
+          <div style="font-size:14px;color:var(--accent);padding:10px 14px;background:rgba(255,107,107,0.08);border-radius:10px;border:1px solid rgba(255,107,107,0.15);font-weight:500">
+            <i class="fas fa-exclamation-circle" style="margin-right:6px"></i>${record.teacher_note}
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- 과제 -->
+        ${record._assignmentText ? `
+        <div class="field-group" style="margin-bottom:14px">
+          <label class="field-label" style="font-size:11px;color:var(--text-muted)">📋 과제</label>
+          <div style="font-size:14px;color:var(--text-primary);padding:10px 14px;background:var(--bg-input);border-radius:10px;border:1px solid var(--border)">
+            ${record._assignmentText}
+            ${record._assignmentDue ? '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">📅 마감: ' + record._assignmentDue + '</div>' : ''}
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- 질문 기록 -->
+        ${record.question ? `
+        <div class="card" style="margin-top:4px;background:var(--bg-input);border-color:var(--primary)22">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span class="tt-q-badge">${record.question.level}</span>
+            <span style="font-size:13px;font-weight:600">질문 기록</span>
+          </div>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin:0">"${record.question.text}"</p>
+        </div>
+        ` : ''}
+
+        <!-- 수정 버튼 -->
+        ${fromToday ? `
+        <button class="btn-secondary" style="width:100%;margin-top:16px" onclick="${editAction}">
+          <i class="fas fa-edit" style="margin-right:6px"></i> 수정하기
+        </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// 사진 전체 화면 보기
+function openPhotoViewer(photoIdx) {
+  // 현재 보고 있는 기록의 사진 목록 가져오기
+  let photos = [];
+  if (state._viewingTodayRecordIdx !== undefined && state._viewingTodayRecordIdx !== null) {
+    const r = state.todayRecords[state._viewingTodayRecordIdx];
+    photos = r ? (r._photos || []) : [];
+  } else if (state._viewingDbRecord) {
+    const dbRec = (state._dbClassRecords || []).find(r => String(r.id) === String(state._viewingDbRecord));
+    photos = dbRec ? (Array.isArray(dbRec.photos) ? dbRec.photos : []) : [];
+  }
+  if (photos.length === 0) return;
+  
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+  
+  let currentIdx = photoIdx;
+  
+  function render() {
+    overlay.innerHTML = `
+      <button onclick="this.closest('div').remove()" style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:20px;cursor:pointer;z-index:10001">&times;</button>
+      <div style="color:#fff;font-size:13px;position:absolute;top:20px;left:50%;transform:translateX(-50%)">${currentIdx + 1} / ${photos.length}</div>
+      <img src="${photos[currentIdx]}" style="max-width:90%;max-height:80vh;object-fit:contain;border-radius:8px">
+      ${photos.length > 1 ? `
+        <div style="display:flex;gap:12px;margin-top:16px">
+          <button onclick="event.stopPropagation()" id="photo-prev" style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer">&lt;</button>
+          <button onclick="event.stopPropagation()" id="photo-next" style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer">&gt;</button>
+        </div>
+      ` : ''}
+    `;
+    const prev = overlay.querySelector('#photo-prev');
+    const next = overlay.querySelector('#photo-next');
+    if (prev) prev.addEventListener('click', () => { currentIdx = (currentIdx - 1 + photos.length) % photos.length; render(); });
+    if (next) next.addEventListener('click', () => { currentIdx = (currentIdx + 1) % photos.length; render(); });
+  }
+  
+  render();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 }
 
 // 수업 기록 수정 화면 열기
@@ -2222,7 +2607,7 @@ function renderHomeTab() {
           </div>
           <div class="timetable-list">
             ${state.todayRecords.map((r, idx) => `
-              <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="openClassRecordEdit(${idx})" style="cursor:pointer"` : ''}>
+              <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewTodayRecord(${idx})" style="cursor:pointer"` : ''}>
                 <div class="tt-period-badge ${r.done?'done':idx===doneCount?'current':''}" style="${r.done?'':''}">
                   ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : r.period}
                 </div>
@@ -2413,6 +2798,15 @@ function renderRecordTab() {
       </div>
       
       <div class="record-type-grid">
+        <!-- 나의 수업 기록 열람 (상단 배치) -->
+        <div class="record-type-card stagger-0 animate-in" style="background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.2)" onclick="goScreen('class-record-history')">
+          <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📚</div>
+          <div class="record-type-info">
+            <h3>나의 수업 기록</h3>
+            <p>기록한 수업 내용·사진 열람 ${(state._dbClassRecords||[]).length > 0 ? '<span style="color:var(--primary-light);font-weight:600">' + (state._dbClassRecords||[]).length + '건</span>' : ''}</p>
+          </div>
+          <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
+        </div>
         ${[
           { screen:'record-class', icon:'📝', bg:'rgba(108,92,231,0.15)', title:'수업 기록', desc:'30초 만에 오늘 수업을 기록', xp:'+10' },
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },

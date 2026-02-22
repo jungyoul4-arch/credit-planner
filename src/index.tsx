@@ -1071,6 +1071,80 @@ app.put('/api/student/class-records/:recordId', async (c) => {
 });
 
 
+// ==================== STUDENT DATA API: 수업 기록 사진 ====================
+
+// 사진 업로드 (base64 → DB 저장, photo ID 반환)
+app.post('/api/student/:studentId/class-record-photos', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const { photos, classRecordId } = await c.req.json();
+    // photos: base64 문자열 배열
+    if (!photos || !Array.isArray(photos) || photos.length === 0) {
+      return c.json({ error: '사진 데이터가 필요합니다' }, 400);
+    }
+    const ids: number[] = [];
+    for (const photoData of photos) {
+      if (typeof photoData !== 'string' || photoData.length < 10) continue;
+      // 썸네일 생성 (base64에서 첫 200자만 저장 - 목록용)
+      const thumbnail = photoData.slice(0, 200);
+      const fileSize = Math.round(photoData.length * 0.75); // base64 → bytes 추정
+      const result = await c.env.DB.prepare(
+        'INSERT INTO class_record_photos (student_id, class_record_id, photo_data, thumbnail, file_size) VALUES (?, ?, ?, ?, ?)'
+      ).bind(studentId, classRecordId || null, photoData, thumbnail, fileSize).run();
+      ids.push(result.meta.last_row_id as number);
+    }
+    return c.json({ success: true, photoIds: ids });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 사진 원본 조회
+app.get('/api/photos/:photoId', async (c) => {
+  try {
+    const photoId = c.req.param('photoId');
+    const row: any = await c.env.DB.prepare(
+      'SELECT photo_data, mime_type FROM class_record_photos WHERE id = ?'
+    ).bind(photoId).first();
+    if (!row) return c.json({ error: 'Photo not found' }, 404);
+    // base64 data URL인 경우 그대로 반환
+    if (row.photo_data.startsWith('data:')) {
+      return c.json({ photoData: row.photo_data });
+    }
+    // raw base64인 경우 data URL로 변환
+    return c.json({ photoData: `data:${row.mime_type || 'image/jpeg'};base64,${row.photo_data}` });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 특정 수업 기록의 사진 목록 조회
+app.get('/api/class-records/:recordId/photos', async (c) => {
+  try {
+    const recordId = c.req.param('recordId');
+    const photos = await c.env.DB.prepare(
+      'SELECT id, thumbnail, file_size, created_at FROM class_record_photos WHERE class_record_id = ? ORDER BY id'
+    ).bind(recordId).all();
+    return c.json({ photos: photos.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 학생의 모든 사진 조회 (최신순)
+app.get('/api/student/:studentId/class-record-photos', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const photos = await c.env.DB.prepare(
+      'SELECT id, class_record_id, thumbnail, file_size, created_at FROM class_record_photos WHERE student_id = ? ORDER BY id DESC LIMIT 100'
+    ).bind(studentId).all();
+    return c.json({ photos: photos.results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
 // ==================== STUDENT DATA API: 질문 코칭 기록 ====================
 
 app.post('/api/student/:studentId/question-records', async (c) => {
@@ -1627,6 +1701,10 @@ app.get('/api/migrate', async (c) => {
       `ALTER TABLE class_records ADD COLUMN pages TEXT DEFAULT ''`,
       `ALTER TABLE class_records ADD COLUMN photos TEXT DEFAULT '[]'`,
       `ALTER TABLE class_records ADD COLUMN teacher_note TEXT DEFAULT ''`,
+      // ===== 수업 기록 사진 별도 저장 테이블 =====
+      `CREATE TABLE IF NOT EXISTS class_record_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, class_record_id INTEGER, photo_data TEXT NOT NULL, thumbnail TEXT DEFAULT '', mime_type TEXT DEFAULT 'image/jpeg', file_size INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
+      `CREATE INDEX IF NOT EXISTS idx_crp_student ON class_record_photos(student_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_crp_record ON class_record_photos(class_record_id)`,
     ];
     for (const sql of stmts) {
       try { await c.env.DB.prepare(sql).run(); } catch(_) { /* column may already exist */ }
