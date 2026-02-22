@@ -293,8 +293,8 @@ body {
   height: 34px !important;
 }
 #device-preview-frame.preview-tablet-landscape .sidebar-nav-item { flex-direction: row !important; padding: 8px 8px !important; gap: 6px !important; justify-content: flex-start !important; }
-#device-preview-frame.preview-tablet-landscape .sidebar-nav-label { display: block !important; font-size: 10.5px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
-#device-preview-frame.preview-tablet-landscape .sidebar-nav-item i { font-size: 13px !important; min-width: 13px !important; }
+#device-preview-frame.preview-tablet-landscape .sidebar-nav-label { display: block !important; font-size: 13px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+#device-preview-frame.preview-tablet-landscape .sidebar-nav-item i { font-size: 18px !important; min-width: 18px !important; }
 #device-preview-frame.preview-tablet-landscape .sidebar-user { flex-direction: row !important; gap: 6px !important; align-items: center !important; }
 #device-preview-frame.preview-tablet-landscape .sidebar-user-name { display: block !important; font-size: 10.5px; font-weight: 700; color: var(--text-primary); max-width: 60px; }
 #device-preview-frame.preview-tablet-landscape .sidebar-streak { display: block !important; }
@@ -310,11 +310,11 @@ body {
 
 /* 콘텐츠 레이아웃 */
 #device-preview-frame.preview-tablet-landscape #tablet-content .tab-content {
-  padding: 0 28px 20px !important;
+  padding: 0 10px 20px !important;
   max-width: 100% !important;
 }
 #device-preview-frame.preview-tablet-landscape #tablet-content .xp-bar-container {
-  padding: 0 28px !important;
+  padding: 0 10px !important;
   height: 52px !important;
   min-height: 52px !important;
   max-height: 52px !important;
@@ -325,7 +325,7 @@ body {
 #device-preview-frame.preview-tablet-landscape #tablet-content .home-cards-grid {
   display: grid !important;
   grid-template-columns: repeat(3, 1fr) !important;
-  gap: 14px !important;
+  gap: 10px !important;
 }
 #device-preview-frame.preview-tablet-landscape #tablet-content .home-cards-grid > .card {
   margin: 0 !important;
@@ -346,10 +346,10 @@ body {
   margin: 0 auto !important;
 }
 #device-preview-frame.preview-tablet-landscape #tablet-content .screen-header {
-  padding: 14px 28px !important;
+  padding: 14px 10px !important;
 }
 #device-preview-frame.preview-tablet-landscape #tablet-content .form-body {
-  padding: 16px 28px 30px !important;
+  padding: 16px 10px 30px !important;
 }
 
 /* 성장/포트폴리오 4컬럼 */
@@ -493,13 +493,13 @@ body {
   flex-direction: column;
   align-items: center;
   overflow: visible;
-  gap: 3px;
-  padding: 12px 4px;
+  gap: 2px;
+  padding: 8px 4px;
   border-radius: 12px;
   border: none;
   background: none;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -508,7 +508,7 @@ body {
 }
 
 .sidebar-nav-item i {
-  font-size: 18px;
+  font-size: 24px;
   transition: all 0.15s ease;
 }
 
@@ -539,7 +539,7 @@ body {
 }
 
 .sidebar-nav-label {
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1;
   white-space: nowrap;
   overflow: visible;
@@ -715,9 +715,9 @@ body {
     gap: 8px;
     justify-content: flex-start;
   }
-  .sidebar-nav-item i { font-size: 14px; min-width: 14px; }
+  .sidebar-nav-item i { font-size: 20px; min-width: 20px; }
   .sidebar-nav-label {
-    font-size: 11.5px;
+    font-size: 14px;
     font-weight: 600;
     display: block !important;
     white-space: nowrap;
@@ -768,12 +768,12 @@ body {
 /* ==================== TABLET LAYOUT ENHANCEMENTS ==================== */
 
 /* 태블릿에서 탭 콘텐츠 패딩 확대 */
-#tablet-content .tab-content { padding:0 24px 20px; }
-#tablet-content .form-body { padding:16px 24px 40px; }
+#tablet-content .tab-content { padding:0 8px 20px; }
+#tablet-content .form-body { padding:16px 10px 40px; }
 
 /* 태블릿 XP 바 */
 #tablet-content .xp-bar-container {
-  padding:0 24px;
+  padding:0 10px;
   height: 52px;
   min-height: 52px;
   max-height: 52px;
@@ -812,7 +812,7 @@ body {
 
 /* 태블릿 기록 화면 */
 #tablet-content .full-screen { max-width:720px; margin:0 auto; }
-#tablet-content .screen-header { padding:16px 24px; }
+#tablet-content .screen-header { padding:16px 10px; }
 #tablet-content .screen-header h1 { font-size:20px; }
 
 /* 태블릿 프로필 */
@@ -904,7 +904,7 @@ body {
 /* ==================== COMMON UI ==================== */
 .tab-content { padding-bottom:100px; }
 .full-screen { min-height:100%; }
-.form-body { padding:0 20px 40px; }
+.form-body { padding:0 8px 40px; }
 .form-label {
   display:block; font-size:13px; font-weight:700;
   color:var(--text-muted); margin-bottom:6px; margin-top:12px;
@@ -930,7 +930,7 @@ body {
 /* Screen Header */
 .screen-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 20px 12px; background:var(--bg-dark); position:sticky; top:0; z-index:50;
+  padding:16px 8px 12px; background:var(--bg-dark); position:sticky; top:0; z-index:50;
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
 }
 .screen-header h1 { font-size:20px; font-weight:800; }
@@ -945,7 +945,7 @@ body {
 /* Card */
 .card {
   background:var(--bg-card); border-radius:var(--radius-lg); padding:16px;
-  margin:0 16px 12px; border:1px solid var(--border); transition:all var(--transition-normal);
+  margin:0 0 12px; border:1px solid var(--border); transition:all var(--transition-normal);
 }
 .card:hover { border-color:var(--border-light); }
 .card-gradient-purple {
@@ -1196,7 +1196,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 20px 6px;
+  padding: 12px 8px 6px;
   flex-wrap: wrap;
 }
 
@@ -1299,7 +1299,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 16px 20px;
+  padding: 0 0 20px;
 }
 .home-cards-grid > .card {
   margin: 0 !important;
@@ -1314,8 +1314,8 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .home-row-top {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  padding: 0 16px 14px;
+  gap: 10px;
+  padding: 0 0 10px;
   align-items: stretch;
 }
 
@@ -1354,8 +1354,8 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .home-row-bottom {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  padding: 0 16px 14px;
+  gap: 10px;
+  padding: 0 0 10px;
   align-items: stretch;
 }
 
@@ -1370,7 +1370,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .home-bottom-actions {
   display: flex;
   gap: 10px;
-  padding: 8px 16px 20px;
+  padding: 8px 0 20px;
   justify-content: center;
 }
 
@@ -1622,7 +1622,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .quick-action-btn i { margin-right:6px; }
 
 /* ==================== RECORD TAB ==================== */
-.record-type-grid { display:flex; flex-direction:column; gap:8px; padding:0 16px; margin-bottom:12px; }
+.record-type-grid { display:flex; flex-direction:column; gap:8px; padding:0; margin-bottom:12px; }
 .record-type-card {
   display:flex; align-items:center; gap:12px; padding:16px;
   background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg);
@@ -2069,7 +2069,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 /* ==================== PLANNER TAB ==================== */
 .planner-header {
   display:flex; justify-content:space-between; align-items:center;
-  padding:16px 20px 8px;
+  padding:16px 8px 8px;
 }
 .planner-header h1 { font-size:20px; font-weight:800; }
 .planner-view-toggle {
@@ -2117,7 +2117,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 /* Daily Summary */
 .planner-daily-summary {
   display:flex; align-items:center; justify-content:space-around;
-  padding:10px 16px; margin:0 16px 12px; background:var(--bg-card);
+  padding:10px 16px; margin:0 0 12px; background:var(--bg-card);
   border:1px solid var(--border); border-radius:var(--radius-md);
 }
 .pds-item { display:flex; flex-direction:column; align-items:center; gap:1px; }
@@ -2126,7 +2126,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .pds-divider { width:1px; height:24px; background:var(--border); }
 
 /* Timeline */
-.planner-timeline { padding:0 16px; }
+.planner-timeline { padding:0; }
 .pt-hour-row { display:flex; gap:10px; min-height:28px; }
 .pt-time {
   width:32px; font-size:10px; font-weight:600; color:var(--text-muted);
