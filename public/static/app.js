@@ -5138,7 +5138,7 @@ function renderClassEndPopup() {
 
         <div class="field-group">
           <label class="field-label">💭 생각 한 줄 <span style="color:var(--text-muted)">(선택)</span></label>
-          <input class="input-field" placeholder="이 수업에서 느낀 점, 궁금한 점...">
+          <input class="input-field class-thought-input" placeholder="이 수업에서 느낀 점, 궁금한 점..." oninput="validateClassRecordForm()">
         </div>
 
         <div class="popup-question-ask">
@@ -5151,7 +5151,7 @@ function renderClassEndPopup() {
           <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:12px">질문 없어요</button>
         </div>
 
-        <button class="btn-primary" onclick="completeClassRecord(${period-1})">
+        <button class="btn-primary class-record-submit" onclick="completeClassRecord(${period-1})" disabled style="opacity:0.4;cursor:not-allowed">
           기록 완료 +10 XP ✨
         </button>
         <button class="popup-skip" onclick="goScreen('main')">나중에 할게요</button>
@@ -5224,7 +5224,8 @@ function renderInputModeContent(subject) {
   } else {
     return `
       <div class="field-group">
-        <textarea class="input-field" placeholder="오늘 배운 핵심 키워드를 입력하세요" rows="2">관계대명사, which, that, 제한적용법</textarea>
+        <label class="field-label">📝 수업 키워드 <span style="color:var(--accent)">*필수</span></label>
+        <textarea class="input-field class-keyword-input" placeholder="오늘 배운 핵심 키워드를 입력하세요 (예: 관계대명사, which, that)" rows="2" oninput="validateClassRecordForm()"></textarea>
       </div>
     `;
   }
@@ -5265,7 +5266,7 @@ function renderRecordClass() {
 
         <div class="field-group">
           <label class="field-label">💭 나만의 생각 한 줄 <span style="color:var(--text-muted)">(선택)</span></label>
-          <textarea class="input-field" placeholder="이 수업에서 느낀 점, 궁금한 점..." rows="2">which와 that의 차이가 단순히 문법 규칙이 아니라 의미 전달의 차이라는 게 흥미로웠다</textarea>
+          <textarea class="input-field class-thought-input" placeholder="이 수업에서 느낀 점, 궁금한 점..." rows="2" oninput="validateClassRecordForm()"></textarea>
         </div>
 
         <div class="question-prompt">
@@ -5277,7 +5278,7 @@ function renderRecordClass() {
           </div>
         </div>
 
-        <button class="btn-primary" onclick="saveClassRecordFromForm()">완료 +10 XP ✨</button>
+        <button class="btn-primary class-record-submit" onclick="saveClassRecordFromForm()" disabled style="opacity:0.4;cursor:not-allowed">완료 +10 XP ✨</button>
         <p class="input-timer">⏱️ 입력 시간: 22초</p>
       </div>
     </div>
@@ -5314,17 +5315,34 @@ function saveQuestionToDB(saveType) {
 
 // 수업기록 폼에서 실제 입력값을 DB에 저장
 function saveClassRecordFromForm() {
+  // 유효성 검사
+  if (!validateClassRecordForm()) {
+    const keywordInput = document.querySelector('.class-keyword-input');
+    if (keywordInput) {
+      keywordInput.focus();
+      keywordInput.style.borderColor = 'var(--accent)';
+      keywordInput.setAttribute('placeholder', '수업 키워드를 입력해야 기록을 완료할 수 있어요!');
+      setTimeout(() => { keywordInput.style.borderColor = ''; }, 2000);
+    }
+    return;
+  }
+  
   const nextRecord = state.todayRecords.find(r => !r.done);
   const subject = nextRecord ? nextRecord.subject : '영어';
   const period = nextRecord ? nextRecord.period : 3;
   
   // 폼에서 실제 입력값 수집
-  const keywords = document.querySelectorAll('.keyword-chip');
+  const keywordInput = document.querySelector('.class-keyword-input');
+  const keywordText = keywordInput ? keywordInput.value?.trim() : '';
+  const chips = document.querySelectorAll('.keyword-chip');
   const keywordTexts = [];
-  keywords.forEach(k => keywordTexts.push(k.textContent?.trim() || ''));
+  if (keywordText) {
+    keywordText.split(/[,，、\n]+/).forEach(k => { const t = k.trim(); if (t) keywordTexts.push(t); });
+  }
+  chips.forEach(k => { const t = k.textContent?.trim(); if (t) keywordTexts.push(t); });
   
-  const textarea = document.querySelector('.form-body textarea');
-  const reflection = textarea ? textarea.value?.trim() : '';
+  const thoughtInput = document.querySelector('.class-thought-input');
+  const reflection = thoughtInput ? thoughtInput.value?.trim() : '';
   
   // todayRecords 업데이트
   if (nextRecord) {
@@ -5340,7 +5358,7 @@ function saveClassRecordFromForm() {
       subject: subject,
       date: new Date().toISOString().slice(0,10),
       content: reflection || '',
-      keywords: keywordTexts.length > 0 ? keywordTexts : (reflection ? reflection.split(', ') : []),
+      keywords: keywordTexts.length > 0 ? keywordTexts : [],
       understanding: 3,
       memo: `${period}교시`,
     });
@@ -9615,16 +9633,65 @@ try {
   history.replaceState({ screen: state.currentScreen, tab: state.studentTab }, '', '');
 } catch(e) { /* ignore */ }
 
+// 수업 기록 폼 유효성 검사 — 키워드가 있어야 버튼 활성화
+function validateClassRecordForm() {
+  // 키워드 textarea에서 실제 입력값 확인
+  const keywordInput = document.querySelector('.class-keyword-input');
+  const keywordText = keywordInput ? keywordInput.value.trim() : '';
+  
+  // keyword-chip이 있는 경우 (칩 형태 입력)
+  const chips = document.querySelectorAll('.keyword-chip');
+  const hasChips = chips.length > 0;
+  
+  // 키워드가 있으면 활성화
+  const hasContent = keywordText.length > 0 || hasChips;
+  
+  // 제출 버튼 찾기 (팝업 또는 전체화면 폼)
+  const submitBtns = document.querySelectorAll('.class-record-submit');
+  submitBtns.forEach(btn => {
+    if (hasContent) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    } else {
+      btn.disabled = true;
+      btn.style.opacity = '0.4';
+      btn.style.cursor = 'not-allowed';
+    }
+  });
+  
+  return hasContent;
+}
+
 function completeClassRecord(idx) {
+  // 유효성 검사
+  if (!validateClassRecordForm()) {
+    const keywordInput = document.querySelector('.class-keyword-input');
+    if (keywordInput) {
+      keywordInput.focus();
+      keywordInput.style.borderColor = 'var(--accent)';
+      keywordInput.setAttribute('placeholder', '수업 키워드를 입력해야 기록을 완료할 수 있어요!');
+      setTimeout(() => { keywordInput.style.borderColor = ''; }, 2000);
+    }
+    return;
+  }
+  
   if (idx >= 0 && idx < state.todayRecords.length) {
     const r = state.todayRecords[idx];
     
     // 팝업에서 실제 입력값 수집
-    const thoughtInput = document.querySelector('.popup-card .input-field');
+    const thoughtInput = document.querySelector('.class-thought-input');
     const thought = thoughtInput ? thoughtInput.value?.trim() : '';
-    const keywords = document.querySelectorAll('.popup-card .keyword-chip');
+    
+    // 키워드: textarea 또는 chip 형태
+    const keywordInput = document.querySelector('.class-keyword-input');
+    const keywordText = keywordInput ? keywordInput.value?.trim() : '';
+    const chips = document.querySelectorAll('.keyword-chip');
     const keywordTexts = [];
-    keywords.forEach(k => keywordTexts.push(k.textContent?.trim() || ''));
+    if (keywordText) {
+      keywordText.split(/[,，、\n]+/).forEach(k => { const t = k.trim(); if (t) keywordTexts.push(t); });
+    }
+    chips.forEach(k => { const t = k.textContent?.trim(); if (t) keywordTexts.push(t); });
     
     r.done = true;
     r.summary = keywordTexts.join(', ') || thought || '수업 기록 완료';
@@ -9636,8 +9703,8 @@ function completeClassRecord(idx) {
       DB.saveClassRecord({
         subject: r.subject || '미지정',
         date: new Date().toISOString().slice(0,10),
-        content: thought || r.summary || '',
-        keywords: keywordTexts.length > 0 ? keywordTexts : (r.summary ? r.summary.split(', ') : []),
+        content: thought || '',
+        keywords: keywordTexts.length > 0 ? keywordTexts : [],
         understanding: 3,
         memo: `${r.period || ''}교시`,
       });
