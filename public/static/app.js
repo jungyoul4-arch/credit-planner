@@ -5121,16 +5121,20 @@ function renderClassEndPopup() {
 
         ${renderClassRecordFields(subject)}
 
-        <div class="popup-question-ask" style="text-align:center;padding:12px 0">
-          <span style="font-size:14px;font-weight:600">💡 오늘 수업에서 궁금했던 것이 있나요?</span>
-          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
-          <button class="btn-secondary" style="width:100%;padding:10px;font-size:14px" onclick="openMyQaIframe('/new')">✏️ 질문하기</button>
-        </div>
-
         <button class="btn-primary class-record-submit" onclick="completeClassRecord(${period-1})" disabled style="opacity:0.4;cursor:not-allowed">
           기록 완료 +10 XP ✨
         </button>
-        <button class="popup-skip" onclick="goScreen('main')">나중에 할게요</button>
+
+        <div class="popup-question-after" style="display:none;text-align:center;padding:16px 0;margin-top:8px;border-top:1px solid var(--border)">
+          <div style="font-size:24px;margin-bottom:8px">🎉</div>
+          <p style="font-size:14px;font-weight:600;color:var(--success);margin:0 0 12px">수업 기록 완료!</p>
+          <span style="font-size:14px;font-weight:600">💡 오늘 수업에서 궁금했던 것이 있나요?</span>
+          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
+          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe('/new')">✏️ 질문하기 +3 XP</button>
+          <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:13px" onclick="goScreen('main')">다음에 할게요</button>
+        </div>
+
+        <button class="popup-skip popup-skip-before" onclick="goScreen('main')">나중에 할게요</button>
       </div>
     </div>
   `;
@@ -5279,13 +5283,16 @@ function renderRecordClass() {
 
         ${renderClassRecordFields(subject)}
 
-        <div class="question-prompt" style="text-align:center;padding:12px 0">
+        <button class="btn-primary class-record-submit" onclick="saveClassRecordFromForm()" disabled style="opacity:0.4;cursor:not-allowed">기록 완료 +10 XP ✨</button>
+
+        <div class="fullscreen-question-after" style="display:none;text-align:center;padding:16px 0;margin-top:8px;border-top:1px solid var(--border)">
+          <div style="font-size:24px;margin-bottom:8px">🎉</div>
+          <p style="font-size:14px;font-weight:600;color:var(--success);margin:0 0 12px">수업 기록 완료!</p>
           <p style="font-size:14px;font-weight:600;margin:0 0 4px">💡 오늘 수업에서 궁금했던 것이 있나요?</p>
           <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
-          <button class="btn-secondary" style="width:100%;padding:10px;font-size:14px" onclick="openMyQaIframe('/new')">✏️ 질문하기</button>
+          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe('/new')">✏️ 질문하기 +3 XP</button>
+          <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:13px" onclick="goScreen('main')">다음에 할게요</button>
         </div>
-
-        <button class="btn-primary class-record-submit" onclick="saveClassRecordFromForm()" disabled style="opacity:0.4;cursor:not-allowed">완료 +10 XP ✨</button>
         <p class="input-timer">⏱️ 입력 시간: 22초</p>
       </div>
     </div>
@@ -5384,7 +5391,51 @@ function saveClassRecordFromForm() {
   // 사진 상태 리셋
   state._classPhotos = [];
   
+  // 1차 XP 지급
   showXpPopup(10, '수업 기록 완료!');
+  
+  // 기록 완료 → UI 전환: 입력 필드 비활성화, 기록 버튼 숨기고 질문 섹션 표시
+  showPostRecordQuestion();
+}
+
+// 기록 완료 후 UI 전환 — 질문하기 섹션 표시
+function showPostRecordQuestion() {
+  // 기록 완료 버튼 숨기기
+  document.querySelectorAll('.class-record-submit').forEach(btn => {
+    btn.style.display = 'none';
+  });
+  
+  // "나중에 할게요" 버튼 숨기기 (기록 전용)
+  document.querySelectorAll('.popup-skip-before').forEach(btn => {
+    btn.style.display = 'none';
+  });
+  
+  // 입력 필드 비활성화 (수정 불가)
+  document.querySelectorAll('.class-topic-input, .class-pages-input, .class-keyword-input, .class-teacher-note-input').forEach(el => {
+    el.disabled = true;
+    el.style.opacity = '0.6';
+  });
+  
+  // 사진 추가 버튼 숨기기
+  document.querySelectorAll('.class-photo-add-btn').forEach(el => {
+    el.style.display = 'none';
+  });
+  
+  // 사진 삭제 버튼 숨기기
+  document.querySelectorAll('.class-photo-thumb button').forEach(el => {
+    el.style.display = 'none';
+  });
+  
+  // 질문하기 섹션 표시 (팝업 또는 전체화면)
+  document.querySelectorAll('.popup-question-after, .fullscreen-question-after').forEach(el => {
+    el.style.display = 'block';
+  });
+  
+  // 질문 섹션으로 스크롤
+  setTimeout(() => {
+    const questionSection = document.querySelector('.popup-question-after') || document.querySelector('.fullscreen-question-after');
+    if (questionSection) questionSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 300);
 }
 
 function renderRecordQuestion() {
@@ -9738,7 +9789,11 @@ function completeClassRecord(idx) {
   // 사진 상태 리셋
   state._classPhotos = [];
   
+  // 1차 XP 지급
   showXpPopup(10, '수업 기록 완료!');
+  
+  // 기록 완료 → UI 전환: 입력 필드 비활성화, 기록 버튼 숨기고 질문 섹션 표시
+  showPostRecordQuestion();
 }
 
 function showXpPopup(amount, label) {
