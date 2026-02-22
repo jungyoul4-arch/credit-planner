@@ -5657,7 +5657,10 @@ function saveClassRecordFromForm() {
   
   // 과제가 있으면 플래너에 자동 등록
   registerAssignmentFromClassRecord(subject, period);
-  if (nextRecord) nextRecord._assignmentRegistered = !!assignText;
+  if (nextRecord) {
+    const aInput = document.querySelector('.class-assignment-input');
+    nextRecord._assignmentRegistered = !!(aInput && aInput.value.trim());
+  }
   
   // 사진 상태 리셋
   state._classPhotos = [];
@@ -6715,7 +6718,7 @@ function renderRecordAssignment() {
   };
   const editing = state.editingAssignment;
   const isEdit = editing !== null;
-  const a = isEdit ? state.assignments.find(x => x.id === editing) : null;
+  const a = isEdit ? state.assignments.find(x => String(x.id) === String(editing)) : null;
   
   return `
     <div class="full-screen animate-slide">
@@ -6801,7 +6804,7 @@ function renderRecordAssignment() {
 // ==================== ASSIGNMENT PLAN (과제 계획) ====================
 
 function renderAssignmentPlan() {
-  const a = state.assignments.find(x => x.id === state.viewingAssignment);
+  const a = state.assignments.find(x => String(x.id) === String(state.viewingAssignment));
   if (!a) { goScreen('main'); return ''; }
   
   const dDay = getDday(a.dueDate);
@@ -6850,11 +6853,17 @@ function renderAssignmentPlan() {
           </div>
 
           <div class="plan-steps">
-            ${a.plan.map((step, i) => {
+            ${a.plan.length === 0 ? `
+              <div style="text-align:center;padding:20px 0;color:var(--text-muted)">
+                <span style="font-size:28px;display:block;margin-bottom:8px">📝</span>
+                <p style="font-size:13px;margin:0">아직 세부 플랜이 없어요</p>
+                <p style="font-size:11px;margin-top:4px">과제를 수정해서 단계를 추가해보세요!</p>
+              </div>
+            ` : a.plan.map((step, i) => {
               const isNext = !step.done && (i === 0 || a.plan[i-1].done);
               return `
               <div class="plan-step ${step.done ? 'done' : ''} ${isNext ? 'next' : ''}">
-                <div class="plan-step-check" onclick="togglePlanStep(${a.id}, ${i})">
+                <div class="plan-step-check" onclick="togglePlanStep('${a.id}', ${i})">
                   ${step.done 
                     ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:20px"></i>'
                     : isNext 
@@ -6875,7 +6884,6 @@ function renderAssignmentPlan() {
             }).join('')}
           </div>
         </div>
-
         <!-- AI Suggestion -->
         <div class="ai-plan-card stagger-2 animate-in">
           <div class="ai-header">
@@ -6901,7 +6909,7 @@ function renderAssignmentPlan() {
         </div>
 
         ${a.status !== 'completed' ? `
-        <button class="btn-ghost" style="width:100%;margin-top:8px;color:var(--success)" onclick="completeAssignment(${a.id})">
+        <button class="btn-ghost" style="width:100%;margin-top:8px;color:var(--success)" onclick="toggleAssignmentDone('${a.id}')">
           ✅ 과제 완료 처리
         </button>
         ` : `
@@ -7041,7 +7049,7 @@ function saveAssignment(goToPlan) {
   };
 
   if (state.editingAssignment !== null) {
-    const a = state.assignments.find(x => x.id === state.editingAssignment);
+    const a = state.assignments.find(x => String(x.id) === String(state.editingAssignment));
     if (a) {
       a.subject = subject;
       a.title = title || a.title;
@@ -7129,8 +7137,8 @@ function saveAssignment(goToPlan) {
 }
 
 function togglePlanStep(assignmentId, stepIdx) {
-  const a = state.assignments.find(x => x.id === assignmentId);
-  if (!a) return;
+  const a = state.assignments.find(x => String(x.id) === String(assignmentId));
+  if (!a || !a.plan || !a.plan[stepIdx]) return;
   a.plan[stepIdx].done = !a.plan[stepIdx].done;
   
   // Update progress
@@ -7155,7 +7163,7 @@ function togglePlanStep(assignmentId, stepIdx) {
 }
 
 function completeAssignment(id) {
-  const a = state.assignments.find(x => x.id === id);
+  const a = state.assignments.find(x => String(x.id) === String(id));
   if (!a) return;
   a.status = 'completed';
   a.progress = 100;
@@ -8050,8 +8058,35 @@ function renderPlannerDaily() {
       <div class="pds-divider"></div>
       <div class="pds-item"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">정율 배치</span></div>
       <div class="pds-divider"></div>
-      <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
+      <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${state.assignments.filter(a => a.dueDate === state.plannerDate && a.status !== 'completed').length + todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
     </div>
+
+    <!-- Due Assignments for this day -->
+    ${(() => {
+      const dueAssignments = state.assignments.filter(a => a.dueDate === state.plannerDate && a.status !== 'completed');
+      if (dueAssignments.length === 0) return '';
+      return '<div style="padding:0 16px;margin-bottom:12px">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px"><i class="fas fa-exclamation-circle"></i> 오늘 마감 과제</div>' +
+        dueAssignments.map(a => {
+          const dDay = getDday(a.dueDate);
+          const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? 'D-' + dDay : 'D+' + Math.abs(dDay);
+          return '<div class="card" style="margin-bottom:8px;padding:12px;border-left:3px solid ' + a.color + ';cursor:pointer" onclick="state.viewingAssignment=\'' + a.id + '\';goScreen(\'assignment-plan\')">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+              '<span class="assignment-dday urgent" style="font-size:11px;padding:2px 6px">' + dDayText + '</span>' +
+              '<span style="font-size:11px;color:' + a.color + ';font-weight:600">' + a.subject + '</span>' +
+              '<span style="margin-left:auto;font-size:11px;color:var(--text-muted)">' + a.progress + '%</span>' +
+            '</div>' +
+            '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">' + a.title + '</div>' +
+            (a.desc ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">' + a.desc + '</div>' : '') +
+            '<div style="display:flex;gap:8px;margin-top:8px">' +
+              '<button class="btn-secondary" style="flex:1;padding:6px;font-size:12px" onclick="event.stopPropagation();toggleAssignmentDone(\'' + a.id + '\')"><i class="fas fa-check"></i> 완료</button>' +
+              '<button class="btn-ghost" style="flex:0;padding:6px 10px;font-size:12px" onclick="event.stopPropagation();deletePlannerAssignment(\'' + a.id + '\')"><i class="fas fa-trash"></i></button>' +
+              '<button class="btn-ghost" style="flex:0;padding:6px 10px;font-size:12px" onclick="event.stopPropagation();state.editingAssignment=\'' + a.id + '\';goScreen(\'record-assignment\')"><i class="fas fa-edit"></i></button>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    })()}
 
     <!-- Timeline -->
     <div class="planner-timeline">
@@ -8407,6 +8442,53 @@ function togglePlannerItem(id) {
     item.done = !item.done;
     renderScreen();
   }
+}
+
+// 과제 완료/미완료 토글
+function toggleAssignmentDone(assignmentId) {
+  const a = state.assignments.find(x => String(x.id) === String(assignmentId));
+  if (!a) return;
+  a.status = a.status === 'completed' ? 'pending' : 'completed';
+  a.progress = a.status === 'completed' ? 100 : 0;
+  
+  // DB 업데이트
+  if (a._dbId && DB.studentId()) {
+    DB.updateAssignment(a._dbId, { status: a.status, progress: a.progress });
+  }
+  
+  // plannerItems에서도 동기화
+  const pItem = state.plannerItems.find(p => 
+    p.category === 'assignment' && p.title === '[과제] ' + a.title && p.date === a.dueDate
+  );
+  if (pItem) pItem.done = a.status === 'completed';
+  
+  renderScreen();
+  if (a.status === 'completed') {
+    showXpPopup(5, '과제 완료! 📋');
+  }
+}
+
+// 과제 삭제
+function deletePlannerAssignment(assignmentId) {
+  if (!confirm('이 과제를 삭제하시겠어요?')) return;
+  
+  const a = state.assignments.find(x => String(x.id) === String(assignmentId));
+  if (!a) return;
+  
+  // state에서 삭제
+  state.assignments = state.assignments.filter(x => String(x.id) !== String(assignmentId));
+  
+  // plannerItems에서도 삭제
+  state.plannerItems = state.plannerItems.filter(p => 
+    !(p.category === 'assignment' && p.title === '[과제] ' + a.title && p.date === a.dueDate)
+  );
+  
+  // DB에서 삭제
+  if (a._dbId && DB.studentId()) {
+    fetch(`/api/student/assignments/${a._dbId}`, { method: 'DELETE' }).catch(() => {});
+  }
+  
+  renderScreen();
 }
 
 function openPlannerAdd(date, time) {

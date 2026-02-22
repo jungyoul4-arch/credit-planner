@@ -998,6 +998,18 @@ app.put('/api/student/assignments/:assignmentId', async (c) => {
 });
 
 
+// DELETE: 과제 삭제
+app.delete('/api/student/assignments/:assignmentId', async (c) => {
+  try {
+    const assignmentId = c.req.param('assignmentId');
+    await c.env.DB.prepare('DELETE FROM assignments WHERE id = ?').bind(assignmentId).run();
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
 // ==================== STUDENT DATA API: 수업 기록 ====================
 
 app.get('/api/student/:studentId/class-records', async (c) => {
