@@ -23,7 +23,8 @@ const state = {
   streak: 18,
   mood: null,
   selectedStudent: null,
-  inputMode: 'keyword', // 'keyword' | 'voice' | 'photo'
+  inputMode: 'keyword',
+  _classPhotos: [], // 수업 기록 사진 배열
   todayRecords: [
     { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B', startTime:'09:00', endTime:'09:50', _dbRecordId: null },
     { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7', startTime:'10:00', endTime:'10:50', _dbRecordId: null },
@@ -5118,28 +5119,7 @@ function renderClassEndPopup() {
           <span class="timer-text">30초면 OK!</span>
         </div>
 
-        <p style="font-size:13px;color:var(--text-secondary);text-align:center;margin-bottom:12px">입력 방식 선택</p>
-        <div class="input-modes">
-          <button class="input-mode-btn ${state.inputMode==='voice'?'active':''}" data-input-mode="voice">
-            <i class="fas fa-microphone"></i>
-            <span>음성</span>
-          </button>
-          <button class="input-mode-btn ${state.inputMode==='photo'?'active':''}" data-input-mode="photo">
-            <i class="fas fa-camera"></i>
-            <span>사진</span>
-          </button>
-          <button class="input-mode-btn ${state.inputMode==='keyword'?'active':''}" data-input-mode="keyword">
-            <i class="fas fa-keyboard"></i>
-            <span>키워드</span>
-          </button>
-        </div>
-
-        ${renderInputModeContent(subject)}
-
-        <div class="field-group">
-          <label class="field-label">💭 생각 한 줄 <span style="color:var(--text-muted)">(선택)</span></label>
-          <input class="input-field class-thought-input" placeholder="이 수업에서 느낀 점, 궁금한 점..." oninput="validateClassRecordForm()">
-        </div>
+        ${renderClassRecordFields(subject)}
 
         <div class="popup-question-ask" style="text-align:center;padding:12px 0">
           <span style="font-size:14px;font-weight:600">💡 오늘 수업에서 궁금했던 것이 있나요?</span>
@@ -5156,75 +5136,121 @@ function renderClassEndPopup() {
   `;
 }
 
-function renderInputModeContent(subject) {
-  if (state.inputMode === 'voice') {
-    return `
-      <div class="voice-recording-visual">
-        <div class="voice-wave">
-          <div class="voice-wave-bar"></div>
-          <div class="voice-wave-bar"></div>
-          <div class="voice-wave-bar"></div>
-          <div class="voice-wave-bar"></div>
-          <div class="voice-wave-bar"></div>
-          <div class="voice-wave-bar"></div>
-          <div class="voice-wave-bar"></div>
-        </div>
-        <p style="font-size:14px;font-weight:600;color:var(--primary-light)">🎙️ 녹음 중... 0:12</p>
-        <p style="font-size:12px;color:var(--text-muted)">수업 내용을 말해주세요</p>
-        <div style="display:flex;gap:12px;margin-top:4px">
-          <button class="btn-secondary" style="padding:8px 20px;font-size:12px;border-radius:20px">
-            <i class="fas fa-stop" style="color:var(--accent);margin-right:4px"></i> 중지
-          </button>
-          <button class="btn-secondary" style="padding:8px 20px;font-size:12px;border-radius:20px">
-            <i class="fas fa-redo" style="margin-right:4px"></i> 다시
-          </button>
-        </div>
+// ==================== 수업 기록 공통 필드 ====================
+function renderClassRecordFields(subject) {
+  const photoCount = (state._classPhotos || []).length;
+  const photoThumbs = (state._classPhotos || []).map((p, i) => `
+    <div class="class-photo-thumb" style="position:relative;width:72px;height:72px;flex-shrink:0;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+      <img src="${p}" style="width:100%;height:100%;object-fit:cover" onclick="viewClassPhoto(${i})">
+      <button onclick="removeClassPhoto(${i})" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer">&times;</button>
+    </div>
+  `).join('');
+
+  return `
+    <div class="field-group">
+      <label class="field-label">📖 단원/주제</label>
+      <input class="input-field class-topic-input" placeholder="예: 3단원 세포 분열" oninput="validateClassRecordForm()">
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">📄 교과서 쪽수</label>
+      <input class="input-field class-pages-input" placeholder="예: p.84~89">
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">📝 핵심 키워드 <span style="color:var(--accent)">*필수</span></label>
+      <textarea class="input-field class-keyword-input" placeholder="예: 감수분열, 상동염색체, 2가" rows="2" oninput="validateClassRecordForm()"></textarea>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">📸 필기 사진 <span style="color:var(--text-muted)">(선택)</span></label>
+      <div class="class-photos-container" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        ${photoThumbs}
+        <label class="class-photo-add-btn" style="width:72px;height:72px;flex-shrink:0;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);font-size:11px;gap:2px;transition:border-color 0.2s">
+          <i class="fas fa-plus" style="font-size:16px"></i>
+          <span>${photoCount > 0 ? '추가' : '사진 추가'}</span>
+          <input type="file" accept="image/*" multiple style="display:none" onchange="handleClassPhotoUpload(this)">
+        </label>
       </div>
-      <div class="field-group">
-        <label class="field-label">📝 정율 변환 결과</label>
-        <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:13px;color:var(--text-secondary);line-height:1.6;border:1px solid var(--border)">
-          <span style="color:var(--success);font-size:11px;font-weight:600">[정율 변환]</span><br>
-          오늘 ${subject} 시간에는 관계대명사 중에서 which와 that의 차이점을 배웠습니다. 제한적 용법과 계속적 용법의 구분이 중요했어요.
-        </div>
-      </div>
-    `;
-  } else if (state.inputMode === 'photo') {
-    return `
-      <div class="photo-capture-visual">
-        <i class="fas fa-camera-retro"></i>
-        <span>필기 사진을 촬영하세요</span>
-        <span style="font-size:11px;color:var(--text-muted)">또는 앨범에서 선택</span>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <div style="flex:1;padding:8px;background:var(--bg-input);border:1px solid rgba(108,92,231,0.2);border-radius:var(--radius-md);text-align:center">
-          <div style="width:100%;height:60px;background:rgba(108,92,231,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">
-            <i class="fas fa-image" style="color:var(--primary-light);font-size:20px"></i>
-          </div>
-          <span style="font-size:10px;color:var(--text-muted)">필기 미리보기</span>
-        </div>
-        <div style="flex:1;padding:8px;background:var(--bg-input);border:1px dashed var(--border);border-radius:var(--radius-md);text-align:center">
-          <div style="width:100%;height:60px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:4px">
-            <i class="fas fa-plus" style="color:var(--text-muted);font-size:16px"></i>
-          </div>
-          <span style="font-size:10px;color:var(--text-muted)">추가 촬영</span>
-        </div>
-      </div>
-      <div class="field-group">
-        <label class="field-label">📝 정율 OCR 추출 키워드</label>
-        <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-md);font-size:13px;color:var(--text-secondary);line-height:1.6;border:1px solid var(--border)">
-          <span style="color:var(--success);font-size:11px;font-weight:600">[정율 인식]</span><br>
-          관계대명사, which, that, 제한적 용법, 계속적 용법
-        </div>
-      </div>
-    `;
-  } else {
-    return `
-      <div class="field-group">
-        <label class="field-label">📝 수업 키워드 <span style="color:var(--accent)">*필수</span></label>
-        <textarea class="input-field class-keyword-input" placeholder="오늘 배운 핵심 키워드를 입력하세요 (예: 관계대명사, which, that)" rows="2" oninput="validateClassRecordForm()"></textarea>
-      </div>
-    `;
+      <p style="font-size:11px;color:var(--text-muted);margin:0">노트/프린트를 촬영하세요 (여러 장 선택 가능)</p>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">⭐ 선생님 강조 <span style="color:var(--text-muted)">(선택)</span></label>
+      <input class="input-field class-teacher-note-input" placeholder='예: "서술형 나옴"'>
+    </div>
+  `;
+}
+
+// 사진 업로드 핸들러 (다중)
+function handleClassPhotoUpload(input) {
+  if (!input.files || input.files.length === 0) return;
+  if (!state._classPhotos) state._classPhotos = [];
+
+  const maxPhotos = 20;
+  const remaining = maxPhotos - state._classPhotos.length;
+  if (remaining <= 0) {
+    alert('사진은 최대 ' + maxPhotos + '장까지 첨부할 수 있습니다.');
+    return;
   }
+
+  const files = Array.from(input.files).slice(0, remaining);
+  let loaded = 0;
+
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      state._classPhotos.push(e.target.result);
+      loaded++;
+      if (loaded === files.length) {
+        // 사진 영역만 갱신
+        refreshClassPhotos();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // input 리셋 (같은 파일 다시 선택 가능)
+  input.value = '';
+}
+
+// 사진 삭제
+function removeClassPhoto(idx) {
+  if (!state._classPhotos) return;
+  state._classPhotos.splice(idx, 1);
+  refreshClassPhotos();
+}
+
+// 사진 확대 보기
+function viewClassPhoto(idx) {
+  if (!state._classPhotos || !state._classPhotos[idx]) return;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;cursor:pointer';
+  overlay.innerHTML = '<img src="' + state._classPhotos[idx] + '" style="max-width:95%;max-height:95%;border-radius:8px;object-fit:contain">';
+  overlay.onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+}
+
+// 사진 영역 갱신 (전체 re-render 없이)
+function refreshClassPhotos() {
+  const containers = document.querySelectorAll('.class-photos-container');
+  containers.forEach(container => {
+    const photoCount = (state._classPhotos || []).length;
+    const thumbs = (state._classPhotos || []).map((p, i) => `
+      <div class="class-photo-thumb" style="position:relative;width:72px;height:72px;flex-shrink:0;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+        <img src="${p}" style="width:100%;height:100%;object-fit:cover" onclick="viewClassPhoto(${i})">
+        <button onclick="removeClassPhoto(${i})" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer">&times;</button>
+      </div>
+    `).join('');
+
+    container.innerHTML = thumbs + `
+      <label class="class-photo-add-btn" style="width:72px;height:72px;flex-shrink:0;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);font-size:11px;gap:2px;transition:border-color 0.2s">
+        <i class="fas fa-plus" style="font-size:16px"></i>
+        <span>${photoCount > 0 ? '추가' : '사진 추가'}</span>
+        <input type="file" accept="image/*" multiple style="display:none" onchange="handleClassPhotoUpload(this)">
+      </label>
+    `;
+  });
 }
 
 // ==================== RECORD CLASS (R-01) ====================
@@ -5251,19 +5277,7 @@ function renderRecordClass() {
           <span class="period-badge">${period}교시</span>
         </div>
 
-        <p style="font-size:13px;color:var(--text-secondary);text-align:center;margin-bottom:8px">입력 방식 선택</p>
-        <div class="input-modes">
-          <button class="input-mode-btn ${state.inputMode==='voice'?'active':''}" data-input-mode="voice"><i class="fas fa-microphone"></i><span>음성</span></button>
-          <button class="input-mode-btn ${state.inputMode==='photo'?'active':''}" data-input-mode="photo"><i class="fas fa-camera"></i><span>사진</span></button>
-          <button class="input-mode-btn ${state.inputMode==='keyword'?'active':''}" data-input-mode="keyword"><i class="fas fa-keyboard"></i><span>키워드</span></button>
-        </div>
-
-        ${renderInputModeContent(subject)}
-
-        <div class="field-group">
-          <label class="field-label">💭 나만의 생각 한 줄 <span style="color:var(--text-muted)">(선택)</span></label>
-          <textarea class="input-field class-thought-input" placeholder="이 수업에서 느낀 점, 궁금한 점..." rows="2" oninput="validateClassRecordForm()"></textarea>
-        </div>
+        ${renderClassRecordFields(subject)}
 
         <div class="question-prompt" style="text-align:center;padding:12px 0">
           <p style="font-size:14px;font-weight:600;margin:0 0 4px">💡 오늘 수업에서 궁금했던 것이 있나요?</p>
@@ -5314,7 +5328,7 @@ function saveClassRecordFromForm() {
     if (keywordInput) {
       keywordInput.focus();
       keywordInput.style.borderColor = 'var(--accent)';
-      keywordInput.setAttribute('placeholder', '수업 키워드를 입력해야 기록을 완료할 수 있어요!');
+      keywordInput.setAttribute('placeholder', '핵심 키워드를 입력해야 기록을 완료할 수 있어요!');
       setTimeout(() => { keywordInput.style.borderColor = ''; }, 2000);
     }
     return;
@@ -5324,23 +5338,29 @@ function saveClassRecordFromForm() {
   const subject = nextRecord ? nextRecord.subject : '영어';
   const period = nextRecord ? nextRecord.period : 3;
   
-  // 폼에서 실제 입력값 수집
+  // 새 폼 필드 수집
+  const topicInput = document.querySelector('.class-topic-input');
+  const topic = topicInput ? topicInput.value.trim() : '';
+  
+  const pagesInput = document.querySelector('.class-pages-input');
+  const pages = pagesInput ? pagesInput.value.trim() : '';
+  
   const keywordInput = document.querySelector('.class-keyword-input');
-  const keywordText = keywordInput ? keywordInput.value?.trim() : '';
-  const chips = document.querySelectorAll('.keyword-chip');
+  const keywordText = keywordInput ? keywordInput.value.trim() : '';
   const keywordTexts = [];
   if (keywordText) {
     keywordText.split(/[,，、\n]+/).forEach(k => { const t = k.trim(); if (t) keywordTexts.push(t); });
   }
-  chips.forEach(k => { const t = k.textContent?.trim(); if (t) keywordTexts.push(t); });
   
-  const thoughtInput = document.querySelector('.class-thought-input');
-  const reflection = thoughtInput ? thoughtInput.value?.trim() : '';
+  const photos = state._classPhotos || [];
+  
+  const teacherNoteInput = document.querySelector('.class-teacher-note-input');
+  const teacherNote = teacherNoteInput ? teacherNoteInput.value.trim() : '';
   
   // todayRecords 업데이트
   if (nextRecord) {
     nextRecord.done = true;
-    nextRecord.summary = keywordTexts.join(', ') || reflection || '수업 기록 완료';
+    nextRecord.summary = topic || keywordTexts.join(', ') || '수업 기록 완료';
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
   }
@@ -5350,12 +5370,19 @@ function saveClassRecordFromForm() {
     DB.saveClassRecord({
       subject: subject,
       date: new Date().toISOString().slice(0,10),
-      content: reflection || '',
+      content: topic,
       keywords: keywordTexts.length > 0 ? keywordTexts : [],
       understanding: 3,
-      memo: `${period}교시`,
+      memo: JSON.stringify({ period: period, pages: pages, teacherNote: teacherNote, photoCount: photos.length }),
+      topic: topic,
+      pages: pages,
+      photos: photos,
+      teacher_note: teacherNote,
     });
   }
+  
+  // 사진 상태 리셋
+  state._classPhotos = [];
   
   showXpPopup(10, '수업 기록 완료!');
 }
@@ -9626,18 +9653,13 @@ try {
   history.replaceState({ screen: state.currentScreen, tab: state.studentTab }, '', '');
 } catch(e) { /* ignore */ }
 
-// 수업 기록 폼 유효성 검사 — 키워드가 있어야 버튼 활성화
+// 수업 기록 폼 유효성 검사 — 핵심 키워드가 있어야 버튼 활성화
 function validateClassRecordForm() {
-  // 키워드 textarea에서 실제 입력값 확인
+  // 핵심 키워드 textarea에서 실제 입력값 확인
   const keywordInput = document.querySelector('.class-keyword-input');
   const keywordText = keywordInput ? keywordInput.value.trim() : '';
   
-  // keyword-chip이 있는 경우 (칩 형태 입력)
-  const chips = document.querySelectorAll('.keyword-chip');
-  const hasChips = chips.length > 0;
-  
-  // 키워드가 있으면 활성화
-  const hasContent = keywordText.length > 0 || hasChips;
+  const hasContent = keywordText.length > 0;
   
   // 제출 버튼 찾기 (팝업 또는 전체화면 폼)
   const submitBtns = document.querySelectorAll('.class-record-submit');
@@ -9663,7 +9685,7 @@ function completeClassRecord(idx) {
     if (keywordInput) {
       keywordInput.focus();
       keywordInput.style.borderColor = 'var(--accent)';
-      keywordInput.setAttribute('placeholder', '수업 키워드를 입력해야 기록을 완료할 수 있어요!');
+      keywordInput.setAttribute('placeholder', '핵심 키워드를 입력해야 기록을 완료할 수 있어요!');
       setTimeout(() => { keywordInput.style.borderColor = ''; }, 2000);
     }
     return;
@@ -9672,22 +9694,27 @@ function completeClassRecord(idx) {
   if (idx >= 0 && idx < state.todayRecords.length) {
     const r = state.todayRecords[idx];
     
-    // 팝업에서 실제 입력값 수집
-    const thoughtInput = document.querySelector('.class-thought-input');
-    const thought = thoughtInput ? thoughtInput.value?.trim() : '';
+    // 새 폼 필드 수집
+    const topicInput = document.querySelector('.class-topic-input');
+    const topic = topicInput ? topicInput.value.trim() : '';
     
-    // 키워드: textarea 또는 chip 형태
+    const pagesInput = document.querySelector('.class-pages-input');
+    const pages = pagesInput ? pagesInput.value.trim() : '';
+    
     const keywordInput = document.querySelector('.class-keyword-input');
-    const keywordText = keywordInput ? keywordInput.value?.trim() : '';
-    const chips = document.querySelectorAll('.keyword-chip');
+    const keywordText = keywordInput ? keywordInput.value.trim() : '';
     const keywordTexts = [];
     if (keywordText) {
       keywordText.split(/[,，、\n]+/).forEach(k => { const t = k.trim(); if (t) keywordTexts.push(t); });
     }
-    chips.forEach(k => { const t = k.textContent?.trim(); if (t) keywordTexts.push(t); });
+    
+    const photos = state._classPhotos || [];
+    
+    const teacherNoteInput = document.querySelector('.class-teacher-note-input');
+    const teacherNote = teacherNoteInput ? teacherNoteInput.value.trim() : '';
     
     r.done = true;
-    r.summary = keywordTexts.join(', ') || thought || '수업 기록 완료';
+    r.summary = topic || keywordTexts.join(', ') || '수업 기록 완료';
     state.missions[0].current = state.todayRecords.filter(r => r.done).length;
     if (state.missions[0].current >= state.missions[0].target) state.missions[0].done = true;
 
@@ -9696,13 +9723,21 @@ function completeClassRecord(idx) {
       DB.saveClassRecord({
         subject: r.subject || '미지정',
         date: new Date().toISOString().slice(0,10),
-        content: thought || '',
+        content: topic,
         keywords: keywordTexts.length > 0 ? keywordTexts : [],
         understanding: 3,
-        memo: `${r.period || ''}교시`,
+        memo: JSON.stringify({ period: r.period || '', pages: pages, teacherNote: teacherNote, photoCount: photos.length }),
+        topic: topic,
+        pages: pages,
+        photos: photos,
+        teacher_note: teacherNote,
       });
     }
   }
+  
+  // 사진 상태 리셋
+  state._classPhotos = [];
+  
   showXpPopup(10, '수업 기록 완료!');
 }
 
@@ -9788,14 +9823,6 @@ function initStudentEvents(root) {
       document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.mood = btn.dataset.mood;
-    });
-  });
-
-  // Input mode switcher
-  document.querySelectorAll('[data-input-mode]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.inputMode = btn.dataset.inputMode;
-      renderScreen();
     });
   });
 

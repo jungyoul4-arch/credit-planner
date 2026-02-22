@@ -1015,12 +1015,12 @@ app.get('/api/student/:studentId/class-records', async (c) => {
 app.post('/api/student/:studentId/class-records', async (c) => {
   try {
     const studentId = c.req.param('studentId');
-    const { subject, date, content, keywords, understanding, memo } = await c.req.json();
+    const { subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note } = await c.req.json();
     if (!subject || !date) return c.json({ error: '과목과 날짜는 필수입니다' }, 400);
 
     const result = await c.env.DB.prepare(
-      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '').run();
+      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '', topic || '', pages || '', JSON.stringify(photos || []), teacher_note || '').run();
 
     return c.json({ success: true, recordId: result.meta.last_row_id });
   } catch (e: any) {
@@ -1042,6 +1042,10 @@ app.put('/api/student/class-records/:recordId', async (c) => {
     if (body.keywords !== undefined) { fields.push('keywords = ?'); values.push(JSON.stringify(body.keywords)); }
     if (body.understanding !== undefined) { fields.push('understanding = ?'); values.push(body.understanding); }
     if (body.memo !== undefined) { fields.push('memo = ?'); values.push(body.memo); }
+    if (body.topic !== undefined) { fields.push('topic = ?'); values.push(body.topic); }
+    if (body.pages !== undefined) { fields.push('pages = ?'); values.push(body.pages); }
+    if (body.photos !== undefined) { fields.push('photos = ?'); values.push(JSON.stringify(body.photos)); }
+    if (body.teacher_note !== undefined) { fields.push('teacher_note = ?'); values.push(body.teacher_note); }
 
     if (fields.length === 0) return c.json({ success: true });
 
@@ -1564,7 +1568,7 @@ app.get('/api/migrate', async (c) => {
       `CREATE TABLE IF NOT EXISTS wrong_answers (id INTEGER PRIMARY KEY AUTOINCREMENT, exam_result_id INTEGER NOT NULL, student_id INTEGER NOT NULL, subject TEXT NOT NULL, question_number INTEGER, topic TEXT DEFAULT '', error_type TEXT DEFAULT '', my_answer TEXT DEFAULT '', correct_answer TEXT DEFAULT '', reason TEXT DEFAULT '', reflection TEXT DEFAULT '', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (exam_result_id) REFERENCES exam_results(id), FOREIGN KEY (student_id) REFERENCES students(id))`,
       `CREATE TABLE IF NOT EXISTS wrong_answer_images (id INTEGER PRIMARY KEY AUTOINCREMENT, wrong_answer_id INTEGER NOT NULL, image_data TEXT NOT NULL, sort_order INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (wrong_answer_id) REFERENCES wrong_answers(id))`,
       `CREATE TABLE IF NOT EXISTS assignments (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, title TEXT NOT NULL, description TEXT DEFAULT '', teacher_name TEXT DEFAULT '', due_date TEXT NOT NULL, status TEXT DEFAULT 'pending', progress INTEGER DEFAULT 0, color TEXT DEFAULT '#6C5CE7', plan_data TEXT DEFAULT '[]', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id))`,
-      `CREATE TABLE IF NOT EXISTS class_records (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, date TEXT NOT NULL, content TEXT DEFAULT '', keywords TEXT DEFAULT '[]', understanding INTEGER DEFAULT 3, memo TEXT DEFAULT '', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id))`,
+      `CREATE TABLE IF NOT EXISTS class_records (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, date TEXT NOT NULL, content TEXT DEFAULT '', keywords TEXT DEFAULT '[]', understanding INTEGER DEFAULT 3, memo TEXT DEFAULT '', topic TEXT DEFAULT '', pages TEXT DEFAULT '', photos TEXT DEFAULT '[]', teacher_note TEXT DEFAULT '', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id))`,
       `CREATE TABLE IF NOT EXISTS question_records (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, question_text TEXT NOT NULL, question_level TEXT DEFAULT '', question_label TEXT DEFAULT '', axis TEXT DEFAULT 'curiosity', coaching_messages TEXT DEFAULT '[]', xp_earned INTEGER DEFAULT 0, is_complete INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id))`,
       `CREATE TABLE IF NOT EXISTS teach_records (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, topic TEXT NOT NULL, taught_to TEXT DEFAULT '', content TEXT DEFAULT '', reflection TEXT DEFAULT '', xp_earned INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id))`,
       `CREATE TABLE IF NOT EXISTS activity_records (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, activity_type TEXT DEFAULT '', title TEXT NOT NULL, description TEXT DEFAULT '', start_date TEXT, end_date TEXT, status TEXT DEFAULT 'in-progress', progress INTEGER DEFAULT 0, reflection TEXT DEFAULT '', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id))`,
@@ -1606,9 +1610,14 @@ app.get('/api/migrate', async (c) => {
       // ===== XP 내역 기록 테이블 =====
       `CREATE TABLE IF NOT EXISTS xp_history (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, amount INTEGER NOT NULL, source TEXT NOT NULL, source_detail TEXT DEFAULT '', ref_table TEXT DEFAULT NULL, ref_id INTEGER DEFAULT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_xp_history_student ON xp_history(student_id, created_at DESC)`,
+      // class_records 새 컬럼 추가 (기존 테이블 호환)
+      `ALTER TABLE class_records ADD COLUMN topic TEXT DEFAULT ''`,
+      `ALTER TABLE class_records ADD COLUMN pages TEXT DEFAULT ''`,
+      `ALTER TABLE class_records ADD COLUMN photos TEXT DEFAULT '[]'`,
+      `ALTER TABLE class_records ADD COLUMN teacher_note TEXT DEFAULT ''`,
     ];
     for (const sql of stmts) {
-      await c.env.DB.prepare(sql).run();
+      try { await c.env.DB.prepare(sql).run(); } catch(_) { /* column may already exist */ }
     }
     return c.json({ success: true, message: 'Migration completed', tables: 16 });
   } catch (e: any) {
