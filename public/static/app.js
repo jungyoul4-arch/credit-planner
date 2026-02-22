@@ -463,6 +463,7 @@ function renderScreen() {
       initAuthEvents(tabletContent);
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
       setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
+      setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
     } else {
       phoneContainer.style.display = 'flex';
       tabletContainer.style.display = 'none';
@@ -471,6 +472,7 @@ function renderScreen() {
       initAuthEvents(container);
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
       setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
+      setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
     }
   } else if (state.mode === 'mentor') {
     phoneContainer.style.display = 'none';
@@ -5287,7 +5289,7 @@ function renderRecordClass() {
 // 질문 기록을 DB에 저장
 function saveQuestionToDB(saveType) {
   if (!DB.studentId()) return;
-  const subj = state._activeSubject || '수학';
+  const subj = state._questionSubject || state._activeSubject || '수학';
   const questionText = state._questionText || '';
   const diagResult = state._diagResult || {};
   const challengeResult = state._challengeResult || {};
@@ -5604,7 +5606,7 @@ function renderRecordQuestion() {
           </div>
           ${state._challengeResult.feedback ? `<div style="background:var(--bg-input);padding:8px 12px;border-radius:8px;margin-top:6px;font-size:10px;color:var(--text-secondary);line-height:1.5">💬 ${state._challengeResult.feedback}</div>` : ''}
           <div class="diag-actions" style="margin-top:8px">
-            <button class="btn-primary" onclick="showXpPopup(${(state._challengeResult.xp||0) + (state._challengeResult.xp > (diagResult?.xp||0) ? 5 : 0)}, '${state._challengeResult.level} 도전 ${state._challengeResult.xp > (diagResult?.xp||0) ? '성공! +5 성장보너스 포함' : '완료!'}')">도전 완료! +${(state._challengeResult.xp||0) + (state._challengeResult.xp > (diagResult?.xp||0) ? 5 : 0)} XP ${state._challengeResult.xp > (diagResult?.xp||0) ? '🎉' : '✓'}</button>
+            <button class="btn-primary" onclick="saveQuestionToDB('challenge');showXpPopup(${(state._challengeResult.xp||0) + (state._challengeResult.xp > (diagResult?.xp||0) ? 5 : 0)}, '${state._challengeResult.level} 도전 ${state._challengeResult.xp > (diagResult?.xp||0) ? '성공! +5 성장보너스 포함' : '완료!'}')">도전 완료! +${(state._challengeResult.xp||0) + (state._challengeResult.xp > (diagResult?.xp||0) ? 5 : 0)} XP ${state._challengeResult.xp > (diagResult?.xp||0) ? '🎉' : '✓'}</button>
           </div>
           ` : `
           ${!state._challengeLoading ? `
@@ -5650,7 +5652,7 @@ function renderRecordQuestion() {
                 return `<div class="socrates-msg ai">
                   <div class="socrates-avatar">${parsed.emoji || '🤖'}</div>
                   <div class="socrates-bubble">
-                    <p>${parsed.message || m.content}</p>
+                    <div class="socrates-msg-content">${parsed.message || m.content}</div>
                     ${parsed.questionLevel ? `<span class="socrates-stage-tag">이 질문은 ${parsed.questionLevel} "${parsed.questionLabel || ''}" 단계예요</span>` : ''}
                     ${parsed.encouragement ? `<div style="margin-top:6px;font-size:10px;color:var(--primary);font-weight:600">${parsed.encouragement}</div>` : ''}
                   </div>
@@ -5882,7 +5884,11 @@ function sendSocratesMessage() {
     renderScreen();
     setTimeout(() => {
       const chat = document.getElementById('socrates-chat-area');
-      if (chat) chat.scrollTop = chat.scrollHeight;
+      if (chat) {
+        chat.scrollTop = chat.scrollHeight;
+        // AI가 생성한 HTML 내 버튼에 이벤트 바인딩
+        bindAiGeneratedButtons(chat);
+      }
     }, 100);
   })
   .catch(err => {
@@ -5906,6 +5912,52 @@ function handleQuestionImageUpload(input) {
     reader.readAsDataURL(file);
   });
   input.value = ''; // reset for re-upload
+}
+
+// AI가 생성한 HTML 내 버튼/인터랙션 바인딩
+function bindAiGeneratedButtons(container) {
+  if (!container) return;
+  // AI가 생성한 button/a 태그에서 onclick 속성 안의 함수명을 추출 후 바인딩
+  container.querySelectorAll('button, a, [role="button"]').forEach(btn => {
+    // 이미 바인딩된 경우 건너뛰기
+    if (btn._aiBound) return;
+    btn._aiBound = true;
+    
+    const onclickAttr = btn.getAttribute('onclick');
+    if (onclickAttr) {
+      // onclick 속성 제거하고 직접 이벤트 리스너로 대체
+      btn.removeAttribute('onclick');
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          // 앱 함수 매핑: AI가 생성할 수 있는 함수명 → 실제 앱 함수 
+          if (onclickAttr.includes('startChallenge')) {
+            startChallenge();
+          } else if (onclickAttr.includes('saveQuestionToDB')) {
+            const match = onclickAttr.match(/saveQuestionToDB\(['"]([^'"]*)['"]\)/);
+            saveQuestionToDB(match ? match[1] : 'diag');
+          } else if (onclickAttr.includes('showXpPopup')) {
+            const match = onclickAttr.match(/showXpPopup\((\d+)/);
+            showXpPopup(match ? parseInt(match[1]) : 10, '코칭 완료!');
+          } else {
+            // 알려지지 않은 함수 — 안전하게 eval 대신 무시
+            console.warn('AI-generated button onclick not mapped:', onclickAttr);
+          }
+        } catch (err) {
+          console.error('AI button handler error:', err);
+        }
+      });
+    }
+    
+    // 버튼에 커서 포인터 보장
+    btn.style.cursor = 'pointer';
+  });
+  
+  // AI가 생성한 input/select에도 포인터 이벤트 보장
+  container.querySelectorAll('input, select, textarea, label').forEach(el => {
+    el.style.pointerEvents = 'auto';
+  });
 }
 
 function startChallenge() {
@@ -9599,6 +9651,8 @@ function showXpPopup(amount, label) {
   
   // XP를 DB에 동기화 (디바운스: 마지막 호출 후 2초 뒤 실행)
   if (DB.studentId() && amount > 0) {
+    // XP 소스 추론 (label에서)
+    const _lastXpLabel = label || '';
     clearTimeout(window._xpSyncTimer);
     window._xpSyncTimer = setTimeout(() => {
       fetch(`/api/student/${DB.studentId()}/profile`).then(r => r.json()).then(data => {
@@ -9606,10 +9660,22 @@ function showXpPopup(amount, label) {
         const serverXp = data.xp || 0;
         if (state.xp > serverXp) {
           const diff = state.xp - serverXp;
+          // label에서 source 추론
+          let source = '기타 활동';
+          let sourceDetail = _lastXpLabel;
+          if (_lastXpLabel.includes('수업 기록')) source = '수업 기록';
+          else if (_lastXpLabel.includes('코칭') || _lastXpLabel.includes('도전')) source = '질문 코칭';
+          else if (_lastXpLabel.includes('교학상장')) source = '교학상장';
+          else if (_lastXpLabel.includes('활동') || _lastXpLabel.includes('체험')) source = '창의적 체험활동';
+          else if (_lastXpLabel.includes('과제')) source = '과제 기록';
+          else if (_lastXpLabel.includes('시험') || _lastXpLabel.includes('수행평가')) source = '시험 관리';
+          else if (_lastXpLabel.includes('루틴') || _lastXpLabel.includes('마무리')) source = '일일 루틴';
+          else if (_lastXpLabel.includes('일정')) source = '플래너 관리';
+          
           fetch(`/api/student/${DB.studentId()}/xp-sync`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ xpDelta: diff })
+            body: JSON.stringify({ xpDelta: diff, source, sourceDetail })
           }).catch(() => {});
         }
       }).catch(() => {});
