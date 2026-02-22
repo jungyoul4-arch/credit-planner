@@ -5141,14 +5141,10 @@ function renderClassEndPopup() {
           <input class="input-field class-thought-input" placeholder="이 수업에서 느낀 점, 궁금한 점..." oninput="validateClassRecordForm()">
         </div>
 
-        <div class="popup-question-ask">
-          <span>❓ 질문이 있었나요?</span>
-          <p style="font-size:11px;color:var(--text-muted);margin:4px 0 8px">정율이 2축 9단계로 질문을 코칭해줘요!</p>
-          <div style="display:flex;gap:8px">
-            <button class="btn-secondary" style="flex:1" onclick="openMyQaIframe('/new')">🪜 호기심 질문</button>
-            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="openMyQaIframe('/new')">🪞 성찰 질문</button>
-          </div>
-          <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:12px">질문 없어요</button>
+        <div class="popup-question-ask" style="text-align:center;padding:12px 0">
+          <span style="font-size:14px;font-weight:600">💡 오늘 수업에서 궁금했던 것이 있나요?</span>
+          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
+          <button class="btn-secondary" style="width:100%;padding:10px;font-size:14px" onclick="openMyQaIframe('/new')">✏️ 질문하기</button>
         </div>
 
         <button class="btn-primary class-record-submit" onclick="completeClassRecord(${period-1})" disabled style="opacity:0.4;cursor:not-allowed">
@@ -5269,13 +5265,10 @@ function renderRecordClass() {
           <textarea class="input-field class-thought-input" placeholder="이 수업에서 느낀 점, 궁금한 점..." rows="2" oninput="validateClassRecordForm()"></textarea>
         </div>
 
-        <div class="question-prompt">
-          <p>❓ 질문이 떠올랐나요?</p>
-          <p style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px">2축 9단계 정율 코칭으로 사고의 깊이를 키워보세요!</p>
-          <div style="display:flex;gap:12px">
-            <button class="btn-secondary" style="flex:1" onclick="openMyQaIframe('/new')">🪜 호기심 질문</button>
-            <button class="btn-secondary" style="flex:1;border-color:rgba(192,68,204,0.3);color:#C044CC" onclick="openMyQaIframe('/new')">🪞 성찰 질문</button>
-          </div>
+        <div class="question-prompt" style="text-align:center;padding:12px 0">
+          <p style="font-size:14px;font-weight:600;margin:0 0 4px">💡 오늘 수업에서 궁금했던 것이 있나요?</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
+          <button class="btn-secondary" style="width:100%;padding:10px;font-size:14px" onclick="openMyQaIframe('/new')">✏️ 질문하기</button>
         </div>
 
         <button class="btn-primary class-record-submit" onclick="saveClassRecordFromForm()" disabled style="opacity:0.4;cursor:not-allowed">완료 +10 XP ✨</button>
