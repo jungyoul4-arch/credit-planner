@@ -445,8 +445,13 @@ function renderScreen() {
           sidebarEl.innerHTML = renderSidebar();
           // 사이드바 네비 이벤트
           sidebarEl.querySelectorAll('.sidebar-nav-item').forEach(btn => {
-            btn.addEventListener('click', () => { 
-              state.studentTab = btn.dataset.tab; 
+            btn.addEventListener('click', () => {
+              const tab = btn.dataset.tab;
+              if (tab === 'myqa') {
+                openMyQaIframe();
+                return;
+              }
+              state.studentTab = tab; 
               state.currentScreen = 'main'; 
               renderScreen(); 
             });
@@ -550,8 +555,6 @@ function renderStudentApp() {
   if (state.currentScreen === 'activity-add') return renderActivityAdd();
   if (state.currentScreen === 'record-schoolrecord') return renderSchoolRecord();
   if (state.currentScreen === 'class-record-edit') return renderClassRecordEdit();
-  if (state.currentScreen === 'myqa-new') return renderMyQaNewScreen();
-  if (state.currentScreen === 'myqa-detail') return renderMyQaDetailScreen();
 
   let content = '';
   content += renderXpBar();
@@ -560,7 +563,7 @@ function renderStudentApp() {
     case 'record': content += renderRecordTab(); break;
     case 'planner': content += renderPlannerTab(); break;
     case 'growth': content += renderGrowthTab(); break;
-    case 'myqa': content += renderMyQaTab(); break;
+    case 'myqa': content += '<div class="tab-content animate-in" style="display:flex;align-items:center;justify-content:center;min-height:60vh"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">❓</div><div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px">나만의 질문방</div><div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">질문방을 여는 중입니다...</div></div></div>'; setTimeout(()=>openMyQaIframe(),100); break;
     case 'my': content += renderMyTab(); break;
   }
   content += renderFab();
@@ -8192,352 +8195,116 @@ function renderGrowthTab() {
   `;
 }
 
-// ==================== 나만의 질문방 TAB ====================
+// ==================== 나만의 질문방 (QA앱 iframe) ====================
 
-// 질문 데이터 (로컬 캐시)
-if (!state.myQuestions) state.myQuestions = [];
-if (!state.myQaFilter) state.myQaFilter = '전체';
-if (!state.myQaSubjectFilter) state.myQaSubjectFilter = '전체';
+const QA_APP_URL = 'https://qa-tutoring-app.pages.dev';
+
+// 질문 통계 (홈/성장 탭 표시용)
 if (!state.myQaStats) state.myQaStats = { total: 0, unanswered: 0, answered: 0, weeklyQuestions: 0, weeklyAnswered: 0 };
 
-async function loadMyQuestions() {
+async function loadMyQaStats() {
   const studentId = state._authUser?.id;
   if (!studentId) return;
   try {
-    const statusParam = state.myQaFilter !== '전체' ? `&status=${encodeURIComponent(state.myQaFilter)}` : '';
-    const subjectParam = state.myQaSubjectFilter !== '전체' ? `&subject=${encodeURIComponent(state.myQaSubjectFilter)}` : '';
-    const res = await fetch(`/api/my-questions?studentId=${studentId}${statusParam}${subjectParam}`);
-    const data = await res.json();
-    state.myQuestions = data.questions || [];
-    // 통계도 함께 로드
-    const statsRes = await fetch(`/api/my-questions/stats?studentId=${studentId}`);
-    state.myQaStats = await statsRes.json();
-    state._myQaStatsLoaded = true; // 홈 탭에서 중복 로드 방지
-  } catch (e) {
-    console.error('질문 로드 실패:', e);
-  }
-  render();
+    const res = await fetch(`/api/my-questions/stats?studentId=${studentId}`);
+    state.myQaStats = await res.json();
+  } catch (e) {}
 }
 
-async function submitMyQuestion() {
+// QA앱을 iframe으로 전체화면 열기
+async function openMyQaIframe() {
+  // 이미 열려있으면 무시
+  if (document.getElementById('myqa-iframe-overlay')) return;
+
   const studentId = state._authUser?.id;
-  if (!studentId) { showToast('로그인이 필요합니다', 'error'); return; }
-  const titleEl = document.getElementById('myqa-title');
-  const contentEl = document.getElementById('myqa-content');
-  const subjectEl = document.getElementById('myqa-subject');
-  const levelEl = document.getElementById('myqa-level');
-  if (!titleEl || !titleEl.value.trim()) { showToast('질문 제목을 입력해주세요', 'error'); return; }
+  const studentName = state._authUser?.name || '학생';
+  
+  let qaUrl = QA_APP_URL;
 
-  try {
-    const res = await fetch('/api/my-questions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId,
-        title: titleEl.value.trim(),
-        content: contentEl?.value || '',
-        subject: subjectEl?.value || '기타',
-        questionLevel: levelEl?.value || null,
-        classRecordId: state._myQaClassRecordId || null,
-      })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(`질문이 등록되었습니다! +${data.xpEarned} XP 🎉`, 'success');
-      state.xp += data.xpEarned;
-      state._myQaClassRecordId = null;
-      goScreen('main');
-      state.studentTab = 'myqa';
-      loadMyQuestions();
-    } else {
-      showToast(data.error || '등록 실패', 'error');
+  // 자동 로그인 토큰 발급
+  if (studentId) {
+    try {
+      const res = await fetch('/api/qa-auth-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        // QA앱에 외부 인증 파라미터 전달
+        const params = new URLSearchParams({
+          ext_auth: '1',
+          user_id: data.userId,
+          nick_name: data.nickName,
+          timestamp: data.timestamp,
+          signature: data.signature,
+          from: 'creditplanner'
+        });
+        qaUrl = QA_APP_URL + '?' + params.toString();
+      }
+    } catch (e) {
+      console.error('QA 토큰 발급 실패:', e);
     }
-  } catch (e) {
-    showToast('네트워크 오류', 'error');
   }
+
+  // iframe 오버레이 생성
+  const overlay = document.createElement('div');
+  overlay.id = 'myqa-iframe-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:var(--bg-main,#1a1a2e);display:flex;flex-direction:column';
+
+  // 상단 바
+  const topBar = document.createElement('div');
+  topBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0';
+  
+  const leftGroup = document.createElement('div');
+  leftGroup.style.cssText = 'display:flex;align-items:center;gap:10px';
+  
+  const backBtn = document.createElement('button');
+  backBtn.innerHTML = '<i class="fas fa-arrow-left" style="margin-right:6px"></i> 플래너로 돌아가기';
+  backBtn.style.cssText = 'padding:8px 16px;background:rgba(108,92,231,0.2);color:#a29bfe;border:1px solid rgba(108,92,231,0.3);border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s';
+  backBtn.onmouseover = () => { backBtn.style.background = 'rgba(108,92,231,0.4)'; };
+  backBtn.onmouseout = () => { backBtn.style.background = 'rgba(108,92,231,0.2)'; };
+  backBtn.onclick = () => {
+    overlay.remove();
+    state.studentTab = 'home';
+    state.currentScreen = 'main';
+    loadMyQaStats(); // 통계 갱신
+    renderScreen();
+  };
+
+  const title = document.createElement('span');
+  title.innerHTML = '❓ 나만의 질문방';
+  title.style.cssText = 'font-size:15px;font-weight:700;color:#fff';
+
+  leftGroup.appendChild(backBtn);
+  leftGroup.appendChild(title);
+  topBar.appendChild(leftGroup);
+
+  // 새 탭 열기 버튼
+  const extBtn = document.createElement('button');
+  extBtn.innerHTML = '<i class="fas fa-external-link-alt"></i>';
+  extBtn.title = '새 탭에서 열기';
+  extBtn.style.cssText = 'width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.2s';
+  extBtn.onmouseover = () => { extBtn.style.background = 'rgba(255,255,255,0.15)'; };
+  extBtn.onmouseout = () => { extBtn.style.background = 'rgba(255,255,255,0.05)'; };
+  extBtn.onclick = () => window.open(qaUrl, '_blank');
+  topBar.appendChild(extBtn);
+
+  overlay.appendChild(topBar);
+
+  // iframe
+  const iframe = document.createElement('iframe');
+  iframe.src = qaUrl;
+  iframe.style.cssText = 'flex:1;width:100%;border:none;background:#1a1a2e';
+  iframe.allow = 'camera;microphone';
+  overlay.appendChild(iframe);
+
+  document.body.appendChild(overlay);
 }
 
-async function submitMyAnswer(questionId) {
-  const studentId = state._authUser?.id;
-  if (!studentId) return;
-  const contentEl = document.getElementById('myqa-answer-content');
-  if (!contentEl || !contentEl.value.trim()) { showToast('답변 내용을 입력해주세요', 'error'); return; }
-
-  try {
-    const res = await fetch(`/api/my-questions/${questionId}/answer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, content: contentEl.value.trim() })
-    });
-    const data = await res.json();
-    if (data.success) {
-      const bonusMsg = data.fastBonus ? ' (빠른 해결 보너스! 🚀)' : '';
-      showToast(`답변 완료! +${data.xpEarned} XP${bonusMsg}`, 'success');
-      state.xp += data.xpEarned;
-      goScreen('main');
-      state.studentTab = 'myqa';
-      loadMyQuestions();
-    } else {
-      showToast(data.error || '등록 실패', 'error');
-    }
-  } catch (e) {
-    showToast('네트워크 오류', 'error');
-  }
-}
-
+// 시간표에서 질문 등록 시 QA앱 iframe으로 이동
 function openQuestionFromTimetable(subject, period) {
-  state._myQaClassRecordId = period;
-  state._myQaAutoSubject = subject;
-  goScreen('myqa-new');
-}
-
-function renderMyQaTab() {
-  const studentId = state._authUser?.id;
-  if (!studentId) return '<div class="tab-content animate-in"><p style="text-align:center;padding:40px;color:var(--text-muted)">로그인이 필요합니다</p></div>';
-
-  // 첫 로드 시 데이터 불러오기
-  if (state.myQuestions.length === 0 && !state._myQaListLoaded) {
-    state._myQaListLoaded = true;
-    setTimeout(() => loadMyQuestions(), 100);
-  }
-
-  const stats = state.myQaStats;
-  const subjects = ['전체', '국어', '수학', '영어', '과학', '한국사', '사회', '기타'];
-
-  return `
-    <div class="tab-content animate-in">
-      <!-- 상단 헤더 -->
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0 12px">
-        <div>
-          <h2 style="font-size:20px;font-weight:800;color:var(--text-primary);margin:0">❓ 나만의 질문방</h2>
-          <p style="font-size:12px;color:var(--text-muted);margin-top:2px">궁금한 것을 기록하고, 스스로 답을 찾아보세요</p>
-        </div>
-        <button onclick="goScreen('myqa-new')" style="padding:10px 18px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
-          <i class="fas fa-plus"></i> 질문 등록
-        </button>
-      </div>
-
-      <!-- 통계 카드 -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
-        <div class="card" style="padding:14px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--primary-light)">${stats.total || 0}</div>
-          <div style="font-size:11px;color:var(--text-muted)">전체 질문</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--accent)">${stats.unanswered || 0}</div>
-          <div style="font-size:11px;color:var(--text-muted)">미답변</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--success)">${stats.answered || 0}</div>
-          <div style="font-size:11px;color:var(--text-muted)">답변완료</div>
-        </div>
-        <div class="card" style="padding:14px;text-align:center">
-          <div style="font-size:22px;font-weight:800;color:var(--question-b)">${stats.avgResolveDays || '-'}</div>
-          <div style="font-size:11px;color:var(--text-muted)">평균 해결일</div>
-        </div>
-      </div>
-
-      <!-- 필터 -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        ${['전체', '미답변', '답변완료'].map(f => `
-          <button onclick="state.myQaFilter='${f}';loadMyQuestions()" 
-            style="padding:6px 14px;border-radius:20px;border:1px solid ${state.myQaFilter===f?'var(--primary)':'var(--border)'};
-            background:${state.myQaFilter===f?'rgba(108,92,231,0.15)':'var(--bg-card)'};
-            color:${state.myQaFilter===f?'var(--primary-light)':'var(--text-secondary)'};font-size:12px;font-weight:600;cursor:pointer">${f}</button>
-        `).join('')}
-        <select onchange="state.myQaSubjectFilter=this.value;loadMyQuestions()" 
-          style="padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;appearance:auto">
-          ${subjects.map(s => `<option value="${s}" ${state.myQaSubjectFilter===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
-
-      <!-- 질문 목록 -->
-      <div style="display:flex;flex-direction:column;gap:10px">
-        ${state.myQuestions.length === 0 ? `
-          <div style="text-align:center;padding:40px 20px;color:var(--text-muted)">
-            <div style="font-size:40px;margin-bottom:12px">📝</div>
-            <div style="font-size:14px;font-weight:600">아직 질문이 없어요</div>
-            <div style="font-size:12px;margin-top:4px">수업 중 궁금한 것을 질문으로 등록해보세요!</div>
-          </div>
-        ` : state.myQuestions.map((q, i) => {
-          const createdDate = new Date(q.created_at);
-          const daysSince = Math.ceil((Date.now() - createdDate.getTime()) / (1000*60*60*24));
-          const isAnswered = q.status === '답변완료';
-          return `
-          <div class="card stagger-${Math.min(i+1,5)} animate-in" onclick="state._viewingQuestionId=${q.id};goScreen('myqa-detail')" 
-            style="padding:14px;cursor:pointer;transition:all 0.2s;${isAnswered?'opacity:0.75':''}">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="padding:3px 10px;border-radius:6px;background:${getSubjectColor(q.subject)};font-size:11px;font-weight:700;color:#fff">${q.subject}</span>
-                <span style="padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;
-                  background:${isAnswered?'rgba(0,184,148,0.15)':'rgba(255,107,107,0.15)'};
-                  color:${isAnswered?'var(--success)':'var(--accent)'}">
-                  ${isAnswered?'✅ 답변완료':'● 미답변'}
-                </span>
-              </div>
-              <span style="font-size:10px;color:var(--text-muted)">${createdDate.getFullYear()}.${String(createdDate.getMonth()+1).padStart(2,'0')}.${String(createdDate.getDate()).padStart(2,'0')}</span>
-            </div>
-            <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">${q.title}</div>
-            <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted)">
-              ${q.image_key?'<span>📷 이미지</span>':''}
-              ${q.question_level?`<span>🏷 ${q.question_level}</span>`:''}
-              <span>⏱ ${isAnswered?'해결됨':'등록 후 '+daysSince+'일째'}</span>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function getSubjectColor(subject) {
-  const colors = { '국어':'#FF6B6B', '수학':'#6C5CE7', '영어':'#00B894', '과학':'#FDCB6E', '한국사':'#74B9FF', '사회':'#A29BFE', '체육':'#FD79A8', '기타':'#636e72' };
-  return colors[subject] || '#636e72';
-}
-
-// 질문 등록 화면
-function renderMyQaNewScreen() {
-  const autoSubject = state._myQaAutoSubject || '기타';
-  state._myQaAutoSubject = null;
-
-  const levels = [
-    { value:'', label:'선택 안 함' },
-    { value:'A-1', label:'A-1 뭐지?' },
-    { value:'A-2', label:'A-2 어떻게?' },
-    { value:'B-1', label:'B-1 왜?' },
-    { value:'B-2', label:'B-2 만약에?' },
-    { value:'C-1', label:'C-1 뭐가 더 나아?' },
-    { value:'C-2', label:'C-2 그러면?' },
-    { value:'R-1', label:'R-1 어디서 틀렸지?' },
-    { value:'R-2', label:'R-2 왜 틀렸지?' },
-    { value:'R-3', label:'R-3 다음엔 어떻게?' },
-  ];
-
-  return `
-    <div class="full-screen animate-slide">
-      <div class="screen-header">
-        <button class="back-btn" onclick="goScreen('main');state.studentTab='myqa'"><i class="fas fa-arrow-left"></i></button>
-        <h1>✏️ 질문 등록</h1>
-        <span class="card-subtitle">+3 XP</span>
-      </div>
-      <div class="form-body">
-        <div class="field-group">
-          <label class="field-label">과목</label>
-          <select id="myqa-subject" class="field-input">
-            ${['국어','수학','영어','과학','한국사','사회','체육','기타'].map(s => 
-              `<option value="${s}" ${s===autoSubject?'selected':''}>${s}</option>`
-            ).join('')}
-          </select>
-        </div>
-        <div class="field-group">
-          <label class="field-label">질문 제목 <span style="color:var(--accent)">*</span></label>
-          <input type="text" id="myqa-title" class="field-input" placeholder="궁금한 내용을 간단히 요약해주세요" maxlength="100">
-        </div>
-        <div class="field-group">
-          <label class="field-label">상세 내용</label>
-          <textarea id="myqa-content" class="field-input" rows="5" placeholder="질문의 맥락이나 자세한 내용을 적어주세요 (선택)"></textarea>
-        </div>
-        <div class="field-group">
-          <label class="field-label">2축 9단계 분류 (선택)</label>
-          <select id="myqa-level" class="field-input">
-            ${levels.map(l => `<option value="${l.value}">${l.label}</option>`).join('')}
-          </select>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
-            호기심축: A(뭐지?/어떻게?) → B(왜?/만약에?) → C(비교/적용)<br>
-            성찰축: R(틀린곳/원인/개선)
-          </div>
-        </div>
-        <button onclick="submitMyQuestion()" style="width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px">
-          <i class="fas fa-paper-plane" style="margin-right:6px"></i> 질문 등록하기
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-// 질문 상세 화면
-function renderMyQaDetailScreen() {
-  const questionId = state._viewingQuestionId;
-  if (!questionId) return '<div class="full-screen"><p style="text-align:center;padding:40px">질문을 찾을 수 없습니다</p></div>';
-
-  // 데이터 비동기 로드
-  if (!state._myQaDetailData || state._myQaDetailData.question?.id !== questionId) {
-    state._myQaDetailData = null;
-    fetch(`/api/my-questions/${questionId}`)
-      .then(r => r.json())
-      .then(data => { state._myQaDetailData = data; render(); })
-      .catch(() => {});
-    return `<div class="full-screen animate-slide"><div class="screen-header"><button class="back-btn" onclick="goScreen('main');state.studentTab='myqa'"><i class="fas fa-arrow-left"></i></button><h1>로딩 중...</h1></div><div class="form-body" style="text-align:center;padding:40px"><i class="fas fa-spinner fa-spin" style="font-size:24px;color:var(--primary)"></i></div></div>`;
-  }
-
-  const { question, answers } = state._myQaDetailData;
-  const isAnswered = question.status === '답변완료';
-  const createdDate = new Date(question.created_at);
-  const answer = answers && answers.length > 0 ? answers[0] : null;
-
-  return `
-    <div class="full-screen animate-slide">
-      <div class="screen-header">
-        <button class="back-btn" onclick="state._myQaDetailData=null;goScreen('main');state.studentTab='myqa'"><i class="fas fa-arrow-left"></i></button>
-        <h1>질문 상세</h1>
-        <span style="padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;
-          background:${isAnswered?'rgba(0,184,148,0.15)':'rgba(255,107,107,0.15)'};
-          color:${isAnswered?'var(--success)':'var(--accent)'}">
-          ${isAnswered?'✅ 답변완료':'● 미답변'}
-        </span>
-      </div>
-      <div class="form-body">
-        <!-- 질문 카드 -->
-        <div class="card" style="padding:18px;margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="padding:4px 12px;border-radius:8px;background:${getSubjectColor(question.subject)};color:#fff;font-size:12px;font-weight:700">${question.subject}</span>
-            ${question.question_level?`<span style="padding:4px 10px;border-radius:8px;background:rgba(108,92,231,0.12);color:var(--primary-light);font-size:11px;font-weight:700">🏷 ${question.question_level}</span>`:''}
-          </div>
-          <h3 style="font-size:16px;font-weight:800;color:var(--text-primary);margin-bottom:8px">${question.title}</h3>
-          ${question.content ? `<p style="font-size:13px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${question.content}</p>` : ''}
-          <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
-            📅 등록: ${createdDate.getFullYear()}.${String(createdDate.getMonth()+1).padStart(2,'0')}.${String(createdDate.getDate()).padStart(2,'0')} ${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}
-          </div>
-        </div>
-
-        ${isAnswered && answer ? `
-        <!-- 답변 표시 -->
-        <div class="card" style="padding:18px;margin-bottom:16px;border:1px solid rgba(0,184,148,0.3)">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
-            <span style="font-size:16px">💡</span>
-            <span style="font-size:14px;font-weight:700;color:var(--success)">내 답변</span>
-          </div>
-          <p style="font-size:13px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${answer.content}</p>
-          <div style="margin-top:12px;padding:10px 14px;background:rgba(108,92,231,0.06);border-radius:10px">
-            <div style="font-size:11px;color:var(--text-muted)">
-              ⏱ 질문 등록: ${createdDate.getFullYear()}.${String(createdDate.getMonth()+1).padStart(2,'0')}.${String(createdDate.getDate()).padStart(2,'0')}
-            </div>
-            <div style="font-size:11px;color:var(--text-muted)">
-              ✅ 답변 완료: ${new Date(answer.created_at).getFullYear()}.${String(new Date(answer.created_at).getMonth()+1).padStart(2,'0')}.${String(new Date(answer.created_at).getDate()).padStart(2,'0')}
-            </div>
-            <div style="font-size:12px;color:var(--primary-light);font-weight:700;margin-top:4px">
-              🕐 해결까지 ${answer.resolve_hours}시간 (${answer.resolve_days}일)
-              ${answer.resolve_days <= 1 ? ' 🚀 빠른 해결!' : ''}
-            </div>
-          </div>
-        </div>
-        ` : `
-        <!-- 답변 작성 폼 -->
-        <div class="card" style="padding:18px">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
-            <span style="font-size:16px">💡</span>
-            <span style="font-size:14px;font-weight:700;color:var(--text-primary)">답변 작성하기</span>
-            <span style="font-size:11px;color:var(--text-muted)">(+5 XP, 1일 이내 해결 시 +3 보너스)</span>
-          </div>
-          <textarea id="myqa-answer-content" class="field-input" rows="5" placeholder="스스로 찾은 답을 기록해보세요! 나중에 큰 도움이 됩니다."></textarea>
-          <button onclick="submitMyAnswer(${question.id})" style="width:100%;padding:12px;background:var(--success);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:10px">
-            <i class="fas fa-check" style="margin-right:6px"></i> 답변 등록하기
-          </button>
-        </div>
-        `}
-      </div>
-    </div>
-  `;
+  openMyQaIframe();
 }
 
 

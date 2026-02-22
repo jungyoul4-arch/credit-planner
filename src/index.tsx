@@ -7,6 +7,7 @@ type Bindings = {
   ANTHROPIC_API_KEY: string
   GEMINI_API_KEY: string
   PERPLEXITY_API_KEY: string
+  QA_APP_SECRET: string
   DB: D1Database
 }
 
@@ -1692,6 +1693,46 @@ app.post('/api/my-questions/:id/answer', async (c) => {
     }
 
     return c.json({ success: true, answerId: result.meta.last_row_id, resolveHours: Math.round(resolveHours * 10) / 10, resolveDays, xpEarned: totalXp, fastBonus: resolveDays <= 1 })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// ==================== QA앱 외부 인증 토큰 발급 ====================
+// 플래너에서 QA앱으로 자동 로그인하기 위한 서명 생성
+app.post('/api/qa-auth-token', async (c) => {
+  try {
+    const { studentId } = await c.req.json()
+    if (!studentId) return c.json({ error: 'studentId 필수' }, 400)
+
+    // 학생 정보 조회
+    const student: any = await c.env.DB.prepare('SELECT id, name FROM students WHERE id = ?').bind(studentId).first()
+    if (!student) return c.json({ error: '학생을 찾을 수 없습니다' }, 404)
+
+    const timestamp = Date.now().toString()
+    const userId = String(studentId)
+
+    // QA_APP_SECRET이 설정되어 있으면 HMAC 서명 생성
+    const secret = c.env.QA_APP_SECRET
+    let signature = ''
+    if (secret) {
+      const encoder = new TextEncoder()
+      const key = await crypto.subtle.importKey(
+        'raw', encoder.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+      )
+      const data = encoder.encode(`${userId}:${timestamp}`)
+      const sig = await crypto.subtle.sign('HMAC', key, data)
+      signature = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('')
+    }
+
+    return c.json({
+      success: true,
+      userId,
+      nickName: student.name,
+      timestamp,
+      signature,
+    })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
   }
