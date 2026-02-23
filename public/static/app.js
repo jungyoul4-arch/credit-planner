@@ -425,6 +425,11 @@ function renderScreen() {
                 openMyQaIframe();
                 return;
               }
+              if (tab === 'community') {
+                openCommunityNewTab();
+                return;
+              }
+              state._communityOpened = false;
               state.studentTab = tab; 
               state.currentScreen = 'main'; 
               renderScreen(); 
@@ -10158,56 +10163,38 @@ function openQuestionFromTimetable(subject, period) {
 
 // ==================== COMMUNITY TAB (Iframe) ====================
 
-function renderCommunityTab() {
-  // 커뮤니티 URL 구성
-  const baseUrl = 'https://jungyoul-academy.pages.dev/community';
-  const token = state._authToken || '';
-  const userId = state._authUser?.id || '';
-  const userName = encodeURIComponent(state._authUser?.name || '');
-  const params = new URLSearchParams({
-    inapp: 'true',
-    token: token,
-    userId: userId,
-    userName: userName,
-    from: 'creditplanner'
-  });
-  const iframeUrl = baseUrl + '?' + params.toString();
-
-  return `
-    <div class="community-container animate-in">
-      <!-- 로딩 스피너 -->
-      <div class="community-loader" id="community-loader">
-        <div class="community-spinner">
-          <div class="spinner-ring"></div>
-          <div class="spinner-ring spinner-ring-2"></div>
-          <div class="spinner-ring spinner-ring-3"></div>
-        </div>
-        <div class="community-loader-text">커뮤니티 로딩 중...</div>
-      </div>
-      <!-- iframe -->
-      <iframe 
-        id="community-iframe"
-        src="${iframeUrl}"
-        class="community-iframe"
-        allow="clipboard-read; clipboard-write"
-        onload="onCommunityIframeLoad()"
-      ></iframe>
-    </div>
-  `;
+function getCommunityUrl() {
+  return 'https://jungyoul-academy.pages.dev/community?inapp=true';
 }
 
-function onCommunityIframeLoad() {
-  const loader = document.getElementById('community-loader');
-  const iframe = document.getElementById('community-iframe');
-  if (loader) {
-    loader.style.opacity = '0';
-    setTimeout(() => {
-      loader.style.display = 'none';
-    }, 300);
+function openCommunityNewTab() {
+  window.open(getCommunityUrl(), '_blank', 'noopener');
+}
+
+function renderCommunityTab() {
+  // 자동으로 새 탭에서 열기 (첫 진입 시)
+  if (!state._communityOpened) {
+    state._communityOpened = true;
+    setTimeout(() => openCommunityNewTab(), 300);
   }
-  if (iframe) {
-    iframe.style.opacity = '1';
-  }
+
+  return `
+    <div class="community-landing animate-in">
+      <div class="community-landing-card">
+        <div class="community-landing-icon">💬</div>
+        <h2 class="community-landing-title">정율 커뮤니티</h2>
+        <p class="community-landing-desc">공지사항, 학습 꿀팁, 질문을 자유롭게 나눠보세요.<br>새 탭에서 커뮤니티가 열렸습니다.</p>
+        <button class="community-open-btn" onclick="openCommunityNewTab()">
+          <i class="fas fa-external-link-alt"></i> 커뮤니티 열기
+        </button>
+        <div class="community-landing-features">
+          <div class="community-feat"><i class="fas fa-bullhorn"></i><span>📌 공지사항</span></div>
+          <div class="community-feat"><i class="fas fa-comments"></i><span>💬 자유게시판</span></div>
+          <div class="community-feat"><i class="fas fa-question-circle"></i><span>❓ 질문게시판</span></div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // ==================== MY TAB (M-01~M-05) ====================
