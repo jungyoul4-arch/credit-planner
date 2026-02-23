@@ -29,17 +29,10 @@ const state = {
   _classAssignmentText: '', // 과제 내용
   _classAssignmentDue: '', // 과제 마감일 (YYYY-MM-DD)
   todayAcademyRecords: null, // 오늘 학원 수업 목록 (initTodayAcademy에서 자동 생성)
-  todayRecords: [
-    { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B', startTime:'09:00', endTime:'09:50', _dbRecordId: null },
-    { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7', startTime:'10:00', endTime:'10:50', _dbRecordId: null },
-    { period: 3, subject: '영어', teacher: '이정민', done: false, question: null, summary: '', color:'#00B894', startTime:'11:00', endTime:'11:50', _dbRecordId: null },
-    { period: 4, subject: '과학', teacher: '최은지', done: false, question: null, summary: '', color:'#FDCB6E', startTime:'13:00', endTime:'13:50', _dbRecordId: null },
-    { period: 5, subject: '한국사', teacher: '강민수', done: false, question: null, summary: '', color:'#74B9FF', startTime:'14:00', endTime:'14:50', _dbRecordId: null },
-    { period: 6, subject: '체육', teacher: '윤대현', done: false, question: null, summary: '', color:'#A29BFE', startTime:'15:00', endTime:'15:50', _dbRecordId: null },
-  ],
+  todayRecords: [], // syncTodayRecords()에서 오늘 요일 기준으로 자동 생성
   missions: [
-    { text: '수업 기록 3개 이상', icon: '📝', current: 2, target: 3, done: false },
-    { text: '질문 1개 이상', icon: '❓', current: 1, target: 1, done: true },
+    { text: '수업 기록 3개 이상', icon: '📝', current: 0, target: 3, done: false },
+    { text: '질문 1개 이상', icon: '❓', current: 0, target: 1, done: false },
     { text: '교학상장 도전!', icon: '🤝', current: 0, target: 1, done: false },
   ],
   weeklyData: {
@@ -3063,6 +3056,13 @@ function renderHomeTab() {
             <div class="timetable-progress-fill" style="width:${recordPct}%"></div>
           </div>
           <div class="timetable-list">
+            ${state.todayRecords.length === 0 && acRecords.length === 0 ? `
+              <div style="text-align:center;padding:20px 0;color:var(--text-muted)">
+                <div style="font-size:28px;margin-bottom:8px">😴</div>
+                <div style="font-size:13px;font-weight:600">오늘은 수업이 없어요</div>
+                <div style="font-size:11px;margin-top:4px">쉬는 날에도 복습하면 +XP!</div>
+              </div>
+            ` : ''}
             ${state.todayRecords.map((r, idx) => `
               <div class="tt-row ${r.done?'done':''} ${idx === schoolDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewTodayRecord(${idx})" style="cursor:pointer"` : ''}>
                 <div class="tt-period-badge ${r.done?'done':idx===schoolDone?'current':''}" style="${r.done?'':''}">
@@ -10786,14 +10786,21 @@ function syncTodayRecords() {
   const today = new Date();
   const jsDay = today.getDay(); // 0=일, 1=월 ... 6=토
   const dayIdx = jsDay === 0 ? -1 : jsDay - 1; // 월~금만
-  if (dayIdx < 0 || dayIdx > 4) return; // 주말이면 무시
+  
+  if (dayIdx < 0 || dayIdx > 4) {
+    // 주말: 학교 수업 없음 → 빈 배열
+    state.todayRecords = [];
+    return;
+  }
 
   const tt = state.timetable;
+  const periodTimes = tt.periodTimes || [];
   const newRecords = [];
   for (let pi = 0; pi < tt.school.length; pi++) {
     const subject = tt.school[pi][dayIdx];
     if (!subject) continue;
-    const existing = state.todayRecords.find(r => r.period === pi + 1);
+    const existing = state.todayRecords.find(r => r.period === pi + 1 && r.subject === subject);
+    const time = periodTimes[pi] || {};
     newRecords.push({
       period: pi + 1,
       subject: subject,
@@ -10802,11 +10809,19 @@ function syncTodayRecords() {
       question: existing ? existing.question : null,
       summary: existing ? existing.summary : '',
       color: tt.subjectColors[subject] || '#636e72',
+      startTime: time.start || '',
+      endTime: time.end || '',
+      _dbRecordId: existing ? existing._dbRecordId : null,
+      _topic: existing ? existing._topic : '',
+      _pages: existing ? existing._pages : '',
+      _keywords: existing ? existing._keywords : [],
+      _photos: existing ? existing._photos : [],
+      _teacherNote: existing ? existing._teacherNote : '',
+      _assignmentText: existing ? existing._assignmentText : '',
+      _assignmentDue: existing ? existing._assignmentDue : '',
     });
   }
-  if (newRecords.length > 0) {
-    state.todayRecords = newRecords;
-  }
+  state.todayRecords = newRecords;
 }
 
 function saveAcademy() {
@@ -11597,5 +11612,7 @@ document.querySelectorAll('.device-preview-btn').forEach(btn => {
 
 // 학원 플래너 동기화 초기화
 initAcademySync();
+syncTodayRecords(); // 오늘 요일 기준 학교 시간표 동적 생성
+initTodayAcademy(); // 오늘 요일 기준 학원 시간표 동적 생성
 autoLogin();
 renderScreen();
