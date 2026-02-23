@@ -10160,7 +10160,7 @@ function openQuestionFromTimetable(subject, period) {
 
 function renderCommunityTab() {
   // 커뮤니티 URL 구성
-  const baseUrl = 'https://www.jungyul.com/community';
+  const baseUrl = 'https://jungyoul-academy.pages.dev/community';
   const token = state._authToken || '';
   const userId = state._authUser?.id || '';
   const userName = encodeURIComponent(state._authUser?.name || '');
