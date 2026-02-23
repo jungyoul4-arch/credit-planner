@@ -25,6 +25,7 @@ const state = {
   selectedStudent: null,
   inputMode: 'keyword',
   _classPhotos: [], // 수업 기록 사진 배열
+  _recordGalleryFilter: '전체', // 수업 기록 갤러리 과목 필터
   _classAssignmentText: '', // 과제 내용
   _classAssignmentDue: '', // 과제 마감일 (YYYY-MM-DD)
   todayRecords: [
@@ -1904,13 +1905,17 @@ function renderClassRecordHistory() {
   
   const allRecords = [...todayDone, ...dbRecords];
   
-  // 날짜별 그룹핑
+  // 과목별 필터링
+  const currentFilter = state._recordGalleryFilter || '전체';
+  const filteredRecords = currentFilter === '전체' ? allRecords : allRecords.filter(r => r.subject === currentFilter);
+  
+  // 날짜별 그룹핑 (통계용)
   const grouped = {};
   allRecords.forEach(r => {
     if (!grouped[r.date]) grouped[r.date] = [];
     grouped[r.date].push(r);
   });
-  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a)); // 최신순
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
   
   // 전체 통계
   const totalCount = allRecords.length;
@@ -1922,6 +1927,9 @@ function renderClassRecordHistory() {
     '사회':'#74B9FF','한국사':'#E056A0','제2외국어':'#A29BFE','기술가정':'#FF9F43',
     '음악':'#fd79a8','미술':'#00cec9','체육':'#e17055','정보':'#0984e3',
   };
+
+  // 필터 칩에 표시할 과목 목록 (기록이 있는 과목만)
+  const filterSubjects = ['전체', ...Array.from(subjectSet).sort()];
 
   return `
     <div class="full-screen animate-slide">
@@ -1951,8 +1959,19 @@ function renderClassRecordHistory() {
             </div>
           </div>
         </div>
+
+        <!-- 과목 필터 칩 -->
+        ${allRecords.length > 0 ? `
+        <div class="record-filter-bar">
+          ${filterSubjects.map(sub => {
+            const isActive = sub === currentFilter;
+            const chipColor = sub === '전체' ? 'var(--primary-light)' : (subjectColors[sub] || '#636e72');
+            return '<button class="record-filter-chip' + (isActive ? ' active' : '') + '" style="' + (isActive ? 'background:' + chipColor + ';color:#fff;border-color:' + chipColor : 'border-color:' + chipColor + '40;color:' + chipColor) + '" onclick="state._recordGalleryFilter=\'' + sub + '\';renderApp()">' + sub + (sub !== '전체' ? ' <span class="record-filter-count">' + allRecords.filter(r => r.subject === sub).length + '</span>' : '') + '</button>';
+          }).join('')}
+        </div>
+        ` : ''}
         
-        ${allRecords.length === 0 ? `
+        ${filteredRecords.length === 0 && allRecords.length === 0 ? `
           <div style="text-align:center;padding:60px 0;color:var(--text-muted)">
             <span style="font-size:48px;display:block;margin-bottom:16px">📝</span>
             <p style="font-size:16px;font-weight:600;margin:0 0 8px">아직 기록이 없어요</p>
@@ -1961,14 +1980,18 @@ function renderClassRecordHistory() {
               <i class="fas fa-pen" style="margin-right:6px"></i>수업 기록하러 가기
             </button>
           </div>
+        ` : filteredRecords.length === 0 ? `
+          <div style="text-align:center;padding:40px 0;color:var(--text-muted)">
+            <span style="font-size:36px;display:block;margin-bottom:12px">🔍</span>
+            <p style="font-size:14px;font-weight:600;margin:0">'${currentFilter}' 과목의 기록이 없습니다</p>
+          </div>
         ` : `
           <div class="record-gallery-grid">
-            ${allRecords.map(r => {
+            ${filteredRecords.map((r, cardIdx) => {
               const color = subjectColors[r.subject] || '#636e72';
               const keywords = Array.isArray(r.keywords) ? r.keywords : [];
               const photos = Array.isArray(r.photos) ? r.photos : [];
               const photoCount = photos.length;
-              const firstPhoto = photoCount > 0 ? photos[0] : null;
               const memo = (() => { try { return JSON.parse(r.memo || '{}'); } catch(e) { return {}; } })();
               const d = new Date(r.date);
               const dayNames = ['일','월','화','수','목','금','토'];
@@ -1976,21 +1999,33 @@ function renderClassRecordHistory() {
               const clickAction = r._source === 'today' 
                 ? "state._viewingTodayRecordIdx=" + r._todayIdx + ";goScreen('class-record-detail')"
                 : "state._viewingDbRecord='" + String(r.id) + "';goScreen('class-record-detail')";
+              const carouselId = 'rc-carousel-' + cardIdx;
               return `
-              <div class="record-gallery-card" onclick="${clickAction}">
-                <div class="record-gallery-thumb" style="border-bottom:3px solid ${color}">
-                  ${firstPhoto 
-                    ? '<img src="' + firstPhoto + '" alt="필기 사진" class="record-gallery-img" />' 
-                    : '<div class="record-gallery-placeholder"><span style="font-size:36px">📝</span><span style="font-size:12px;color:var(--text-muted);margin-top:4px">사진 없음</span></div>'}
-                  ${photoCount > 1 ? '<span class="record-gallery-badge">+' + (photoCount - 1) + '</span>' : ''}
+              <div class="record-gallery-card">
+                <div class="record-gallery-thumb" style="border-bottom:3px solid ${color}" onclick="${clickAction}">
+                  ${photoCount > 1 ? `
+                    <div class="rc-carousel" id="${carouselId}" data-idx="0" data-total="${photoCount}">
+                      <div class="rc-carousel-track" style="width:${photoCount * 100}%;transform:translateX(0%)">
+                        ${photos.map(p => '<div class="rc-carousel-slide" style="width:' + (100/photoCount) + '%"><img src="' + p + '" alt="필기" class="record-gallery-img" /></div>').join('')}
+                      </div>
+                      <div class="rc-carousel-dots">
+                        ${photos.map((_,i) => '<span class="rc-dot' + (i===0?' active':'') + '"></span>').join('')}
+                      </div>
+                      ${photoCount > 1 ? '<span class="record-gallery-badge">' + photoCount + '장</span>' : ''}
+                    </div>
+                  ` : photoCount === 1 ? `
+                    <img src="${photos[0]}" alt="필기 사진" class="record-gallery-img" />
+                  ` : `
+                    <div class="record-gallery-placeholder"><span style="font-size:36px">📝</span><span style="font-size:12px;color:var(--text-muted);margin-top:4px">사진 없음</span></div>
+                  `}
                 </div>
-                <div class="record-gallery-info">
+                <div class="record-gallery-info" onclick="${clickAction}">
                   <div class="record-gallery-subject">
                     <span class="record-gallery-subject-tag" style="background:${color}18;color:${color};border:1px solid ${color}35">${r.subject}</span>
                     ${memo.period ? '<span class="record-gallery-period">' + memo.period + '교시</span>' : ''}
                   </div>
-                  ${r.topic ? '<div class="record-gallery-topic">' + r.topic + '</div>' : '<div class="record-gallery-topic" style="color:var(--text-muted)">단원 미입력</div>'}
-                  <div class="record-gallery-date">${dateStr}</div>
+                  ${r.topic ? '<div class="record-gallery-topic">' + r.topic + '</div>' : '<div class="record-gallery-topic" style="color:var(--text-muted);font-style:italic">단원 미입력</div>'}
+                  <div class="record-gallery-date"><i class="far fa-calendar-alt" style="margin-right:4px"></i>${dateStr}</div>
                   ${keywords.length > 0 ? '<div class="record-gallery-keywords">' + keywords.slice(0,3).map(k => '<span class="record-gallery-kw" style="background:' + color + '10;color:' + color + ';border:1px solid ' + color + '25">' + k + '</span>').join('') + '</div>' : ''}
                 </div>
               </div>`;
@@ -2001,6 +2036,91 @@ function renderClassRecordHistory() {
     </div>
   `;
 }
+
+// ===== 카드 내 사진 캐러셀 스와이프 핸들러 =====
+(function initRecordCarousel() {
+  let startX = 0, startY = 0, isDragging = false, currentCarousel = null;
+  
+  document.addEventListener('touchstart', function(e) {
+    const carousel = e.target.closest('.rc-carousel');
+    if (!carousel) return;
+    e.stopPropagation();
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    isDragging = true;
+    currentCarousel = carousel;
+  }, { passive: true });
+  
+  document.addEventListener('touchend', function(e) {
+    if (!isDragging || !currentCarousel) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const diffX = endX - startX;
+    const diffY = endY - startY;
+    isDragging = false;
+    
+    // 가로 스와이프만 처리 (세로 스크롤 무시)
+    if (Math.abs(diffX) < 30 || Math.abs(diffY) > Math.abs(diffX)) { currentCarousel = null; return; }
+    
+    const total = parseInt(currentCarousel.dataset.total) || 1;
+    let idx = parseInt(currentCarousel.dataset.idx) || 0;
+    
+    if (diffX < -30 && idx < total - 1) idx++;
+    else if (diffX > 30 && idx > 0) idx--;
+    else { currentCarousel = null; return; }
+    
+    currentCarousel.dataset.idx = idx;
+    const track = currentCarousel.querySelector('.rc-carousel-track');
+    if (track) track.style.transform = 'translateX(-' + (idx * (100 / total)) + '%)';
+    
+    // 인디케이터 업데이트
+    const dots = currentCarousel.querySelectorAll('.rc-dot');
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    
+    // 배지 업데이트
+    const badge = currentCarousel.querySelector('.record-gallery-badge');
+    if (badge) badge.textContent = (idx + 1) + '/' + total;
+    
+    currentCarousel = null;
+  }, { passive: true });
+  
+  // 마우스 드래그 지원 (데스크탑)
+  document.addEventListener('mousedown', function(e) {
+    const carousel = e.target.closest('.rc-carousel');
+    if (!carousel) return;
+    e.preventDefault();
+    startX = e.clientX;
+    isDragging = true;
+    currentCarousel = carousel;
+  });
+  
+  document.addEventListener('mouseup', function(e) {
+    if (!isDragging || !currentCarousel) return;
+    const diffX = e.clientX - startX;
+    isDragging = false;
+    
+    if (Math.abs(diffX) < 30) { currentCarousel = null; return; }
+    
+    const total = parseInt(currentCarousel.dataset.total) || 1;
+    let idx = parseInt(currentCarousel.dataset.idx) || 0;
+    
+    if (diffX < -30 && idx < total - 1) idx++;
+    else if (diffX > 30 && idx > 0) idx--;
+    else { currentCarousel = null; return; }
+    
+    currentCarousel.dataset.idx = idx;
+    const track = currentCarousel.querySelector('.rc-carousel-track');
+    if (track) track.style.transform = 'translateX(-' + (idx * (100 / total)) + '%)';
+    
+    const dots = currentCarousel.querySelectorAll('.rc-dot');
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    
+    const badge = currentCarousel.querySelector('.record-gallery-badge');
+    if (badge) badge.textContent = (idx + 1) + '/' + total;
+    
+    currentCarousel = null;
+  });
+})();
 
 // 수업 기록 상세 열람
 function renderClassRecordDetail() {
