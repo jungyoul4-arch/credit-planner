@@ -5398,6 +5398,45 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 }
 
 /* ================================================================
+   POPUP RECORD TITLE – 당일 수업 · 당일 복습하기 헤더
+   ================================================================ */
+
+.popup-record-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.popup-record-title span {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--primary-light);
+  letter-spacing: -0.3px;
+}
+.popup-back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.popup-back-btn:hover {
+  background: rgba(108,92,231,0.12);
+  border-color: rgba(108,92,231,0.3);
+  color: var(--primary-light);
+}
+
+/* ================================================================
    RECORD STATUS – 기록 관리 & 누락 체크 캘린더 뷰
    ================================================================ */
 

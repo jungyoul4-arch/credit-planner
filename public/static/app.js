@@ -6221,6 +6221,12 @@ function renderClassEndPopup() {
   return `
     <div class="popup-overlay animate-in">
       <div class="popup-card">
+        <div class="popup-record-title">
+          <button class="popup-back-btn" onclick="goScreen('main')">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <span>📝 당일 수업 · 당일 복습하기</span>
+        </div>
         <div class="popup-header">
           <div class="popup-bell"><i class="fas fa-bell"></i></div>
           <h2>${period}교시 <span style="color:${color}">${subject}</span> 수업 끝!</h2>
@@ -6285,6 +6291,12 @@ function renderAcademyRecordPopup() {
   return `
     <div class="popup-overlay animate-in">
       <div class="popup-card">
+        <div class="popup-record-title">
+          <button class="popup-back-btn" onclick="goScreen('main')">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <span>📝 당일 수업 · 당일 복습하기</span>
+        </div>
         <div class="popup-header">
           <div class="popup-bell" style="background:rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.2)">
             <i class="fas fa-graduation-cap" style="color:${color}"></i>
