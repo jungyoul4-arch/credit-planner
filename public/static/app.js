@@ -438,6 +438,7 @@ function renderScreen() {
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
       setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
       setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
+      setTimeout(() => smartScrollTimetable(), 80);
     } else {
       phoneContainer.style.display = 'flex';
       tabletContainer.style.display = 'none';
@@ -447,6 +448,7 @@ function renderScreen() {
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
       setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
       setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
+      setTimeout(() => smartScrollTimetable(), 80);
     }
   } else if (state.mode === 'mentor') {
     phoneContainer.style.display = 'none';
@@ -1754,6 +1756,93 @@ const DB = {
 };
 
 
+// ==================== 시간표 스마트 오토스크롤 ====================
+function smartScrollTimetable() {
+  const scrollArea = document.getElementById('tt-scroll-area');
+  if (!scrollArea) return;
+  
+  const rows = scrollArea.querySelectorAll('.tt-row[data-tt-start]');
+  if (rows.length <= 3) return; // 3개 이하면 스크롤 불필요
+  
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  
+  let targetRow = null;
+  
+  // 1순위: 현재 진행 중인 수업 (start <= now < end)
+  for (const row of rows) {
+    const start = row.dataset.ttStart;
+    const end = row.dataset.ttEnd;
+    const done = row.dataset.ttDone === '1';
+    if (!start || !end) continue;
+    
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    
+    if (nowMinutes >= startMin && nowMinutes < endMin) {
+      targetRow = row;
+      break;
+    }
+  }
+  
+  // 2순위: 다음 수업 (아직 안 끝난 첫 번째 수업)
+  if (!targetRow) {
+    for (const row of rows) {
+      const start = row.dataset.ttStart;
+      const done = row.dataset.ttDone === '1';
+      if (!start || done) continue;
+      
+      const [sh, sm] = start.split(':').map(Number);
+      const startMin = sh * 60 + sm;
+      
+      if (nowMinutes < startMin + 30) { // 시작 30분 이내까지 포함
+        targetRow = row;
+        break;
+      }
+    }
+  }
+  
+  // 3순위: 마지막으로 끝난 미기록 수업
+  if (!targetRow) {
+    for (const row of rows) {
+      const done = row.dataset.ttDone === '1';
+      if (!done) {
+        targetRow = row;
+        break;
+      }
+    }
+  }
+  
+  // 스크롤 실행
+  if (targetRow) {
+    // 한 행 앞을 보여줘서 맥락 유지
+    const prevRow = targetRow.previousElementSibling;
+    const scrollTarget = prevRow && prevRow.classList.contains('tt-row') ? prevRow : targetRow;
+    
+    scrollArea.scrollTo({
+      top: Math.max(0, scrollTarget.offsetTop - 4),
+      behavior: 'smooth'
+    });
+  }
+  
+  // 그라데이션 페이드 업데이트
+  updateTtScrollFades(scrollArea);
+  scrollArea.addEventListener('scroll', () => updateTtScrollFades(scrollArea), { passive: true });
+}
+
+function updateTtScrollFades(el) {
+  const wrapper = el.closest('.tt-scroll-wrapper');
+  if (!wrapper) return;
+  const fadeTop = wrapper.querySelector('.tt-scroll-fade-top');
+  const fadeBottom = wrapper.querySelector('.tt-scroll-fade-bottom');
+  const { scrollTop, scrollHeight, clientHeight } = el;
+  
+  if (fadeTop) fadeTop.style.opacity = scrollTop > 8 ? '1' : '0';
+  if (fadeBottom) fadeBottom.style.opacity = (scrollTop + clientHeight < scrollHeight - 8) ? '1' : '0';
+}
+
 // ==================== 학원 수업 오늘 일정 자동 생성 ====================
 
 function initTodayAcademy() {
@@ -3055,7 +3144,9 @@ function renderHomeTab() {
           <div class="timetable-progress">
             <div class="timetable-progress-fill" style="width:${recordPct}%"></div>
           </div>
-          <div class="timetable-list">
+          <div class="tt-scroll-wrapper">
+            <div class="tt-scroll-fade tt-scroll-fade-top"></div>
+            <div class="timetable-list" id="tt-scroll-area">
             ${state.todayRecords.length === 0 && acRecords.length === 0 ? `
               <div style="text-align:center;padding:20px 0;color:var(--text-muted)">
                 <div style="font-size:28px;margin-bottom:8px">😴</div>
@@ -3064,7 +3155,7 @@ function renderHomeTab() {
               </div>
             ` : ''}
             ${state.todayRecords.map((r, idx) => `
-              <div class="tt-row ${r.done?'done':''} ${idx === schoolDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewTodayRecord(${idx})" style="cursor:pointer"` : ''}>
+              <div class="tt-row ${r.done?'done':''} ${idx === schoolDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" data-tt-idx="${idx}" data-tt-start="${r.startTime||''}" data-tt-end="${r.endTime||''}" data-tt-done="${r.done?1:0}" ${r.done ? `onclick="viewTodayRecord(${idx})" style="cursor:pointer"` : ''}>
                 <div class="tt-period-badge ${r.done?'done':idx===schoolDone?'current':''}" style="${r.done?'':''}">
                   ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : r.period}
                 </div>
@@ -3096,7 +3187,7 @@ function renderHomeTab() {
               <div class="tt-academy-line"></div>
             </div>
             ${acRecords.map((r, idx) => `
-              <div class="tt-row tt-academy-row ${r.done?'done':''} ${idx === acDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewAcademyRecord(${idx})" style="cursor:pointer"` : ''}>
+              <div class="tt-row tt-academy-row ${r.done?'done':''} ${idx === acDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" data-tt-start="${r.startTime||''}" data-tt-end="${r.endTime||''}" data-tt-done="${r.done?1:0}" ${r.done ? `onclick="viewAcademyRecord(${idx})" style="cursor:pointer"` : ''}>
                 <div class="tt-period-badge academy ${r.done?'done':idx===acDone?'current':''}" style="font-size:9px">
                   ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : '<i class="fas fa-graduation-cap" style="font-size:10px"></i>'}
                 </div>
@@ -3123,6 +3214,8 @@ function renderHomeTab() {
               </div>
             `).join('')}
             ` : ''}
+          </div>
+            <div class="tt-scroll-fade tt-scroll-fade-bottom"></div>
           </div>
         </div>
       </div>

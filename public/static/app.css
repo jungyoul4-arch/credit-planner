@@ -1584,7 +1584,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .timetable-progress { height:4px; background:var(--bg-input); border-radius:2px; margin-bottom:12px; overflow:hidden; }
 .timetable-progress-fill { height:100%; background:linear-gradient(90deg, var(--success), var(--teach-green)); border-radius:2px; transition:width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
 
-.timetable-list { display:flex; flex-direction:column; gap:4px; }
+/* .timetable-list base styles moved to TIMETABLE SCROLL section */
 .tt-row {
   display:flex; align-items:center; gap:10px; padding:10px 8px; border-radius:var(--radius-sm);
   transition:all var(--transition-normal); cursor:pointer;
@@ -5273,6 +5273,75 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   .detail-gallery-scroll {
     gap: 16px;
   }
+}
+
+/* ================================================================
+   TIMETABLE SCROLL – 오늘 시간표 내부 스크롤 & 스마트 포커스
+   ================================================================ */
+
+/* 스크롤 래퍼 */
+.tt-scroll-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 내부 스크롤 영역 */
+.timetable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 196px; /* ~3.5 rows */
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+}
+
+/* 슬림 스크롤바 */
+.timetable-list::-webkit-scrollbar {
+  width: 3px;
+}
+.timetable-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.timetable-list::-webkit-scrollbar-thumb {
+  background: rgba(108, 92, 231, 0.2);
+  border-radius: 3px;
+}
+.timetable-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 92, 231, 0.4);
+}
+/* Firefox */
+.timetable-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(108, 92, 231, 0.2) transparent;
+}
+
+/* 태블릿 가로 모드: 높이 확대 (~4.5 rows) */
+@media (orientation: landscape) and (min-width: 768px) {
+  .timetable-list {
+    max-height: 252px;
+  }
+}
+
+/* 상하 그라데이션 페이드 */
+.tt-scroll-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.tt-scroll-fade-top {
+  top: 0;
+  background: linear-gradient(to bottom, var(--bg-card) 0%, transparent 100%);
+}
+.tt-scroll-fade-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg-card) 0%, transparent 100%);
 }
 
 /* ================================================================
