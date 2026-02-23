@@ -28,6 +28,7 @@ const state = {
   _recordGalleryFilter: '전체', // 수업 기록 갤러리 과목 필터
   _classAssignmentText: '', // 과제 내용
   _classAssignmentDue: '', // 과제 마감일 (YYYY-MM-DD)
+  todayAcademyRecords: null, // 오늘 학원 수업 목록 (initTodayAcademy에서 자동 생성)
   todayRecords: [
     { period: 1, subject: '국어', teacher: '박선영', done: true, question: null, summary: '윤동주 서시, 자아성찰, 저항시', color:'#FF6B6B', startTime:'09:00', endTime:'09:50', _dbRecordId: null },
     { period: 2, subject: '수학', teacher: '김태호', done: true, question: { level: 'C-1', axis: 'curiosity', text: '치환적분과 부분적분 중 어떤 기준으로 선택하는 게 더 나은지, 나는 함수 구조로 판별하면 된다고 생각하는데 맞나요?' }, summary: '치환적분, 부분적분, 역함수', color:'#6C5CE7', startTime:'10:00', endTime:'10:50', _dbRecordId: null },
@@ -515,6 +516,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'record-teach') return renderRecordTeach();
   if (state.currentScreen === 'record-activity') return renderRecordActivity();
   if (state.currentScreen === 'class-end-popup') return renderClassEndPopup();
+  if (state.currentScreen === 'academy-record-popup') return renderAcademyRecordPopup();
   if (state.currentScreen === 'evening-routine') return renderEveningRoutine();
   if (state.currentScreen === 'weekly-report') return renderWeeklyReportStudent();
   if (state.currentScreen === 'record-history') return renderRecordHistory();
@@ -1759,6 +1761,42 @@ const DB = {
 };
 
 
+// ==================== 학원 수업 오늘 일정 자동 생성 ====================
+
+function initTodayAcademy() {
+  if (state.todayAcademyRecords) return; // 이미 초기화됨
+  const dayNames = ['일','월','화','수','목','금','토'];
+  const todayDay = dayNames[new Date().getDay()];
+  const academy = state.timetable?.academy || [];
+  const subjectColors = state.timetable?.subjectColors || {};
+  
+  state.todayAcademyRecords = academy
+    .filter(a => a.day === todayDay)
+    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
+    .map((a, idx) => ({
+      _academyId: a.id,
+      _isAcademy: true,
+      period: 'ac' + (idx + 1),
+      subject: a.subject || a.name,
+      teacher: a.academy || '',  // 학원명을 teacher 자리에
+      academyName: a.academy,
+      className: a.name,
+      done: false,
+      question: null,
+      summary: '',
+      color: a.color || subjectColors[a.subject] || '#636e72',
+      startTime: a.startTime,
+      endTime: a.endTime,
+      memo: a.memo || '',
+      _dbRecordId: null,
+      _topic: '',
+      _pages: '',
+      _keywords: [],
+      _photos: [],
+      _teacherNote: ''
+    }));
+}
+
 // ==================== 시간 기반 수업종료 자동 감지 ====================
 
 // 교시별 수업 종료 시간 기준으로 상태 판단
@@ -1775,13 +1813,17 @@ function getClassEndStatus(record) {
   return 'none'; // 아직 수업 중이거나 미래
 }
 
-// 미기록 + 수업 끝난 교시가 있는지
+// 미기록 + 수업 끝난 교시가 있는지 (학교 + 학원)
 function hasUnrecordedEndedClass() {
-  return state.todayRecords.some(r => !r.done && getClassEndStatus(r) !== 'none');
+  const schoolEnded = state.todayRecords.some(r => !r.done && getClassEndStatus(r) !== 'none');
+  const academyEnded = (state.todayAcademyRecords || []).some(r => !r.done && getClassEndStatus(r) !== 'none');
+  return schoolEnded || academyEnded;
 }
 
 function countUnrecordedEndedClasses() {
-  return state.todayRecords.filter(r => !r.done && getClassEndStatus(r) !== 'none').length;
+  const schoolCount = state.todayRecords.filter(r => !r.done && getClassEndStatus(r) !== 'none').length;
+  const academyCount = (state.todayAcademyRecords || []).filter(r => !r.done && getClassEndStatus(r) !== 'none').length;
+  return schoolCount + academyCount;
 }
 
 // 저녁 시간대인지 (19시~23시)
@@ -2334,6 +2376,35 @@ function renderClassRecordDetail() {
     }
   }
   
+  // 학원 기록 보기
+  if (!record && state._viewingAcademyRecord) {
+    const r = state._viewingAcademyRecord;
+    if (r && r.done) {
+      const memo = { period: r.period, isAcademy: true, academyName: r.academyName, className: r.className };
+      record = {
+        subject: r.subject,
+        date: new Date().toISOString().slice(0,10),
+        topic: r._topic || '',
+        pages: r._pages || '',
+        keywords: r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []),
+        photos: r._photos || [],
+        teacher_note: r._teacherNote || '',
+        memo: JSON.stringify(memo),
+        teacher: r.academyName || '',
+        color: r.color || '#636e72',
+        period: r.period,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        question: r.question,
+        _assignmentText: r._assignmentText || '',
+        _assignmentDue: r._assignmentDue || '',
+        _isAcademy: true,
+        _academyIdx: r._academyIdx,
+      };
+      fromToday = true;
+    }
+  }
+  
   if (!record && state._viewingDbRecord) {
     const dbRec = (state._dbClassRecords || []).find(r => String(r.id) === String(state._viewingDbRecord));
     if (dbRec) {
@@ -2357,6 +2428,7 @@ function renderClassRecordDetail() {
   if (!record) { 
     state._viewingTodayRecordIdx = null;
     state._viewingDbRecord = null;
+    state._viewingAcademyRecord = null;
     goScreen('main'); 
     return ''; 
   }
@@ -2860,9 +2932,15 @@ function saveClassRecordEdit(idx) {
 // ==================== HOME TAB (H-01~H-05) ====================
 
 function renderHomeTab() {
-  const doneCount = state.todayRecords.filter(r => r.done).length;
-  const total = state.todayRecords.length;
-  const recordPct = Math.round(doneCount / total * 100);
+  // 학원 수업 초기화
+  initTodayAcademy();
+  const acRecords = state.todayAcademyRecords || [];
+  
+  const schoolDone = state.todayRecords.filter(r => r.done).length;
+  const acDone = acRecords.filter(r => r.done).length;
+  const doneCount = schoolDone + acDone;
+  const total = state.todayRecords.length + acRecords.length;
+  const recordPct = total > 0 ? Math.round(doneCount / total * 100) : 0;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? '좋은 아침' : hour < 18 ? '좋은 오후' : '좋은 저녁';
   
@@ -2986,8 +3064,8 @@ function renderHomeTab() {
           </div>
           <div class="timetable-list">
             ${state.todayRecords.map((r, idx) => `
-              <div class="tt-row ${r.done?'done':''} ${idx === doneCount && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewTodayRecord(${idx})" style="cursor:pointer"` : ''}>
-                <div class="tt-period-badge ${r.done?'done':idx===doneCount?'current':''}" style="${r.done?'':''}">
+              <div class="tt-row ${r.done?'done':''} ${idx === schoolDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewTodayRecord(${idx})" style="cursor:pointer"` : ''}>
+                <div class="tt-period-badge ${r.done?'done':idx===schoolDone?'current':''}" style="${r.done?'':''}">
                   ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : r.period}
                 </div>
                 <div class="tt-info">
@@ -3002,7 +3080,7 @@ function renderHomeTab() {
                         </button>
                         <span class="tt-done-badge">✅</span>
                       </div>`
-                    : (idx === doneCount
+                    : (idx === schoolDone
                       ? `<button class="tt-record-btn ${getClassEndStatus(r)==='just-ended'?'tt-btn-glow':''}" onclick="event.stopPropagation();goScreen('class-end-popup')">기록하기</button>`
                       : `<span class="tt-locked"><i class="fas fa-lock" style="font-size:10px"></i></span>`
                     )
@@ -3010,6 +3088,41 @@ function renderHomeTab() {
                 </div>
               </div>
             `).join('')}
+            
+            ${acRecords.length > 0 ? `
+            <!-- 학원 수업 구분선 -->
+            <div class="tt-academy-divider">
+              <span class="tt-academy-label">📚 학원</span>
+              <div class="tt-academy-line"></div>
+            </div>
+            ${acRecords.map((r, idx) => `
+              <div class="tt-row tt-academy-row ${r.done?'done':''} ${idx === acDone && !r.done?'current':''} ${getClassEndStatus(r)==='just-ended'?'tt-just-ended':''}" ${r.done ? `onclick="viewAcademyRecord(${idx})" style="cursor:pointer"` : ''}>
+                <div class="tt-period-badge academy ${r.done?'done':idx===acDone?'current':''}" style="font-size:9px">
+                  ${r.done ? '<i class="fas fa-check" style="font-size:10px"></i>' : '<i class="fas fa-graduation-cap" style="font-size:10px"></i>'}
+                </div>
+                <div class="tt-info">
+                  <span class="tt-subject-name" style="color:${r.color}">${r.subject}</span>
+                  ${r.done 
+                    ? `<span class="tt-summary">${r.summary} <i class="fas fa-pencil-alt" style="font-size:9px;opacity:0.4;margin-left:4px"></i></span>` 
+                    : `<span class="tt-summary" style="opacity:0.4">${r.academyName} · ${r.startTime||''}~${r.endTime||''}</span>`}
+                </div>
+                <div class="tt-action">
+                  ${r.done
+                    ? `<div style="display:flex;align-items:center;gap:4px">
+                        <button class="tt-q-btn" onclick="event.stopPropagation();openQuestionFromTimetable('${r.subject}', ${idx}, true)" title="질문 등록">
+                          ❓
+                        </button>
+                        <span class="tt-done-badge">✅</span>
+                      </div>`
+                    : (idx === acDone
+                      ? `<button class="tt-record-btn ${getClassEndStatus(r)==='just-ended'?'tt-btn-glow':''}" onclick="event.stopPropagation();openAcademyRecordPopup(${idx})">기록하기</button>`
+                      : `<span class="tt-locked"><i class="fas fa-lock" style="font-size:10px"></i></span>`
+                    )
+                  }
+                </div>
+              </div>
+            `).join('')}
+            ` : ''}
           </div>
         </div>
       </div>
@@ -3177,12 +3290,12 @@ function renderRecordTab() {
       </div>
       
       <div class="record-type-grid">
-        <!-- 기록 관리 & 누락 체크 (최상단) -->
+        <!-- 당일 수업 · 당일 복습하기 (최상단) -->
         <div class="record-type-card stagger-0 animate-in" style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(0,184,148,0.08));border:1.5px solid rgba(108,92,231,0.3)" onclick="goScreen('record-status')">
-          <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📊</div>
+          <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📝</div>
           <div class="record-type-info">
-            <h3>기록 관리 & 누락 체크</h3>
-            <p>주간·월간 캘린더로 기록 현황 확인</p>
+            <h3>당일 수업 · 당일 복습하기</h3>
+            <p>학교 + 학원 수업을 당일에 바로 기록</p>
           </div>
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
@@ -6045,6 +6158,183 @@ function renderClassEndPopup() {
       </div>
     </div>
   `;
+}
+
+// ==================== 학원 수업 기록 팝업 ====================
+
+function openAcademyRecordPopup(idx) {
+  state._recordingAcademyIdx = idx;
+  goScreen('academy-record-popup');
+}
+
+function viewAcademyRecord(idx) {
+  // 학원 기록 상세 보기 → 기존 detail 화면 재활용
+  const r = (state.todayAcademyRecords || [])[idx];
+  if (!r) return;
+  // todayRecords 구조로 변환해서 기존 상세 뷰에서 볼 수 있도록
+  state._viewingTodayRecordIdx = null;
+  state._viewingDbRecord = null;
+  state._viewingAcademyRecord = { ...r, _academyIdx: idx };
+  goScreen('class-record-detail');
+}
+
+function renderAcademyRecordPopup() {
+  const idx = state._recordingAcademyIdx;
+  const acRecords = state.todayAcademyRecords || [];
+  const r = acRecords[idx];
+  if (!r) { goScreen('main'); return ''; }
+  
+  const subject = r.subject;
+  const color = r.color;
+  const academyName = r.academyName || r.teacher;
+  const className = r.className || r.subject;
+  
+  return `
+    <div class="popup-overlay animate-in">
+      <div class="popup-card">
+        <div class="popup-header">
+          <div class="popup-bell" style="background:rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.2)">
+            <i class="fas fa-graduation-cap" style="color:${color}"></i>
+          </div>
+          <h2><span style="color:${color}">${subject}</span> 학원 수업 끝!</h2>
+          <p style="font-size:13px;color:var(--text-muted)">${academyName} · ${className}</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:2px">${r.startTime||''}~${r.endTime||''}</p>
+        </div>
+
+        <div class="popup-timer">
+          <span class="timer-icon">⏱️</span>
+          <span class="timer-text">30초면 OK!</span>
+        </div>
+
+        ${renderClassRecordFields(subject)}
+
+        <button class="btn-primary class-record-submit" onclick="completeAcademyRecord(${idx})" disabled style="opacity:0.4;cursor:not-allowed">
+          기록 완료 +10 XP ✨
+        </button>
+
+        <div class="popup-question-after" style="display:none;text-align:center;padding:16px 0;margin-top:8px;border-top:1px solid var(--border)">
+          <div style="font-size:24px;margin-bottom:8px">🎉</div>
+          <p style="font-size:14px;font-weight:600;color:var(--success);margin:0 0 12px">학원 수업 기록 완료!</p>
+          <span style="font-size:14px;font-weight:600">💡 학원 수업에서 궁금했던 것이 있나요?</span>
+          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
+          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe('/new')">✏️ 질문하기 +3 XP</button>
+          <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:13px" onclick="goScreen('main')">다음에 할게요</button>
+        </div>
+
+        <button class="popup-skip popup-skip-before" onclick="goScreen('main')">나중에 할게요</button>
+      </div>
+    </div>
+  `;
+}
+
+function completeAcademyRecord(idx) {
+  // 유효성 검사 (기존 함수 재활용)
+  if (!validateClassRecordForm()) {
+    const keywordInput = document.querySelector('.class-keyword-input');
+    if (keywordInput) {
+      keywordInput.focus();
+      keywordInput.style.borderColor = 'var(--accent)';
+      keywordInput.setAttribute('placeholder', '핵심 키워드를 입력해야 기록을 완료할 수 있어요!');
+      setTimeout(() => { keywordInput.style.borderColor = ''; }, 2000);
+    }
+    return;
+  }
+  
+  const acRecords = state.todayAcademyRecords || [];
+  if (idx < 0 || idx >= acRecords.length) return;
+  const r = acRecords[idx];
+  
+  // 폼 필드 수집 (기존 로직과 동일)
+  const topicInput = document.querySelector('.class-topic-input');
+  const topic = topicInput ? topicInput.value.trim() : '';
+  
+  const pagesInput = document.querySelector('.class-pages-input');
+  const pages = pagesInput ? pagesInput.value.trim() : '';
+  
+  const keywordInput = document.querySelector('.class-keyword-input');
+  const keywordText = keywordInput ? keywordInput.value.trim() : '';
+  const keywordTexts = [];
+  if (keywordText) {
+    keywordText.split(/[,，、\n]+/).forEach(k => { const t = k.trim(); if (t) keywordTexts.push(t); });
+  }
+  
+  const photos = state._classPhotos || [];
+  
+  const teacherNoteInput = document.querySelector('.class-teacher-note-input');
+  const teacherNote = teacherNoteInput ? teacherNoteInput.value.trim() : '';
+  
+  const assignInput = document.querySelector('.class-assignment-input');
+  const assignText = assignInput ? assignInput.value.trim() : '';
+  
+  r.done = true;
+  r.summary = topic || keywordTexts.join(', ') || '학원 수업 기록 완료';
+  r._topic = topic;
+  r._pages = pages;
+  r._keywords = keywordTexts;
+  r._photos = photos;
+  r._teacherNote = teacherNote;
+  r._assignmentText = assignText;
+  r._assignmentDue = state._classAssignmentDue || '';
+  
+  // 미션 업데이트 (학교+학원 합산)
+  const totalDone = state.todayRecords.filter(x => x.done).length + acRecords.filter(x => x.done).length;
+  if (state.missions && state.missions[0]) {
+    state.missions[0].current = totalDone;
+    if (state.missions[0].current >= state.missions[0].target && !state.missions[0].done) {
+      state.missions[0].done = true;
+    }
+  }
+  
+  // DB 저장 (학원 수업도 동일하게 class-records API 사용)
+  if (state._authUser?.id) {
+    saveClassRecord({
+      student_id: state._authUser.id,
+      subject: r.subject,
+      date: new Date().toISOString().slice(0,10),
+      topic: topic,
+      pages: pages,
+      keywords: keywordTexts,
+      photos: photos,
+      teacher_note: teacherNote,
+      content: topic || r.summary,
+      memo: JSON.stringify({
+        period: r.period,
+        isAcademy: true,
+        academyName: r.academyName,
+        className: r.className,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        assignmentText: assignText,
+        assignmentDue: state._classAssignmentDue || ''
+      })
+    });
+  }
+  
+  // 사진 초기화
+  state._classPhotos = [];
+  state._classAssignmentDue = '';
+  
+  // UI 전환 (기존과 동일한 애니메이션)
+  const submitBtn = document.querySelector('.class-record-submit');
+  const skipBtn = document.querySelector('.popup-skip-before');
+  const questionAfter = document.querySelector('.popup-question-after');
+  
+  if (submitBtn) {
+    submitBtn.innerHTML = '✅ 기록 완료! +10 XP';
+    submitBtn.style.background = 'var(--success)';
+    submitBtn.style.opacity = '1';
+  }
+  if (skipBtn) skipBtn.style.display = 'none';
+  
+  setTimeout(() => {
+    if (submitBtn) submitBtn.style.display = 'none';
+    if (questionAfter) questionAfter.style.display = 'block';
+    
+    // 기록 필드 숨기기
+    document.querySelectorAll('.class-record-section').forEach(el => el.style.display = 'none');
+  }, 1200);
+  
+  showXpPopup(10, '학원 수업 기록 완료! 📚');
 }
 
 // ==================== 수업 기록 공통 필드 ====================

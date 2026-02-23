@@ -5276,6 +5276,59 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 }
 
 /* ================================================================
+   ACADEMY TIMETABLE – 홈 오늘 시간표 내 학원 수업 구분
+   ================================================================ */
+
+/* 학원 구분선 */
+.tt-academy-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 6px;
+  padding: 0 2px;
+}
+.tt-academy-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--primary-light);
+  white-space: nowrap;
+  background: rgba(108,92,231,0.12);
+  padding: 3px 10px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+.tt-academy-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(108,92,231,0.3), transparent);
+}
+
+/* 학원 수업 행 */
+.tt-academy-row {
+  border-left: 2.5px solid rgba(108,92,231,0.35);
+}
+.tt-academy-row:not(.done) {
+  background: rgba(108,92,231,0.03);
+}
+
+/* 학원 교시 배지 */
+.tt-period-badge.academy {
+  background: rgba(108,92,231,0.15);
+  border-color: rgba(108,92,231,0.3);
+  color: var(--primary-light);
+}
+.tt-period-badge.academy.done {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.tt-period-badge.academy.current {
+  background: var(--primary-light);
+  border-color: var(--primary-light);
+  color: #fff;
+}
+
+/* ================================================================
    RECORD STATUS – 기록 관리 & 누락 체크 캘린더 뷰
    ================================================================ */
 
