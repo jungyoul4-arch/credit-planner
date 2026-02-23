@@ -3108,28 +3108,54 @@ function renderHomeTab() {
             </div>
           </div>
 
-          <!-- Quick Todo → Planner 바로가기 -->
-          <div class="card stagger-2 animate-in home-card-todo" onclick="state.studentTab='planner';state.plannerView='daily';state.currentScreen='main';renderScreen()" style="cursor:pointer">
+          <!-- 오늘 일정 미니 아젠다 -->
+          <div class="card stagger-2 animate-in home-card-todo">
             <div class="card-header-row">
-              <span class="card-title">✏️ 오늘 할 일</span>
-              <span class="card-subtitle">${state.quickTodos ? state.quickTodos.filter(t=>t.done).length : 0}/${state.quickTodos ? state.quickTodos.length : 0}</span>
+              <span class="card-title">📅 오늘 일정</span>
+              <span class="card-subtitle" onclick="state.studentTab='planner';state.plannerView='daily';renderScreen()" style="cursor:pointer;color:var(--primary-light)">전체보기 →</span>
             </div>
-            <div class="quick-todo-list" style="max-height:120px;overflow:hidden">
-              ${(!state.quickTodos || state.quickTodos.length === 0) ? `
-                <div class="quick-todo-empty">
-                  <span style="font-size:20px;opacity:0.4">📝</span>
-                  <span style="font-size:11px;color:var(--text-muted)">플래너에서 할 일을 관리하세요</span>
-                </div>
-              ` : state.quickTodos.slice(0, 3).map((t, i) => `
-                <div class="quick-todo-item ${t.done?'done':''}" style="pointer-events:none">
-                  <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:14px"></i>
-                  <span class="quick-todo-text">${t.text}</span>
-                </div>
-              `).join('') + (state.quickTodos.length > 3 ? `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:4px 0">+${state.quickTodos.length - 3}개 더...</div>` : '')}
-            </div>
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 0 2px;font-size:12px;color:var(--primary-light);font-weight:600">
-              <i class="fas fa-arrow-right" style="font-size:10px"></i> 플래너에서 관리하기
-            </div>
+            ${(() => {
+              const today = new Date().toISOString().split('T')[0];
+              const items = state.plannerItems.filter(i => i.date === today).sort((a,b) => a.time.localeCompare(b.time));
+              const todos = state.quickTodos || [];
+              const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+              if (items.length === 0 && todos.length === 0) {
+                return '<div style="text-align:center;padding:16px 0;color:var(--text-muted);font-size:12px">오늘 일정이 없습니다</div>';
+              }
+              let html = '<div class="home-agenda-list">';
+              // 일정 (최대 5개)
+              items.slice(0, 5).forEach(item => {
+                const sh = parseInt(item.time.split(':')[0]), sm = parseInt(item.time.split(':')[1]);
+                const eh = parseInt(item.endTime.split(':')[0]), em = parseInt(item.endTime.split(':')[1]);
+                const isNow = nowMin >= sh*60+sm && nowMin < eh*60+em;
+                html += '<div class="home-agenda-item ' + (item.done?'done':'') + (isNow?' now':'') + '" onclick="state.studentTab=\'planner\';state.plannerView=\'daily\';renderScreen()">' +
+                  '<div class="home-agenda-time">' + item.time + '</div>' +
+                  '<div class="home-agenda-bar" style="background:' + item.color + '"></div>' +
+                  '<div class="home-agenda-info">' +
+                    '<span class="home-agenda-title">' + (item.icon||'📌') + ' ' + item.title + '</span>' +
+                  '</div>' +
+                  (item.done ? '<i class="fas fa-check-circle" style="color:var(--success);font-size:12px;flex-shrink:0"></i>' :
+                   isNow ? '<span class="agenda-now-tag" style="font-size:9px;padding:1px 5px">진행중</span>' : '') +
+                '</div>';
+              });
+              if (items.length > 5) {
+                html += '<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:2px 0">+' + (items.length - 5) + '개 일정 더보기</div>';
+              }
+              // Quick Todos (최대 3개)
+              if (todos.length > 0) {
+                html += '<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px">';
+                todos.slice(0, 3).forEach((t, i) => {
+                  html += '<div class="home-agenda-item ' + (t.done?'done':'') + '" style="pointer-events:none;padding:4px 0">' +
+                    '<i class="fas ' + (t.done?'fa-check-circle':'fa-circle') + '" style="color:' + (t.done?'var(--success)':'var(--text-muted)') + ';font-size:11px;width:36px;text-align:center;flex-shrink:0"></i>' +
+                    '<div class="home-agenda-info"><span class="home-agenda-title" style="font-size:12px">' + t.text + '</span></div>' +
+                  '</div>';
+                });
+                if (todos.length > 3) html += '<div style="font-size:10px;color:var(--text-muted);text-align:center;padding:2px">+' + (todos.length - 3) + '개 할 일</div>';
+                html += '</div>';
+              }
+              html += '</div>';
+              return html;
+            })()}
           </div>
         </div>
 
@@ -9198,16 +9224,22 @@ function renderPlannerDaily() {
     dateDots.push({ date: dateStr, day: dd.getDate(), dayName: dayNames[dd.getDay()], isToday: offset===0, hasItems: itemCount > 0, itemCount });
   }
 
-  // 시간대 블록 생성
-  const hours = [];
-  for (let h = 7; h <= 22; h++) {
-    const timeStr = `${String(h).padStart(2,'0')}:00`;
-    const itemsInHour = todayItems.filter(item => {
-      const itemH = parseInt(item.time.split(':')[0]);
-      return itemH === h;
-    });
-    hours.push({ hour: h, time: timeStr, items: itemsInHour });
-  }
+  // 카테고리별 아이콘 매핑
+  const catIcon = (cat) => {
+    const icons = { 'class':'🏫', 'assignment':'📋', 'study':'📖', 'routine':'☀️', 'activity':'🎭', 'explore':'🔬', 'teach':'🤝', 'personal':'✏️' };
+    return icons[cat] || '📌';
+  };
+  const catLabel = (cat) => {
+    const labels = { 'class':'수업', 'assignment':'과제', 'study':'학습', 'routine':'루틴', 'activity':'활동', 'explore':'탐구', 'teach':'교학상장', 'personal':'개인' };
+    return labels[cat] || '기타';
+  };
+
+  // 현재 시간 계산 (진행중 표시용)
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const isCurrentDate = state.plannerDate === new Date().toISOString().split('T')[0];
+
+  // 마감 과제
+  const dueAssignments = state.assignments.filter(a => a.dueDate === state.plannerDate && a.status !== 'completed');
 
   return `
     <!-- Date Navigator -->
@@ -9233,83 +9265,90 @@ function renderPlannerDaily() {
       <div class="pds-divider"></div>
       <div class="pds-item pds-highlight"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">정율 배치</span></div>
       <div class="pds-divider"></div>
-      <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${state.assignments.filter(a => a.dueDate === state.plannerDate && a.status !== 'completed').length + todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
+      <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${dueAssignments.length + todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
     </div>
 
     <!-- Due Assignments for this day -->
-    ${(() => {
-      const dueAssignments = state.assignments.filter(a => a.dueDate === state.plannerDate && a.status !== 'completed');
-      if (dueAssignments.length === 0) return '';
-      return '<div style="padding:0 16px;margin-bottom:12px">' +
-        '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px"><i class="fas fa-exclamation-circle"></i> 오늘 마감 과제</div>' +
+    ${dueAssignments.length > 0 ? (() => {
+      return '<div style="padding:0 16px;margin-bottom:8px">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px"><i class="fas fa-exclamation-circle"></i> 오늘 마감 과제</div>' +
         dueAssignments.map(a => {
           const dDay = getDday(a.dueDate);
           const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? 'D-' + dDay : 'D+' + Math.abs(dDay);
-          return '<div class="card" style="margin-bottom:8px;padding:12px;border-left:3px solid ' + a.color + ';cursor:pointer" onclick="state.viewingAssignment=\'' + a.id + '\';goScreen(\'assignment-plan\')">' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
+          return '<div class="card" style="margin-bottom:6px;padding:10px 12px;border-left:3px solid ' + a.color + ';cursor:pointer" onclick="state.viewingAssignment=\'' + a.id + '\';goScreen(\'assignment-plan\')">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">' +
               '<span class="assignment-dday urgent" style="font-size:11px;padding:2px 6px">' + dDayText + '</span>' +
               '<span style="font-size:11px;color:' + a.color + ';font-weight:600">' + a.subject + '</span>' +
               '<span style="margin-left:auto;font-size:11px;color:var(--text-muted)">' + a.progress + '%</span>' +
             '</div>' +
-            '<div style="font-size:14px;font-weight:600;color:var(--text-primary)">' + a.title + '</div>' +
-            (a.desc ? '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">' + a.desc + '</div>' : '') +
-            '<div style="display:flex;gap:8px;margin-top:8px">' +
-              '<button class="btn-secondary" style="flex:1;padding:6px;font-size:12px" onclick="event.stopPropagation();toggleAssignmentDone(\'' + a.id + '\')"><i class="fas fa-check"></i> 완료</button>' +
-              '<button class="btn-ghost" style="flex:0;padding:6px 10px;font-size:12px" onclick="event.stopPropagation();deletePlannerAssignment(\'' + a.id + '\')"><i class="fas fa-trash"></i></button>' +
-              '<button class="btn-ghost" style="flex:0;padding:6px 10px;font-size:12px" onclick="event.stopPropagation();state.editingAssignment=\'' + a.id + '\';goScreen(\'record-assignment\')"><i class="fas fa-edit"></i></button>' +
+            '<div style="font-size:13px;font-weight:600;color:var(--text-primary)">' + a.title + '</div>' +
+            '<div style="display:flex;gap:6px;margin-top:6px">' +
+              '<button class="btn-secondary" style="flex:1;padding:5px;font-size:11px" onclick="event.stopPropagation();toggleAssignmentDone(\'' + a.id + '\')"><i class="fas fa-check"></i> 완료</button>' +
+              '<button class="btn-ghost" style="flex:0;padding:5px 8px;font-size:11px" onclick="event.stopPropagation();deletePlannerAssignment(\'' + a.id + '\')"><i class="fas fa-trash"></i></button>' +
+              '<button class="btn-ghost" style="flex:0;padding:5px 8px;font-size:11px" onclick="event.stopPropagation();state.editingAssignment=\'' + a.id + '\';goScreen(\'record-assignment\')"><i class="fas fa-edit"></i></button>' +
             '</div>' +
           '</div>';
         }).join('') +
       '</div>';
-    })()}
+    })() : ''}
 
-    <!-- 2-Column Layout: Timeline (70%) + Todo (30%) -->
+    <!-- 2-Column Layout: Agenda (70%) + Todo (30%) -->
     <div class="planner-two-col">
-      <!-- LEFT: Timeline -->
+      <!-- LEFT: Compact Agenda (빈 시간대 제거) -->
       <div class="planner-col-timeline">
-        <div class="planner-timeline">
-          ${hours.map(h => `
-            <div class="pt-hour-row">
-              <div class="pt-time">${h.hour}시</div>
-              <div class="pt-content">
-                ${h.items.length > 0 ? h.items.map(item => `
-                  <div class="pt-item ${item.done?'done':''} cat-${item.category}" onclick="togglePlannerItem('${item.id}')">
-                    <div class="pt-item-left">
-                      <div class="pt-item-check">
-                        ${item.done
-                          ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>'
-                          : '<i class="far fa-circle"></i>'
-                        }
-                      </div>
-                      <div class="pt-item-color" style="background:${item.color}"></div>
-                    </div>
-                    <div class="pt-item-body">
-                      <div class="pt-item-title-row">
-                        <span class="pt-item-icon">${item.icon}</span>
-                        <span class="pt-item-title">${item.title}</span>
-                      </div>
-                      <div class="pt-item-meta">
-                        <span>${item.time} ~ ${item.endTime}</span>
-                        ${item.detail ? `<span class="pt-item-detail">· ${item.detail}</span>` : ''}
-                      </div>
-                    </div>
-                    <div class="pt-item-right">
-                      ${item.aiGenerated ? '<span class="pt-ai-badge">정율</span>' : ''}
-                    </div>
-                  </div>
-                `).join('') : `
-                  <div class="pt-empty-slot" onclick="openPlannerAdd('${state.plannerDate}','${h.time}')">
-                    <i class="fas fa-plus" style="font-size:10px;opacity:0.4"></i>
-                  </div>
-                `}
-              </div>
+        <div class="agenda-list">
+          ${todayItems.length === 0 ? `
+            <div class="agenda-empty">
+              <div class="agenda-empty-icon">📅</div>
+              <div class="agenda-empty-text">오늘 일정이 없습니다</div>
+              <button class="agenda-add-first" onclick="openPlannerAdd('${state.plannerDate}','09:00')">
+                <i class="fas fa-plus"></i> 첫 일정 추가
+              </button>
             </div>
-          `).join('')}
+          ` : todayItems.map((item, idx) => {
+            const startH = parseInt(item.time.split(':')[0]);
+            const startM = parseInt(item.time.split(':')[1]);
+            const endH = parseInt(item.endTime.split(':')[0]);
+            const endM = parseInt(item.endTime.split(':')[1]);
+            const itemStart = startH * 60 + startM;
+            const itemEnd = endH * 60 + endM;
+            const isNow = isCurrentDate && nowMinutes >= itemStart && nowMinutes < itemEnd;
+            const isPast = isCurrentDate && nowMinutes >= itemEnd;
+            const isClassOrAcademy = item.category === 'class';
+            return `
+              <div class="agenda-item ${item.done?'done':''} ${isNow?'now':''} ${isPast&&!item.done?'past':''} cat-${item.category}" onclick="togglePlannerItem('${item.id}')">
+                <div class="agenda-time-col">
+                  <span class="agenda-time-start">${item.time}</span>
+                  <span class="agenda-time-end">${item.endTime}</span>
+                </div>
+                <div class="agenda-bar" style="background:${item.color}"></div>
+                <div class="agenda-body">
+                  <div class="agenda-title-row">
+                    <span class="agenda-check">
+                      ${item.done
+                        ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>'
+                        : isNow
+                          ? '<i class="fas fa-dot-circle" style="color:var(--accent-warm)"></i>'
+                          : '<i class="far fa-circle"></i>'
+                      }
+                    </span>
+                    <span class="agenda-cat-icon">${item.icon || catIcon(item.category)}</span>
+                    <span class="agenda-title">${item.title}</span>
+                    ${item.aiGenerated ? '<span class="pt-ai-badge">정율</span>' : ''}
+                  </div>
+                  ${item.detail ? `<div class="agenda-detail">${item.detail}</div>` : ''}
+                  <div class="agenda-tags">
+                    <span class="agenda-cat-tag" style="color:${item.color};border-color:${item.color}">${catLabel(item.category)}</span>
+                    ${isNow ? '<span class="agenda-now-tag">진행중</span>' : ''}
+                  </div>
+                </div>
+              </div>`;
+          }).join('')}
         </div>
 
         <!-- Add Button -->
-        <div style="padding:8px 0 16px">
-          <button class="add-assignment-btn" onclick="openPlannerAdd('${state.plannerDate}','')">
+        <div class="agenda-add-row">
+          <button class="agenda-add-btn" onclick="openPlannerAdd('${state.plannerDate}','')">
             <i class="fas fa-plus-circle"></i> 일정 추가
           </button>
         </div>
