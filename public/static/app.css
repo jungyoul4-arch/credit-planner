@@ -5274,3 +5274,222 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     gap: 16px;
   }
 }
+
+/* ================================================================
+   RECORD STATUS – 기록 관리 & 누락 체크 캘린더 뷰
+   ================================================================ */
+
+/* 진행률 카드 */
+.rs-progress-card {
+  background: linear-gradient(135deg, rgba(108,92,231,0.1), rgba(0,184,148,0.06));
+  border: 1px solid rgba(108,92,231,0.2);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.rs-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.rs-progress-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: #FFFFFF;
+}
+.rs-progress-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* 원형 진행률 */
+.rs-progress-circle {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+.rs-circle-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.rs-circle-bg {
+  fill: none;
+  stroke: rgba(255,255,255,0.06);
+  stroke-width: 3;
+}
+.rs-circle-fill {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.8s ease;
+}
+.rs-circle-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+.rs-circle-num {
+  font-size: 22px;
+  font-weight: 900;
+}
+.rs-circle-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* 통계 */
+.rs-progress-stats {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+.rs-stat-num {
+  font-size: 20px;
+  font-weight: 900;
+  display: block;
+}
+.rs-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* 주간 캘린더 그리드 */
+.rs-calendar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.rs-day-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rs-day-header {
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+}
+.rs-day-header.today {
+  background: rgba(108,92,231,0.2);
+  border: 1px solid rgba(108,92,231,0.4);
+}
+.rs-day-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.rs-day-num {
+  display: block;
+  font-size: 18px;
+  font-weight: 900;
+  color: #FFFFFF;
+}
+.rs-day-header.today .rs-day-name {
+  color: var(--primary-light);
+}
+
+/* 교시 셀 */
+.rs-period-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rs-period-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 2px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  min-height: 52px;
+  justify-content: center;
+}
+.rs-period-cell.recorded {
+  background: rgba(0,184,148,0.08);
+  border-color: rgba(0,184,148,0.2);
+}
+.rs-period-cell.missed {
+  background: rgba(255,107,107,0.06);
+  border: 1.5px dashed rgba(255,107,107,0.35);
+  cursor: pointer;
+}
+.rs-period-cell.missed:hover {
+  background: rgba(255,107,107,0.12);
+  border-color: rgba(255,107,107,0.5);
+  transform: scale(1.03);
+}
+.rs-period-cell.future {
+  opacity: 0.4;
+}
+.rs-period-num {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.rs-period-subject {
+  font-size: 11px;
+  font-weight: 800;
+  margin: 1px 0;
+}
+.rs-period-status {
+  margin-top: 2px;
+}
+.rs-missed-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1.5px dashed rgba(255,107,107,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,107,107,0.6);
+}
+
+/* 힌트 */
+.rs-hint {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 12px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+}
+
+/* 태블릿 가로 모드 */
+@media (orientation: landscape) and (min-width: 768px) {
+  .rs-calendar {
+    gap: 12px;
+  }
+  .rs-period-cell {
+    min-height: 60px;
+    padding: 8px 4px;
+  }
+  .rs-period-subject {
+    font-size: 13px !important;
+  }
+  .rs-period-num {
+    font-size: 11px;
+  }
+  .rs-day-num {
+    font-size: 20px;
+  }
+  .rs-progress-title {
+    font-size: 20px;
+  }
+}

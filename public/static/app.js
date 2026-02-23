@@ -541,6 +541,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'class-record-edit') return renderClassRecordEdit();
   if (state.currentScreen === 'class-record-history') return renderClassRecordHistory();
   if (state.currentScreen === 'class-record-detail') return renderClassRecordDetail();
+  if (state.currentScreen === 'record-status') return renderRecordStatus();
 
   let content = '';
   content += renderXpBar();
@@ -1877,6 +1878,184 @@ function viewTodayRecord(idx) {
   goScreen('class-record-detail');
 }
 
+// ==================== 기록 관리 & 누락 체크 (주간 캘린더 뷰) ====================
+function renderRecordStatus() {
+  const school = state.timetable?.school || [];
+  const teachers = state.timetable?.teachers || {};
+  const subjectColors = state.timetable?.subjectColors || {};
+  const dbRecords = state._dbClassRecords || [];
+  const todayRecords = state.todayRecords || [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  
+  // 이번 주 월~금 날짜 구하기
+  const dayOfWeek = today.getDay(); // 0=일, 1=월...
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  
+  const weekDays = [];
+  const dayNames = ['월','화','수','목','금'];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    weekDays.push({
+      date: d.toISOString().slice(0,10),
+      dayName: dayNames[i],
+      dayNum: d.getDate(),
+      month: d.getMonth() + 1,
+      isToday: d.toISOString().slice(0,10) === todayStr,
+      isFuture: d > today
+    });
+  }
+  
+  // 각 날짜+교시별 기록 여부 계산
+  const periodCount = school.length || 7;
+  let totalSlots = 0, recordedSlots = 0;
+  
+  const weekData = weekDays.map((day, dayIdx) => {
+    const periods = [];
+    for (let p = 0; p < periodCount; p++) {
+      const subject = school[p] ? (school[p][dayIdx] || '') : '';
+      if (!subject) continue; // 빈 교시 스킵
+      
+      const isRecorded = checkRecordExists(day.date, subject, p + 1, dbRecords, todayRecords, todayStr);
+      
+      if (!day.isFuture) {
+        totalSlots++;
+        if (isRecorded) recordedSlots++;
+      }
+      
+      periods.push({
+        period: p + 1,
+        subject,
+        color: subjectColors[subject] || '#636e72',
+        teacher: teachers[subject] || '',
+        recorded: isRecorded,
+        isFuture: day.isFuture
+      });
+    }
+    return { ...day, periods };
+  });
+  
+  const completionRate = totalSlots > 0 ? Math.round((recordedSlots / totalSlots) * 100) : 0;
+  const missedCount = totalSlots - recordedSlots;
+  
+  // 진행률 색상
+  const rateColor = completionRate >= 80 ? '#00B894' : completionRate >= 50 ? '#FDCB6E' : '#FF6B6B';
+  
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <h1>📊 기록 관리 & 누락 체크</h1>
+      </div>
+      <div class="form-body">
+        <!-- 주간 진행률 카드 -->
+        <div class="rs-progress-card">
+          <div class="rs-progress-header">
+            <div>
+              <div class="rs-progress-title">이번 주 기록 현황</div>
+              <div class="rs-progress-subtitle">${weekDays[0].month}/${weekDays[0].dayNum} ~ ${weekDays[4].month}/${weekDays[4].dayNum}</div>
+            </div>
+            <div class="rs-progress-circle" style="--rate:${completionRate};--rate-color:${rateColor}">
+              <svg viewBox="0 0 36 36" class="rs-circle-svg">
+                <path class="rs-circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                <path class="rs-circle-fill" stroke="${rateColor}" stroke-dasharray="${completionRate}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+              </svg>
+              <div class="rs-circle-text">
+                <span class="rs-circle-num" style="color:${rateColor}">${completionRate}</span>
+                <span class="rs-circle-pct">%</span>
+              </div>
+            </div>
+          </div>
+          <div class="rs-progress-stats">
+            <div class="rs-stat"><span class="rs-stat-num" style="color:var(--primary-light)">${recordedSlots}</span><span class="rs-stat-label">기록 완료</span></div>
+            <div class="rs-stat"><span class="rs-stat-num" style="color:${missedCount > 0 ? '#FF6B6B' : '#00B894'}">${missedCount}</span><span class="rs-stat-label">누락</span></div>
+            <div class="rs-stat"><span class="rs-stat-num" style="color:var(--text-secondary)">${totalSlots}</span><span class="rs-stat-label">전체 수업</span></div>
+          </div>
+        </div>
+        
+        <!-- 주간 캘린더 그리드 -->
+        <div class="rs-calendar">
+          ${weekData.map(day => `
+            <div class="rs-day-column ${day.isToday ? 'today' : ''} ${day.isFuture ? 'future' : ''}">
+              <div class="rs-day-header ${day.isToday ? 'today' : ''}">
+                <span class="rs-day-name">${day.dayName}</span>
+                <span class="rs-day-num">${day.dayNum}</span>
+              </div>
+              <div class="rs-period-list">
+                ${day.periods.map(p => `
+                  <div class="rs-period-cell ${p.recorded ? 'recorded' : ''} ${p.isFuture ? 'future' : ''} ${!p.recorded && !p.isFuture ? 'missed' : ''}"
+                       onclick="${!p.isFuture && !p.recorded ? `startBackfillRecord(&quot;${day.date}&quot;,${p.period},&quot;${p.subject}&quot;)` : ''}"
+                       title="${p.period}교시 ${p.subject}${p.teacher ? ' (' + p.teacher + ')' : ''}">
+                    <div class="rs-period-num">${p.period}</div>
+                    <div class="rs-period-subject" style="color:${p.color}">${p.subject}</div>
+                    <div class="rs-period-status">
+                      ${p.isFuture ? '<i class="fas fa-clock" style="color:var(--text-muted);font-size:12px"></i>' 
+                        : p.recorded ? '<i class="fas fa-check-circle" style="color:#00B894;font-size:16px"></i>' 
+                        : '<div class="rs-missed-box"><i class="fas fa-plus" style="font-size:10px"></i></div>'}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        
+        ${missedCount > 0 ? `
+        <div class="rs-hint">
+          <i class="fas fa-info-circle" style="margin-right:6px;color:var(--primary-light)"></i>
+          빈 박스를 탭하면 누락된 수업을 소급 기록할 수 있어요
+        </div>
+        ` : `
+        <div class="rs-hint" style="color:#00B894">
+          <i class="fas fa-trophy" style="margin-right:6px"></i>
+          이번 주 모든 수업을 기록했어요! 완벽해요! 🎉
+        </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// 특정 날짜+과목+교시의 기록 존재 여부 확인
+function checkRecordExists(date, subject, period, dbRecords, todayRecords, todayStr) {
+  // DB 기록 확인
+  const inDb = dbRecords.some(r => {
+    if (r.date !== date || r.subject !== subject) return false;
+    const memo = (() => { try { return JSON.parse(r.memo || '{}'); } catch(e) { return {}; } })();
+    return !period || memo.period == period || !memo.period;
+  });
+  if (inDb) return true;
+  
+  // 오늘 todayRecords 확인
+  if (date === todayStr) {
+    return todayRecords.some(r => r.subject === subject && r.period === period && r.done);
+  }
+  return false;
+}
+
+// 누락 기록 소급 입력 시작
+function startBackfillRecord(date, period, subject) {
+  // 해당 날짜의 시간표에서 period 정보 가져오기
+  const dayIdx = new Date(date).getDay() - 1; // 0=월
+  if (dayIdx < 0 || dayIdx > 4) return;
+  
+  const periodTimes = state.timetable?.periodTimes || [];
+  const teachers = state.timetable?.teachers || {};
+  const time = periodTimes[period - 1] || {};
+  
+  // todayRecords에 가상으로 해당 교시를 세팅하고 기록 화면으로 이동
+  state._backfillDate = date;
+  state._backfillPeriod = period;
+  state._backfillSubject = subject;
+  state._backfillTeacher = teachers[subject] || '';
+  state._backfillTime = time;
+  
+  // 기존 record-class 화면으로 이동 (소급 모드)
+  goScreen('record-class');
+}
+
 // 수업 기록 히스토리 (DB 기반 + 오늘 기록 통합)
 function renderClassRecordHistory() {
   const dbRecords = (state._dbClassRecords || []).map(r => ({ ...r, _source: 'db' }));
@@ -2998,8 +3177,17 @@ function renderRecordTab() {
       </div>
       
       <div class="record-type-grid">
-        <!-- 나의 수업 기록 열람 (상단 배치) -->
-        <div class="record-type-card stagger-0 animate-in" style="background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.2)" onclick="goScreen('class-record-history')">
+        <!-- 기록 관리 & 누락 체크 (최상단) -->
+        <div class="record-type-card stagger-0 animate-in" style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(0,184,148,0.08));border:1.5px solid rgba(108,92,231,0.3)" onclick="goScreen('record-status')">
+          <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📊</div>
+          <div class="record-type-info">
+            <h3>기록 관리 & 누락 체크</h3>
+            <p>주간·월간 캘린더로 기록 현황 확인</p>
+          </div>
+          <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
+        </div>
+        <!-- 나의 수업 기록 열람 -->
+        <div class="record-type-card stagger-1 animate-in" style="background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.2)" onclick="goScreen('class-record-history')">
           <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📚</div>
           <div class="record-type-info">
             <h3>나의 수업 기록</h3>
