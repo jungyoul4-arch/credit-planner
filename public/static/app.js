@@ -9233,7 +9233,7 @@ function renderPlannerDaily() {
       <div class="pds-divider"></div>
       <div class="pds-item"><span class="pds-num" style="color:var(--success)">${doneCount}</span><span class="pds-label">완료</span></div>
       <div class="pds-divider"></div>
-      <div class="pds-item"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">정율 배치</span></div>
+      <div class="pds-item pds-highlight"><span class="pds-num" style="color:var(--primary-light)">${aiCount}</span><span class="pds-label">정율 배치</span></div>
       <div class="pds-divider"></div>
       <div class="pds-item"><span class="pds-num" style="color:var(--accent)">${state.assignments.filter(a => a.dueDate === state.plannerDate && a.status !== 'completed').length + todayItems.filter(i=>i.category==='assignment'&&!i.done).length}</span><span class="pds-label">과제</span></div>
     </div>
