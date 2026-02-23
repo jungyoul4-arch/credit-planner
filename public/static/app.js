@@ -1966,7 +1966,7 @@ function renderClassRecordHistory() {
           ${filterSubjects.map(sub => {
             const isActive = sub === currentFilter;
             const chipColor = sub === '전체' ? 'var(--primary-light)' : (subjectColors[sub] || '#636e72');
-            return '<button class="record-filter-chip' + (isActive ? ' active' : '') + '" style="' + (isActive ? 'background:' + chipColor + ';color:#fff;border-color:' + chipColor : 'border-color:' + chipColor + '40;color:' + chipColor) + '" onclick="state._recordGalleryFilter=\'' + sub + '\';renderApp()">' + sub + (sub !== '전체' ? ' <span class="record-filter-count">' + allRecords.filter(r => r.subject === sub).length + '</span>' : '') + '</button>';
+            return '<button class="record-filter-chip' + (isActive ? ' active' : '') + '" style="' + (isActive ? 'background:' + chipColor + ';color:#fff;border-color:' + chipColor : 'border-color:' + chipColor + '40;color:' + chipColor) + '" onclick="state._recordGalleryFilter=\'' + sub + '\';renderScreen()">' + sub + (sub !== '전체' ? ' <span class="record-filter-count">' + allRecords.filter(r => r.subject === sub).length + '</span>' : '') + '</button>';
           }).join('')}
         </div>
         ` : ''}
