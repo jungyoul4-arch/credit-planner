@@ -205,6 +205,17 @@ body {
 #device-preview-frame.preview-phone #tablet-content .full-screen { max-width:100% !important; }
 #device-preview-frame.preview-phone #tablet-content .xp-bar-container { padding:8px 16px !important; }
 #device-preview-frame.preview-phone #tablet-content .planner-timeline { max-width:100% !important; }
+#device-preview-frame.preview-phone #tablet-content .planner-two-col {
+  grid-template-columns:1fr !important;
+}
+#device-preview-frame.preview-phone #tablet-content .planner-col-timeline {
+  border-right:none !important;
+  border-bottom:1px solid var(--border) !important;
+}
+#device-preview-frame.preview-phone #tablet-content .planner-col-todo {
+  position:static !important;
+  padding:12px !important;
+}
 #device-preview-frame.preview-phone #tablet-content .profile-card { max-width:100% !important; }
 
 /* Tablet preview mode */
@@ -2301,6 +2312,176 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   background: rgba(108,92,231,0.15); padding: 2px 6px; border-radius: 4px;
   letter-spacing: 0.5px;
   border: 1px solid rgba(108,92,231,0.25);
+}
+
+/* ==================== PLANNER 2-COLUMN LAYOUT ==================== */
+.planner-two-col {
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  gap: 0;
+  min-height: 400px;
+}
+.planner-col-timeline {
+  padding: 0;
+  border-right: 1px solid var(--border);
+}
+.planner-col-todo {
+  padding: 12px 12px 12px 14px;
+  position: sticky;
+  top: 0;
+  align-self: start;
+}
+
+/* Planner Todo Card */
+.planner-todo-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.planner-todo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.planner-todo-title {
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.planner-todo-count {
+  font-family: 'Roboto', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* Todo List */
+.planner-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(108,92,231,0.2) transparent;
+}
+.planner-todo-list::-webkit-scrollbar { width: 3px; }
+.planner-todo-list::-webkit-scrollbar-thumb { background: rgba(108,92,231,0.2); border-radius: 3px; }
+
+.planner-todo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.planner-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.planner-todo-item:hover {
+  background: var(--bg-card-hover);
+}
+.planner-todo-item.done .planner-todo-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+.planner-todo-text {
+  flex: 1;
+  font-family: 'Pretendard Variable', 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.planner-todo-del {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.planner-todo-item:hover .planner-todo-del { opacity: 1; }
+.planner-todo-del:hover { color: var(--danger); background: rgba(231,76,60,0.1); }
+
+/* Todo Input */
+.planner-todo-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.planner-todo-input {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.planner-todo-input:focus { border-color: var(--primary); }
+.planner-todo-input::placeholder { color: var(--text-muted); opacity: 0.5; }
+.planner-todo-add-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.planner-todo-add-btn:hover { background: var(--primary-dark); transform: scale(1.05); }
+
+/* Mobile: stack vertically */
+@media (max-width: 599px) {
+  .planner-two-col {
+    grid-template-columns: 1fr;
+  }
+  .planner-col-timeline {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .planner-col-todo {
+    padding: 12px;
+    position: static;
+  }
 }
 
 /* Weekly Planner */

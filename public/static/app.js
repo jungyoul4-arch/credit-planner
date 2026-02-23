@@ -3108,29 +3108,27 @@ function renderHomeTab() {
             </div>
           </div>
 
-          <!-- Quick Todo Card -->
-          <div class="card stagger-2 animate-in home-card-todo">
+          <!-- Quick Todo → Planner 바로가기 -->
+          <div class="card stagger-2 animate-in home-card-todo" onclick="state.studentTab='planner';state.plannerView='daily';state.currentScreen='main';renderScreen()" style="cursor:pointer">
             <div class="card-header-row">
               <span class="card-title">✏️ 오늘 할 일</span>
-              <span class="card-subtitle">${state.quickTodos.filter(t=>t.done).length}/${state.quickTodos.length}</span>
+              <span class="card-subtitle">${state.quickTodos ? state.quickTodos.filter(t=>t.done).length : 0}/${state.quickTodos ? state.quickTodos.length : 0}</span>
             </div>
-            <div class="quick-todo-list" id="quick-todo-list">
-              ${state.quickTodos.length === 0 ? `
+            <div class="quick-todo-list" style="max-height:120px;overflow:hidden">
+              ${(!state.quickTodos || state.quickTodos.length === 0) ? `
                 <div class="quick-todo-empty">
                   <span style="font-size:20px;opacity:0.4">📝</span>
-                  <span style="font-size:11px;color:var(--text-muted)">할 일을 추가해보세요</span>
+                  <span style="font-size:11px;color:var(--text-muted)">플래너에서 할 일을 관리하세요</span>
                 </div>
-              ` : state.quickTodos.map((t, i) => `
-                <div class="quick-todo-item ${t.done?'done':''}" onclick="toggleQuickTodo(${i})">
-                  <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:14px;cursor:pointer"></i>
+              ` : state.quickTodos.slice(0, 3).map((t, i) => `
+                <div class="quick-todo-item ${t.done?'done':''}" style="pointer-events:none">
+                  <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:14px"></i>
                   <span class="quick-todo-text">${t.text}</span>
-                  <button class="quick-todo-del" onclick="event.stopPropagation();deleteQuickTodo(${i})"><i class="fas fa-times"></i></button>
                 </div>
-              `).join('')}
+              `).join('') + (state.quickTodos.length > 3 ? `<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:4px 0">+${state.quickTodos.length - 3}개 더...</div>` : '')}
             </div>
-            <div class="quick-todo-input-row">
-              <input type="text" id="quick-todo-input" class="quick-todo-input" placeholder="할 일 입력..." maxlength="50" onkeydown="if(event.key==='Enter')addQuickTodo()">
-              <button class="quick-todo-add-btn" onclick="addQuickTodo()"><i class="fas fa-plus"></i></button>
+            <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 0 2px;font-size:12px;color:var(--primary-light);font-weight:600">
+              <i class="fas fa-arrow-right" style="font-size:10px"></i> 플래너에서 관리하기
             </div>
           </div>
         </div>
@@ -9265,52 +9263,85 @@ function renderPlannerDaily() {
       '</div>';
     })()}
 
-    <!-- Timeline -->
-    <div class="planner-timeline">
-      ${hours.map(h => `
-        <div class="pt-hour-row">
-          <div class="pt-time">${h.hour}시</div>
-          <div class="pt-content">
-            ${h.items.length > 0 ? h.items.map(item => `
-              <div class="pt-item ${item.done?'done':''} cat-${item.category}" onclick="togglePlannerItem('${item.id}')">
-                <div class="pt-item-left">
-                  <div class="pt-item-check">
-                    ${item.done
-                      ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>'
-                      : '<i class="far fa-circle"></i>'
-                    }
+    <!-- 2-Column Layout: Timeline (70%) + Todo (30%) -->
+    <div class="planner-two-col">
+      <!-- LEFT: Timeline -->
+      <div class="planner-col-timeline">
+        <div class="planner-timeline">
+          ${hours.map(h => `
+            <div class="pt-hour-row">
+              <div class="pt-time">${h.hour}시</div>
+              <div class="pt-content">
+                ${h.items.length > 0 ? h.items.map(item => `
+                  <div class="pt-item ${item.done?'done':''} cat-${item.category}" onclick="togglePlannerItem('${item.id}')">
+                    <div class="pt-item-left">
+                      <div class="pt-item-check">
+                        ${item.done
+                          ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>'
+                          : '<i class="far fa-circle"></i>'
+                        }
+                      </div>
+                      <div class="pt-item-color" style="background:${item.color}"></div>
+                    </div>
+                    <div class="pt-item-body">
+                      <div class="pt-item-title-row">
+                        <span class="pt-item-icon">${item.icon}</span>
+                        <span class="pt-item-title">${item.title}</span>
+                      </div>
+                      <div class="pt-item-meta">
+                        <span>${item.time} ~ ${item.endTime}</span>
+                        ${item.detail ? `<span class="pt-item-detail">· ${item.detail}</span>` : ''}
+                      </div>
+                    </div>
+                    <div class="pt-item-right">
+                      ${item.aiGenerated ? '<span class="pt-ai-badge">정율</span>' : ''}
+                    </div>
                   </div>
-                  <div class="pt-item-color" style="background:${item.color}"></div>
-                </div>
-                <div class="pt-item-body">
-                  <div class="pt-item-title-row">
-                    <span class="pt-item-icon">${item.icon}</span>
-                    <span class="pt-item-title">${item.title}</span>
+                `).join('') : `
+                  <div class="pt-empty-slot" onclick="openPlannerAdd('${state.plannerDate}','${h.time}')">
+                    <i class="fas fa-plus" style="font-size:10px;opacity:0.4"></i>
                   </div>
-                  <div class="pt-item-meta">
-                    <span>${item.time} ~ ${item.endTime}</span>
-                    ${item.detail ? `<span class="pt-item-detail">· ${item.detail}</span>` : ''}
-                  </div>
-                </div>
-                <div class="pt-item-right">
-                  ${item.aiGenerated ? '<span class="pt-ai-badge">정율</span>' : ''}
-                </div>
+                `}
               </div>
-            `).join('') : `
-              <div class="pt-empty-slot" onclick="openPlannerAdd('${state.plannerDate}','${h.time}')">
-                <i class="fas fa-plus" style="font-size:10px;opacity:0.4"></i>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Add Button -->
+        <div style="padding:8px 0 16px">
+          <button class="add-assignment-btn" onclick="openPlannerAdd('${state.plannerDate}','')">
+            <i class="fas fa-plus-circle"></i> 일정 추가
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT: Quick Todo -->
+      <div class="planner-col-todo">
+        <div class="planner-todo-card">
+          <div class="planner-todo-header">
+            <span class="planner-todo-title">✏️ 오늘 할 일</span>
+            <span class="planner-todo-count">${state.quickTodos ? state.quickTodos.filter(t=>t.done).length : 0}/${state.quickTodos ? state.quickTodos.length : 0}</span>
+          </div>
+          <div class="planner-todo-list">
+            ${(!state.quickTodos || state.quickTodos.length === 0) ? `
+              <div class="planner-todo-empty">
+                <span style="font-size:18px;opacity:0.3">📝</span>
+                <span>할 일을 추가해보세요</span>
               </div>
-            `}
+            ` : state.quickTodos.map((t, i) => `
+              <div class="planner-todo-item ${t.done?'done':''}" onclick="toggleQuickTodo(${i})">
+                <i class="fas ${t.done?'fa-check-circle':'fa-circle'}" style="color:${t.done?'var(--success)':'var(--text-muted)'};font-size:13px"></i>
+                <span class="planner-todo-text">${t.text}</span>
+                <button class="planner-todo-del" onclick="event.stopPropagation();deleteQuickTodo(${i})"><i class="fas fa-times"></i></button>
+              </div>
+            `).join('')}
+          </div>
+          <div class="planner-todo-input-row">
+            <input type="text" id="quick-todo-input" class="planner-todo-input" placeholder="할 일 입력..." maxlength="50" onkeydown="if(event.key==='Enter')addQuickTodo()">
+            <button class="planner-todo-add-btn" onclick="addQuickTodo()"><i class="fas fa-plus"></i></button>
           </div>
         </div>
-      `).join('')}
-    </div>
-
-    <!-- Add Button -->
-    <div style="padding:0 16px 16px">
-      <button class="add-assignment-btn" onclick="openPlannerAdd('${state.plannerDate}','')">
-        <i class="fas fa-plus-circle"></i> 일정 추가
-      </button>
+      </div>
     </div>
   `;
 }
