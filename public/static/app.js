@@ -549,6 +549,7 @@ function renderStudentApp() {
     case 'growth': content += renderGrowthTab(); break;
     case 'myqa': content += '<div class="tab-content animate-in" style="display:flex;align-items:center;justify-content:center;min-height:60vh"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">❓</div><div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px">나만의 질문방</div><div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">질문방을 여는 중입니다...</div></div></div>'; setTimeout(()=>openMyQaIframe(),100); break;
     case 'my': content += renderMyTab(); break;
+    case 'community': content += renderCommunityTab(); break;
   }
   content += renderFab();
   // AI 플로팅 어시스턴트 (플래너 탭에서 항상 노출)
@@ -581,6 +582,7 @@ function renderSidebar() {
     { id:'growth', icon:'fa-chart-line', label:'성장', emoji:'📈' },
     { id:'myqa', icon:'fa-circle-question', label:'내 질문', emoji:'❓' },
     { id:'my', icon:'fa-user', label:'마이', emoji:'👤' },
+    { id:'community', icon:'fa-comments', label:'커뮤니티', emoji:'💬' },
   ];
 
   const userName = state._authUser?.name || '학생';
@@ -626,7 +628,7 @@ function renderSidebar() {
 
 function renderFab() {
   // 플래너 탭에서는 AI FAB가 대신 표시됨, 기록/내질문 탭에서는 이미 메뉴가 있으므로 불필요
-  if (state.studentTab === 'planner' || state.studentTab === 'record' || state.studentTab === 'myqa') return '';
+  if (state.studentTab === 'planner' || state.studentTab === 'record' || state.studentTab === 'myqa' || state.studentTab === 'community') return '';
   return `<button class="fab" id="fab-btn"><i class="fas fa-plus"></i></button>`;
 }
 
@@ -10153,6 +10155,60 @@ function openQuestionFromTimetable(subject, period) {
   openMyQaIframe();
 }
 
+
+// ==================== COMMUNITY TAB (Iframe) ====================
+
+function renderCommunityTab() {
+  // 커뮤니티 URL 구성
+  const baseUrl = 'https://www.jungyul.com/community';
+  const token = state._authToken || '';
+  const userId = state._authUser?.id || '';
+  const userName = encodeURIComponent(state._authUser?.name || '');
+  const params = new URLSearchParams({
+    inapp: 'true',
+    token: token,
+    userId: userId,
+    userName: userName,
+    from: 'creditplanner'
+  });
+  const iframeUrl = baseUrl + '?' + params.toString();
+
+  return `
+    <div class="community-container animate-in">
+      <!-- 로딩 스피너 -->
+      <div class="community-loader" id="community-loader">
+        <div class="community-spinner">
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring spinner-ring-2"></div>
+          <div class="spinner-ring spinner-ring-3"></div>
+        </div>
+        <div class="community-loader-text">커뮤니티 로딩 중...</div>
+      </div>
+      <!-- iframe -->
+      <iframe 
+        id="community-iframe"
+        src="${iframeUrl}"
+        class="community-iframe"
+        allow="clipboard-read; clipboard-write"
+        onload="onCommunityIframeLoad()"
+      ></iframe>
+    </div>
+  `;
+}
+
+function onCommunityIframeLoad() {
+  const loader = document.getElementById('community-loader');
+  const iframe = document.getElementById('community-iframe');
+  if (loader) {
+    loader.style.opacity = '0';
+    setTimeout(() => {
+      loader.style.display = 'none';
+    }, 300);
+  }
+  if (iframe) {
+    iframe.style.opacity = '1';
+  }
+}
 
 // ==================== MY TAB (M-01~M-05) ====================
 
