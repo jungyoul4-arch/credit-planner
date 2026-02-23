@@ -1961,40 +1961,42 @@ function renderClassRecordHistory() {
               <i class="fas fa-pen" style="margin-right:6px"></i>수업 기록하러 가기
             </button>
           </div>
-        ` : dates.map(date => {
-          const dayRecords = grouped[date];
-          const d = new Date(date);
-          const dayNames = ['일','월','화','수','목','금','토'];
-          const dateLabel = date + ' (' + dayNames[d.getDay()] + ')';
-          const isToday = date === today;
-          return `
-          <div style="margin-bottom:20px">
-            <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:8px;padding-left:4px">
-              📅 ${dateLabel} ${isToday ? '<span style="color:var(--primary-light);font-size:10px;padding:2px 6px;border-radius:8px;background:rgba(108,92,231,0.1)">오늘</span>' : ''} <span style="font-weight:400;margin-left:6px">${dayRecords.length}교시 기록</span>
-            </div>
-            ${dayRecords.map(r => {
+        ` : `
+          <div class="record-gallery-grid">
+            ${allRecords.map(r => {
               const color = subjectColors[r.subject] || '#636e72';
               const keywords = Array.isArray(r.keywords) ? r.keywords : [];
-              const photoCount = Array.isArray(r.photos) ? r.photos.length : 0;
+              const photos = Array.isArray(r.photos) ? r.photos : [];
+              const photoCount = photos.length;
+              const firstPhoto = photoCount > 0 ? photos[0] : null;
               const memo = (() => { try { return JSON.parse(r.memo || '{}'); } catch(e) { return {}; } })();
-              // 오늘 기록인 경우 todayRecord 상세, DB 기록인 경우 DB 상세
+              const d = new Date(r.date);
+              const dayNames = ['일','월','화','수','목','금','토'];
+              const dateStr = (r.date || '').slice(5).replace('-','/') + ' (' + dayNames[d.getDay()] + ')';
               const clickAction = r._source === 'today' 
                 ? "state._viewingTodayRecordIdx=" + r._todayIdx + ";goScreen('class-record-detail')"
                 : "state._viewingDbRecord='" + String(r.id) + "';goScreen('class-record-detail')";
               return `
-              <div class="card" style="margin-bottom:8px;padding:14px;cursor:pointer;border-left:3px solid ${color}" onclick="${clickAction}">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                  <span style="font-size:14px;font-weight:700;color:${color}">${r.subject}</span>
-                  ${memo.period ? '<span style="font-size:11px;color:var(--text-muted)">' + memo.period + '교시</span>' : ''}
-                  ${photoCount > 0 ? '<span style="font-size:11px;color:var(--text-muted);margin-left:auto"><i class="fas fa-camera"></i> ' + photoCount + '</span>' : ''}
+              <div class="record-gallery-card" onclick="${clickAction}">
+                <div class="record-gallery-thumb" style="border-bottom:3px solid ${color}">
+                  ${firstPhoto 
+                    ? '<img src="' + firstPhoto + '" alt="필기 사진" class="record-gallery-img" />' 
+                    : '<div class="record-gallery-placeholder"><span style="font-size:36px">📝</span><span style="font-size:12px;color:var(--text-muted);margin-top:4px">사진 없음</span></div>'}
+                  ${photoCount > 1 ? '<span class="record-gallery-badge">+' + (photoCount - 1) + '</span>' : ''}
                 </div>
-                ${r.topic ? '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">' + r.topic + '</div>' : ''}
-                ${keywords.length > 0 ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">' + keywords.slice(0,5).map(k => '<span style="font-size:11px;padding:2px 8px;border-radius:12px;background:' + color + '15;color:' + color + ';border:1px solid ' + color + '30">' + k + '</span>').join('') + '</div>' : ''}
-                ${r.teacher_note ? '<div style="font-size:11px;color:var(--accent)"><i class="fas fa-star" style="margin-right:4px"></i>' + r.teacher_note + '</div>' : ''}
+                <div class="record-gallery-info">
+                  <div class="record-gallery-subject">
+                    <span class="record-gallery-subject-tag" style="background:${color}18;color:${color};border:1px solid ${color}35">${r.subject}</span>
+                    ${memo.period ? '<span class="record-gallery-period">' + memo.period + '교시</span>' : ''}
+                  </div>
+                  ${r.topic ? '<div class="record-gallery-topic">' + r.topic + '</div>' : '<div class="record-gallery-topic" style="color:var(--text-muted)">단원 미입력</div>'}
+                  <div class="record-gallery-date">${dateStr}</div>
+                  ${keywords.length > 0 ? '<div class="record-gallery-keywords">' + keywords.slice(0,3).map(k => '<span class="record-gallery-kw" style="background:' + color + '10;color:' + color + ';border:1px solid ' + color + '25">' + k + '</span>').join('') + '</div>' : ''}
+                </div>
               </div>`;
             }).join('')}
-          </div>`;
-        }).join('')}
+          </div>
+        `}
       </div>
     </div>
   `;
