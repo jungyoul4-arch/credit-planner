@@ -5070,3 +5070,207 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     padding: 7px 16px !important;
   }
 }
+
+/* ================================================================
+   DETAIL PHOTO GALLERY – 상세 페이지 대형 가로 스크롤 갤러리
+   ================================================================ */
+
+.detail-photo-section {
+  margin: 20px 0 16px;
+}
+.detail-photo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.detail-photo-label {
+  font-size: 14px;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+.detail-photo-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-light);
+  background: rgba(108,92,231,0.15);
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* 가로 스크롤 컨테이너 */
+.detail-gallery-wrap {
+  position: relative;
+}
+.detail-gallery-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 0 8px;
+}
+.detail-gallery-scroll::-webkit-scrollbar { display: none; }
+
+.detail-gallery-item {
+  flex-shrink: 0;
+  width: 85%;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  scroll-snap-align: center;
+  background: rgba(30,34,40,0.5);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.detail-gallery-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+/* 인디케이터 */
+.detail-gallery-indicator {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.detail-gallery-current {
+  color: #FFFFFF;
+  font-weight: 900;
+  font-size: 15px;
+}
+.detail-gallery-total {
+  color: var(--text-muted);
+}
+
+/* 힌트 */
+.detail-gallery-hint {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 6px;
+  opacity: 0.6;
+}
+
+/* ================================================================
+   PHOTO ZOOM OVERLAY – 전체화면 확대 뷰어 (핀치줌/더블탭)
+   ================================================================ */
+
+.photo-zoom-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.96);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.photo-zoom-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease;
+}
+.photo-zoom-close:hover {
+  background: rgba(255,255,255,0.25);
+}
+.photo-zoom-counter {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(0,0,0,0.4);
+  padding: 4px 14px;
+  border-radius: 14px;
+  backdrop-filter: blur(4px);
+  z-index: 10001;
+}
+.photo-zoom-container {
+  width: 92%;
+  max-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+.photo-zoom-img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+  transition: transform 0.25s ease;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.photo-zoom-nav {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+}
+.photo-zoom-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease;
+}
+.photo-zoom-btn:hover {
+  background: rgba(255,255,255,0.2);
+}
+.photo-zoom-hint {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.4);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 태블릿 가로 모드: 갤러리 아이템 더 크게 */
+@media (orientation: landscape) and (min-width: 768px) {
+  .detail-gallery-item {
+    width: 70%;
+  }
+  .detail-gallery-scroll {
+    gap: 16px;
+  }
+}

@@ -2248,16 +2248,27 @@ function renderClassRecordDetail() {
         </div>
         ` : ''}
 
-        <!-- 필기 사진 -->
+        <!-- 필기 사진 대형 가로 스크롤 갤러리 -->
         ${photos.length > 0 ? `
-        <div class="field-group" style="margin-bottom:14px">
-          <label class="field-label" style="font-size:11px;color:var(--text-muted)">📸 필기 사진 (${photos.length}장)</label>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(120px, 1fr));gap:8px;padding:8px 0">
-            ${photos.map((p, i) => `
-              <div style="aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border);cursor:pointer" onclick="openPhotoViewer(${i})">
-                <img src="${p}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
-              </div>
-            `).join('')}
+        <div class="detail-photo-section">
+          <div class="detail-photo-header">
+            <span class="detail-photo-label">📸 필기 사진</span>
+            <span class="detail-photo-count">${photos.length}장</span>
+          </div>
+          <div class="detail-gallery-wrap">
+            <div class="detail-gallery-scroll" id="detailGalleryScroll">
+              ${photos.map((p, i) => `
+                <div class="detail-gallery-item" data-idx="${i}" ondblclick="openPhotoZoom(${i})">
+                  <img src="${p}" alt="필기 ${i+1}" class="detail-gallery-img" loading="lazy" draggable="false">
+                </div>
+              `).join('')}
+            </div>
+            <div class="detail-gallery-indicator" id="detailGalleryIndicator">
+              <span class="detail-gallery-current">1</span> / <span class="detail-gallery-total">${photos.length}</span>
+            </div>
+          </div>
+          <div class="detail-gallery-hint">
+            <i class="fas fa-hand-point-up" style="margin-right:4px"></i>좌우 스와이프로 넘기기 · 더블탭으로 확대
           </div>
         </div>
         ` : ''}
@@ -2305,9 +2316,8 @@ function renderClassRecordDetail() {
   `;
 }
 
-// 사진 전체 화면 보기
-function openPhotoViewer(photoIdx) {
-  // 현재 보고 있는 기록의 사진 목록 가져오기
+// 사진 전체 화면 보기 (핀치줌 + 더블탭 확대 지원)
+function openPhotoZoom(photoIdx) {
   let photos = [];
   if (state._viewingTodayRecordIdx !== undefined && state._viewingTodayRecordIdx !== null) {
     const r = state.todayRecords[state._viewingTodayRecordIdx];
@@ -2319,32 +2329,125 @@ function openPhotoViewer(photoIdx) {
   if (photos.length === 0) return;
   
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+  overlay.className = 'photo-zoom-overlay';
   
   let currentIdx = photoIdx;
+  let scale = 1, posX = 0, posY = 0;
+  let lastTap = 0;
   
-  function render() {
+  function renderZoom() {
+    scale = 1; posX = 0; posY = 0;
     overlay.innerHTML = `
-      <button onclick="this.closest('div').remove()" style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:20px;cursor:pointer;z-index:10001">&times;</button>
-      <div style="color:#fff;font-size:13px;position:absolute;top:20px;left:50%;transform:translateX(-50%)">${currentIdx + 1} / ${photos.length}</div>
-      <img src="${photos[currentIdx]}" style="max-width:90%;max-height:80vh;object-fit:contain;border-radius:8px">
+      <button class="photo-zoom-close" onclick="this.closest('.photo-zoom-overlay').remove()">&times;</button>
+      <div class="photo-zoom-counter">${currentIdx + 1} / ${photos.length}</div>
+      <div class="photo-zoom-container" id="photoZoomContainer">
+        <img src="${photos[currentIdx]}" class="photo-zoom-img" id="photoZoomImg" draggable="false">
+      </div>
       ${photos.length > 1 ? `
-        <div style="display:flex;gap:12px;margin-top:16px">
-          <button onclick="event.stopPropagation()" id="photo-prev" style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer">&lt;</button>
-          <button onclick="event.stopPropagation()" id="photo-next" style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:18px;cursor:pointer">&gt;</button>
+        <div class="photo-zoom-nav">
+          <button class="photo-zoom-btn" id="pzPrev"><i class="fas fa-chevron-left"></i></button>
+          <button class="photo-zoom-btn" id="pzNext"><i class="fas fa-chevron-right"></i></button>
         </div>
       ` : ''}
+      <div class="photo-zoom-hint">핀치/더블탭으로 확대 · 좌우 스와이프</div>
     `;
-    const prev = overlay.querySelector('#photo-prev');
-    const next = overlay.querySelector('#photo-next');
-    if (prev) prev.addEventListener('click', () => { currentIdx = (currentIdx - 1 + photos.length) % photos.length; render(); });
-    if (next) next.addEventListener('click', () => { currentIdx = (currentIdx + 1) % photos.length; render(); });
+    
+    const prev = overlay.querySelector('#pzPrev');
+    const next = overlay.querySelector('#pzNext');
+    if (prev) prev.addEventListener('click', (e) => { e.stopPropagation(); currentIdx = (currentIdx - 1 + photos.length) % photos.length; renderZoom(); });
+    if (next) next.addEventListener('click', (e) => { e.stopPropagation(); currentIdx = (currentIdx + 1) % photos.length; renderZoom(); });
+    
+    // 더블탭 확대/축소
+    const container = overlay.querySelector('#photoZoomContainer');
+    const img = overlay.querySelector('#photoZoomImg');
+    if (!container || !img) return;
+    
+    container.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 350) {
+        // 더블탭 → 토글 확대
+        if (scale > 1) { scale = 1; posX = 0; posY = 0; }
+        else { scale = 2.5; }
+        img.style.transform = 'translate(' + posX + 'px,' + posY + 'px) scale(' + scale + ')';
+      }
+      lastTap = now;
+    });
+    
+    // 핀치줌
+    let initDist = 0, initScale = 1;
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        initDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        initScale = scale;
+      }
+    }, { passive: true });
+    container.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        scale = Math.max(0.5, Math.min(5, initScale * (dist / initDist)));
+        img.style.transform = 'translate(' + posX + 'px,' + posY + 'px) scale(' + scale + ')';
+      }
+    }, { passive: true });
+    
+    // 패닝 (확대 시 드래그 이동)
+    let panStartX = 0, panStartY = 0, panPosX = 0, panPosY = 0, isPanning = false;
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1 && scale > 1) {
+        isPanning = true;
+        panStartX = e.touches[0].clientX - posX;
+        panStartY = e.touches[0].clientY - posY;
+      }
+    }, { passive: true });
+    container.addEventListener('touchmove', (e) => {
+      if (isPanning && e.touches.length === 1 && scale > 1) {
+        posX = e.touches[0].clientX - panStartX;
+        posY = e.touches[0].clientY - panStartY;
+        img.style.transform = 'translate(' + posX + 'px,' + posY + 'px) scale(' + scale + ')';
+      }
+    }, { passive: true });
+    container.addEventListener('touchend', () => { isPanning = false; }, { passive: true });
+    
+    // 스와이프로 다음/이전 (scale === 1 일 때만)
+    let swStartX = 0;
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1 && scale <= 1) swStartX = e.touches[0].clientX;
+    }, { passive: true });
+    container.addEventListener('touchend', (e) => {
+      if (scale > 1 || e.changedTouches.length !== 1) return;
+      const diff = e.changedTouches[0].clientX - swStartX;
+      if (Math.abs(diff) > 60) {
+        if (diff < 0 && currentIdx < photos.length - 1) { currentIdx++; renderZoom(); }
+        else if (diff > 0 && currentIdx > 0) { currentIdx--; renderZoom(); }
+      }
+    }, { passive: true });
   }
   
-  render();
+  renderZoom();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.addEventListener('keydown', function escHandler(e) {
+    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+  });
   document.body.appendChild(overlay);
 }
+
+// 레거시 호환
+function openPhotoViewer(idx) { openPhotoZoom(idx); }
+
+// 상세 갤러리 스크롤 인디케이터 업데이트
+(function initDetailGalleryScroll() {
+  document.addEventListener('scroll', function(e) {
+    const scroll = e.target;
+    if (!scroll || !scroll.classList || !scroll.classList.contains('detail-gallery-scroll')) return;
+    const items = scroll.querySelectorAll('.detail-gallery-item');
+    if (items.length === 0) return;
+    const scrollLeft = scroll.scrollLeft;
+    const itemWidth = items[0].offsetWidth;
+    const gap = 12; // CSS gap
+    const idx = Math.round(scrollLeft / (itemWidth + gap));
+    const indicator = scroll.closest('.detail-gallery-wrap')?.querySelector('.detail-gallery-current');
+    if (indicator) indicator.textContent = Math.min(idx + 1, items.length);
+  }, true);
+})();
 
 // 수업 기록 수정 화면 열기
 function openClassRecordEdit(idx) {
