@@ -1267,9 +1267,10 @@ function autoLogin() {
         renderScreen();
       });
     } else if (auth.role === 'mentor') {
+      console.log('[MENTOR] autoLogin: mentor detected, starting data load');
       fetch('/api/migrate').catch(() => {});
       // 멘토 대시보드 데이터 비동기 로드
-      mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(() => {});
+      mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(e => console.error('[MENTOR] autoLogin load error:', e));
     }
   } catch (e) {
     localStorage.removeItem('cp_auth');
@@ -11744,31 +11745,41 @@ const _mentor = {
 
 // 멘토 데이터 로드: 반 목록 가져오기
 async function mentorLoadGroups() {
-  if (!state._authUser?.id) return;
+  console.log('[MENTOR] mentorLoadGroups called, userId:', state._authUser?.id);
+  if (!state._authUser?.id) { console.log('[MENTOR] No user id, returning'); return; }
   try {
-    const res = await fetch(`/api/mentor/${state._authUser.id}/groups`);
+    const url = `/api/mentor/${state._authUser.id}/groups`;
+    console.log('[MENTOR] Fetching:', url);
+    const res = await fetch(url);
     const data = await res.json();
+    console.log('[MENTOR] Groups loaded:', JSON.stringify(data));
     _mentor.groups = data.groups || [];
     if (_mentor.groups.length > 0 && !_mentor.selectedGroupId) {
       _mentor.selectedGroupId = _mentor.groups[0].id;
     }
+    console.log('[MENTOR] selectedGroupId:', _mentor.selectedGroupId);
   } catch (e) { console.error('mentorLoadGroups:', e); }
 }
 
 // 멘토 데이터 로드: 반 학생 요약
 async function mentorLoadGroupSummary() {
-  if (!_mentor.selectedGroupId) return;
+  console.log('[MENTOR] mentorLoadGroupSummary called, groupId:', _mentor.selectedGroupId);
+  if (!_mentor.selectedGroupId) { console.log('[MENTOR] No selectedGroupId, returning'); return; }
   _mentor.loading = true;
   renderScreen();
   try {
     const today = new Date().toISOString().slice(0,10);
     const weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
-    const res = await fetch(`/api/mentor/groups/${_mentor.selectedGroupId}/summary?from=${weekAgo}&to=${today}`);
+    const url1 = `/api/mentor/groups/${_mentor.selectedGroupId}/summary?from=${weekAgo}&to=${today}`;
+    console.log('[MENTOR] Fetching summary:', url1);
+    const res = await fetch(url1);
     const data = await res.json();
+    console.log('[MENTOR] Summary loaded:', data.students?.length, 'students');
     _mentor.groupSummary = data.students || [];
     // 학생 목록도 동시에
     const res2 = await fetch(`/api/mentor/groups/${_mentor.selectedGroupId}/students`);
     const data2 = await res2.json();
+    console.log('[MENTOR] Student list loaded:', data2.students?.length, 'students');
     _mentor.studentList = data2.students || [];
   } catch (e) { console.error('mentorLoadGroupSummary:', e); }
   _mentor.loading = false;
