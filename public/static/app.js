@@ -463,6 +463,13 @@ function renderScreen() {
     desktopContainer.style.display = 'block';
     deskContainer.innerHTML = renderMentorDashboard();
     initMentorEvents();
+  } else if (state.mode === 'mentor-student-viewer') {
+    // 멘토가 학생 플래너를 직접 열람하는 모드
+    phoneContainer.style.display = 'none';
+    tabletContainer.style.display = 'none';
+    desktopContainer.style.display = 'block';
+    deskContainer.innerHTML = renderMentorStudentViewer();
+    initMentorStudentViewerEvents();
   } else {
     phoneContainer.style.display = 'none';
     tabletContainer.style.display = 'none';
@@ -11743,7 +11750,244 @@ const _mentor = {
   detailTab: 'timeline', // timeline | exams | photos | feedback
   photoViewId: null,     // 사진 원본 보기
   photoViewData: null,
+  // 학생 뷰어 모드 (멘토가 학생 플래너를 직접 열람)
+  viewerStudentId: null,
+  viewerStudentName: '',
+  viewerStudentEmoji: '',
+  viewerLoading: false,
+  viewerTab: 'home',     // 학생 뷰어 내 현재 탭
+  viewerScreen: 'main',  // 학생 뷰어 내 현재 화면
+  _savedAuthUser: null,  // 멘토 복귀용 저장
+  _savedAuthRole: null,
+  _savedState: null,      // 멘토 복귀용 state 스냅샷
 };
+
+// ─── 멘토 학생 뷰어: 학생 플래너를 직접 열람 ───
+
+async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
+  // 1. 현재 멘토 상태 저장
+  _mentor._savedAuthUser = { ...state._authUser };
+  _mentor._savedAuthRole = state._authRole;
+  _mentor._savedState = {
+    mode: state.mode,
+    currentScreen: state.currentScreen,
+    studentTab: state.studentTab,
+    xp: state.xp,
+    level: state.level,
+    streak: state.streak,
+    _dbExams: state._dbExams,
+    _dbAssignments: state._dbAssignments,
+    _dbClassRecords: state._dbClassRecords,
+    _dbQuestionRecords: state._dbQuestionRecords,
+    _dbTeachRecords: state._dbTeachRecords,
+    _dbActivityRecords: state._dbActivityRecords,
+    _dbReportRecords: state._dbReportRecords,
+    _mentorFeedbacks: state._mentorFeedbacks,
+    _mentorFeedbackUnread: state._mentorFeedbackUnread,
+    myQaStats: state.myQaStats,
+  };
+
+  // 2. 뷰어 상태 설정
+  _mentor.viewerStudentId = studentId;
+  _mentor.viewerStudentName = studentName || '';
+  _mentor.viewerStudentEmoji = studentEmoji || '🐻';
+  _mentor.viewerLoading = true;
+  _mentor.viewerTab = 'home';
+  _mentor.viewerScreen = 'main';
+
+  // 3. 학생 모드로 전환 (데이터 로드용)
+  state._authUser = { id: studentId, name: studentName };
+  state._authRole = 'student';
+  state.mode = 'mentor-student-viewer';
+  state.currentScreen = 'main';
+  state.studentTab = 'home';
+  renderScreen();
+
+  // 4. 학생 데이터 로드
+  try {
+    // 프로필 먼저 로드
+    const profileRes = await fetch(`/api/student/${studentId}/profile`);
+    if (profileRes.ok) {
+      const profile = await profileRes.json();
+      state.xp = profile.xp || 0;
+      state.level = profile.level || 1;
+      state.streak = profile.streak || 0;
+      state._authUser = { ...state._authUser, ...profile };
+    }
+    // 전체 데이터 로드
+    await DB.loadAll();
+    // QA 통계 로드
+    fetch(`/api/my-questions/stats?studentId=${studentId}`)
+      .then(r => r.json()).then(d => { state.myQaStats = d; }).catch(() => {});
+  } catch (e) {
+    console.error('mentorEnterStudentView:', e);
+  }
+
+  _mentor.viewerLoading = false;
+  // syncTodayRecords / initTodayAcademy는 시간표 데이터가 필요하므로 호출
+  syncTodayRecords();
+  initTodayAcademy();
+  renderScreen();
+}
+
+function mentorExitStudentView() {
+  // 멘토 상태 복원
+  const saved = _mentor._savedState;
+  if (saved) {
+    state._authUser = _mentor._savedAuthUser;
+    state._authRole = _mentor._savedAuthRole;
+    state.mode = 'mentor';
+    state.currentScreen = 'main';
+    state.studentTab = saved.studentTab || 'home';
+    state.xp = saved.xp;
+    state.level = saved.level;
+    state.streak = saved.streak;
+    state._dbExams = saved._dbExams;
+    state._dbAssignments = saved._dbAssignments;
+    state._dbClassRecords = saved._dbClassRecords;
+    state._dbQuestionRecords = saved._dbQuestionRecords;
+    state._dbTeachRecords = saved._dbTeachRecords;
+    state._dbActivityRecords = saved._dbActivityRecords;
+    state._dbReportRecords = saved._dbReportRecords;
+    state._mentorFeedbacks = saved._mentorFeedbacks;
+    state._mentorFeedbackUnread = saved._mentorFeedbackUnread;
+    state.myQaStats = saved.myQaStats;
+  } else {
+    state.mode = 'mentor';
+  }
+  // 뷰어 상태 초기화
+  _mentor.viewerStudentId = null;
+  _mentor.viewerStudentName = '';
+  _mentor.viewerLoading = false;
+  _mentor._savedState = null;
+  _mentor._savedAuthUser = null;
+  _mentor._savedAuthRole = null;
+  renderScreen();
+}
+
+function renderMentorStudentViewer() {
+  const sname = _mentor.viewerStudentName;
+  const semoji = _mentor.viewerStudentEmoji;
+
+  if (_mentor.viewerLoading) {
+    return `
+      <div style="background:var(--primary);padding:12px 24px;display:flex;align-items:center;gap:12px;color:white;font-size:14px">
+        <button onclick="mentorExitStudentView()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600"><i class="fas fa-arrow-left" style="margin-right:6px"></i>대시보드</button>
+        <span style="font-weight:700">${semoji} ${sname} 학생 플래너 열람 중</span>
+        <span style="margin-left:auto;font-size:12px;opacity:0.8">👁 열람 모드 (읽기 전용)</span>
+      </div>
+      <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
+        <i class="fas fa-spinner fa-spin" style="font-size:36px;color:var(--primary-light)"></i>
+        <p style="margin-top:16px;font-size:16px;font-weight:600">${sname} 학생 데이터를 불러오는 중...</p>
+        <p style="margin-top:8px;font-size:13px">수업 기록, 질문, 과제, 시험 정보를 로딩합니다</p>
+      </div>
+    `;
+  }
+
+  // 멘토 상단 바 + 학생 앱 콘텐츠 (데스크탑에 렌더링)
+  const studentInfo = _mentor.studentList.find(s => s.id == _mentor.viewerStudentId) || {};
+  const mentorBar = `
+    <div style="background:linear-gradient(135deg, var(--primary), #4a6cf7);padding:10px 24px;display:flex;align-items:center;gap:12px;color:white;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.15);position:sticky;top:0;z-index:100">
+      <button onclick="mentorExitStudentView()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.15s" onmouseenter="this.style.background='rgba(255,255,255,0.35)'" onmouseleave="this.style.background='rgba(255,255,255,0.2)'"><i class="fas fa-arrow-left" style="margin-right:6px"></i>대시보드로 돌아가기</button>
+      <div style="width:1px;height:20px;background:rgba(255,255,255,0.3)"></div>
+      <span style="font-size:20px">${semoji}</span>
+      <div>
+        <div style="font-weight:700;font-size:15px">${sname}</div>
+        <div style="font-size:11px;opacity:0.8">${studentInfo.school_name || ''} ${studentInfo.grade || ''}학년 · Lv.${state.level || 1} · XP ${state.xp || 0}</div>
+      </div>
+      <span style="margin-left:auto;padding:4px 12px;background:rgba(255,255,255,0.2);border-radius:20px;font-size:12px;font-weight:600">👁 멘토 열람 모드</span>
+    </div>
+  `;
+
+  // 학생 앱의 탭 네비게이션 (데스크탑용 가로 탭바)
+  const tabs = [
+    { id: 'home', icon: 'fas fa-home', label: '홈' },
+    { id: 'record', icon: 'fas fa-pen', label: '기록' },
+    { id: 'planner', icon: 'fas fa-calendar-alt', label: '플래너' },
+    { id: 'growth', icon: 'fas fa-chart-line', label: '성장' },
+    { id: 'my', icon: 'fas fa-user', label: '마이' },
+  ];
+
+  const tabBar = `
+    <div style="display:flex;border-bottom:2px solid var(--border);background:var(--bg-card);padding:0 24px">
+      ${tabs.map(t => `
+        <button class="msv-tab" data-msvtab="${t.id}" style="padding:14px 24px;border:none;background:none;font-size:14px;font-weight:${state.studentTab===t.id?'700':'400'};color:${state.studentTab===t.id?'var(--primary-light)':'var(--text-muted)'};cursor:pointer;border-bottom:2px solid ${state.studentTab===t.id?'var(--primary-light)':'transparent'};margin-bottom:-2px;transition:all 0.15s;display:flex;align-items:center;gap:6px">
+          <i class="${t.icon}" style="font-size:13px"></i> ${t.label}
+        </button>
+      `).join('')}
+    </div>
+  `;
+
+  // 학생 화면 콘텐츠 렌더 (renderStudentApp의 내부 로직 재사용)
+  let content = '';
+  const prevScreen = state.currentScreen;
+  const prevTab = state.studentTab;
+  // 학생 앱이 렌더하는 것과 동일한 콘텐츠
+  if (state.currentScreen === 'main') {
+    switch (state.studentTab) {
+      case 'home': content = typeof renderHomeTab === 'function' ? renderHomeTab() : ''; break;
+      case 'record': content = typeof renderRecordTab === 'function' ? renderRecordTab() : ''; break;
+      case 'planner': content = typeof renderPlannerTab === 'function' ? renderPlannerTab() : ''; break;
+      case 'growth': content = typeof renderGrowthTab === 'function' ? renderGrowthTab() : ''; break;
+      case 'my': content = typeof renderMyTab === 'function' ? renderMyTab() : ''; break;
+      default: content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
+    }
+  } else if (state.currentScreen === 'record-history') {
+    content = typeof renderRecordHistory === 'function' ? renderRecordHistory() : '';
+  } else if (state.currentScreen === 'exam-list') {
+    content = typeof renderExamList === 'function' ? renderExamList() : '';
+  } else if (state.currentScreen === 'exam-detail') {
+    content = typeof renderExamDetail === 'function' ? renderExamDetail() : '';
+  } else if (state.currentScreen === 'assignment-list') {
+    content = typeof renderAssignmentList === 'function' ? renderAssignmentList() : '';
+  } else if (state.currentScreen === 'portfolio') {
+    content = typeof renderPortfolio === 'function' ? renderPortfolio() : '';
+  } else if (state.currentScreen === 'weekly-report') {
+    content = typeof renderWeeklyReportStudent === 'function' ? renderWeeklyReportStudent() : '';
+  } else if (state.currentScreen === 'notifications') {
+    content = typeof renderNotifications === 'function' ? renderNotifications() : '';
+  } else if (state.currentScreen === 'mentor-feedback') {
+    content = typeof renderStudentFeedbackScreen === 'function' ? renderStudentFeedbackScreen() : '';
+  } else {
+    // 기타 화면은 main으로 돌리기
+    state.currentScreen = 'main';
+    content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
+  }
+
+  return `
+    ${mentorBar}
+    ${tabBar}
+    <div style="padding:20px 28px;max-width:600px;margin:0 auto;min-height:60vh" id="msv-content">
+      ${content}
+    </div>
+  `;
+}
+
+function initMentorStudentViewerEvents() {
+  // 탭 전환
+  document.querySelectorAll('.msv-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.studentTab = btn.dataset.msvtab;
+      state.currentScreen = 'main';
+      renderScreen();
+    });
+  });
+  // 학생 앱 내 이벤트도 바인딩 (읽기 전용이지만 네비게이션은 허용)
+  const contentEl = document.getElementById('msv-content');
+  if (contentEl) {
+    // 기록 내역 등 화면 이동 이벤트
+    contentEl.querySelectorAll('[data-go-screen]').forEach(el => {
+      el.addEventListener('click', () => {
+        state.currentScreen = el.dataset.goScreen;
+        renderScreen();
+      });
+    });
+    // 성장 차트 그리기
+    if (state.studentTab === 'growth' && state.currentScreen === 'main') {
+      setTimeout(() => { if (typeof drawGrowthChart === 'function') drawGrowthChart(); }, 100);
+    }
+  }
+}
 
 // 멘토 데이터 로드: 반 목록 가져오기
 async function mentorLoadGroups() {
@@ -11987,7 +12231,7 @@ function renderMentorStudents() {
         const statusColor = daysSince <= 1 ? 'green' : daysSince <= 3 ? 'yellow' : 'red';
         const statusText = daysSince <= 1 ? '오늘 활동' : daysSince <= 3 ? `${daysSince}일 전` : `${daysSince}일+ 미접속`;
         return `
-        <div class="stat-card m-student-row" data-student-id="${s.id}" data-student-name="${s.name}" style="cursor:pointer;padding:16px;transition:all 0.2s;border:2px solid transparent" onmouseenter="this.style.borderColor='var(--primary-light)'" onmouseleave="this.style.borderColor='transparent'">
+        <div class="stat-card m-student-row" data-student-id="${s.id}" data-student-name="${s.name}" data-student-emoji="${s.profile_emoji || '🐻'}" style="cursor:pointer;padding:16px;transition:all 0.2s;border:2px solid transparent" onmouseenter="this.style.borderColor='var(--primary-light)'" onmouseleave="this.style.borderColor='transparent'">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
             <div style="width:44px;height:44px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${s.profile_emoji || '🐻'}</div>
             <div style="flex:1;min-width:0">
@@ -12075,7 +12319,7 @@ function renderMentorFeedback() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       ${students.map(s => `
-        <div class="stat-card m-student-row" style="cursor:pointer;display:flex;align-items:center;gap:12px" data-student-id="${s.id}" data-student-name="${s.name}">
+        <div class="stat-card m-student-row" style="cursor:pointer;display:flex;align-items:center;gap:12px" data-student-id="${s.id}" data-student-name="${s.name}" data-student-emoji="${s.profile_emoji || '🐻'}">
           <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${s.profile_emoji || '🐻'}</div>
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:14px">${s.name}</div>
@@ -12099,7 +12343,7 @@ function renderMentorExams() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       ${students.map(s => `
-        <div class="stat-card m-student-row" style="cursor:pointer" data-student-id="${s.id}" data-student-name="${s.name}">
+        <div class="stat-card m-student-row" style="cursor:pointer" data-student-id="${s.id}" data-student-name="${s.name}" data-student-emoji="${s.profile_emoji || '🐻'}">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <span style="font-size:18px">${s.profile_emoji || '🐻'}</span>
             <span style="font-weight:700">${s.name}</span>
@@ -12125,7 +12369,7 @@ function renderMentorNetwork() {
     ${teachActive.length === 0 ? '<div style="text-align:center;padding:40px;color:var(--text-muted)">이번 주 교학상장 활동이 없습니다</div>' : `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px">
       ${teachActive.map((s, i) => `
-        <div class="stat-card m-student-row" style="cursor:pointer" data-student-id="${s.id}" data-student-name="${s.name}">
+        <div class="stat-card m-student-row" style="cursor:pointer" data-student-id="${s.id}" data-student-name="${s.name}" data-student-emoji="${s.profile_emoji || '🐻'}">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span style="font-size:16px;font-weight:800;color:var(--teach-green)">#${i+1}</span>
             <span style="font-weight:700">${s.profile_emoji || '🐻'} ${s.name}</span>
@@ -12935,20 +13179,21 @@ function initMentorEvents() {
       mentorLoadGroupSummary();
     });
   });
-  // 학생 상세 보기 (학생 행 클릭)
+  // 학생 클릭 → 학생 플래너 뷰어 진입
   document.querySelectorAll('.m-student-row').forEach(row => {
     row.addEventListener('click', () => {
       const sid = row.dataset.studentId;
       const sname = row.dataset.studentName;
-      if (sid) mentorLoadStudentDetail(parseInt(sid), sname);
+      const semoji = row.dataset.studentEmoji || '🐻';
+      if (sid) mentorEnterStudentView(parseInt(sid), sname, semoji);
     });
   });
-  // 경보 배너 클릭 → 학생 상세
+  // 경보 배너 클릭 → 학생 플래너 뷰어 진입
   document.querySelectorAll('[data-alert-student]').forEach(el => {
     el.addEventListener('click', () => {
       const sid = el.dataset.alertStudent;
       const sname = el.dataset.alertName;
-      if (sid) mentorLoadStudentDetail(parseInt(sid), sname);
+      if (sid) mentorEnterStudentView(parseInt(sid), sname, '🐻');
     });
   });
   // 학생 상세 탭 전환
