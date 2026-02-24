@@ -1156,6 +1156,7 @@ function initAuthEvents(container) {
       state.mode = 'mentor';
       state.currentScreen = 'main';
       // 멘토 대시보드 데이터 로드
+      _mentor.initialLoading = false;
       await mentorLoadGroups();
       await mentorLoadGroupSummary();
       renderScreen();
@@ -1267,10 +1268,10 @@ function autoLogin() {
         renderScreen();
       });
     } else if (auth.role === 'mentor') {
-      console.log('[MENTOR] autoLogin: mentor detected, starting data load');
+      _mentor.initialLoading = true;
       fetch('/api/migrate').catch(() => {});
       // 멘토 대시보드 데이터 비동기 로드
-      mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(e => console.error('[MENTOR] autoLogin load error:', e));
+      mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(e => { console.error('autoLogin mentor load:', e); _mentor.initialLoading = false; _mentor.loading = false; renderScreen(); });
     }
   } catch (e) {
     localStorage.removeItem('cp_auth');
@@ -11737,6 +11738,7 @@ const _mentor = {
   feedbackRecordType: 'general', // 피드백 대상 유형
   feedbackRecordId: null,        // 피드백 대상 ID
   loading: false,
+  initialLoading: true, // 초기 데이터 로딩 중 (autoLogin 시)
   detailLoading: false,
   detailTab: 'timeline', // timeline | exams | photos | feedback
   photoViewId: null,     // 사진 원본 보기
@@ -11745,33 +11747,26 @@ const _mentor = {
 
 // 멘토 데이터 로드: 반 목록 가져오기
 async function mentorLoadGroups() {
-  console.log('[MENTOR] mentorLoadGroups called, userId:', state._authUser?.id);
-  if (!state._authUser?.id) { console.log('[MENTOR] No user id, returning'); return; }
+  if (!state._authUser?.id) return;
   try {
-    const url = `/api/mentor/${state._authUser.id}/groups`;
-    console.log('[MENTOR] Fetching:', url);
-    const res = await fetch(url);
+    const res = await fetch(`/api/mentor/${state._authUser.id}/groups`);
     const data = await res.json();
-    console.log('[MENTOR] Groups loaded:', JSON.stringify(data));
     _mentor.groups = data.groups || [];
     if (_mentor.groups.length > 0 && !_mentor.selectedGroupId) {
       _mentor.selectedGroupId = _mentor.groups[0].id;
     }
-    console.log('[MENTOR] selectedGroupId:', _mentor.selectedGroupId);
   } catch (e) { console.error('mentorLoadGroups:', e); }
 }
 
 // 멘토 데이터 로드: 반 학생 요약
 async function mentorLoadGroupSummary() {
-  console.log('[MENTOR] mentorLoadGroupSummary called, groupId:', _mentor.selectedGroupId);
-  if (!_mentor.selectedGroupId) { console.log('[MENTOR] No selectedGroupId, returning'); return; }
+  if (!_mentor.selectedGroupId) return;
   _mentor.loading = true;
   renderScreen();
   try {
     const today = new Date().toISOString().slice(0,10);
     const weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
     const url1 = `/api/mentor/groups/${_mentor.selectedGroupId}/summary?from=${weekAgo}&to=${today}`;
-    console.log('[MENTOR] Fetching summary:', url1);
     const res = await fetch(url1);
     const data = await res.json();
     console.log('[MENTOR] Summary loaded:', data.students?.length, 'students');
@@ -11779,10 +11774,10 @@ async function mentorLoadGroupSummary() {
     // 학생 목록도 동시에
     const res2 = await fetch(`/api/mentor/groups/${_mentor.selectedGroupId}/students`);
     const data2 = await res2.json();
-    console.log('[MENTOR] Student list loaded:', data2.students?.length, 'students');
     _mentor.studentList = data2.students || [];
   } catch (e) { console.error('mentorLoadGroupSummary:', e); }
   _mentor.loading = false;
+  _mentor.initialLoading = false;
   renderScreen();
 }
 
@@ -11882,6 +11877,26 @@ function renderMentorDashboard() {
   const today = new Date().toISOString().slice(0,10);
   const totalStudents = _mentor.studentList.length || _mentor.groupSummary.length || 0;
 
+  // 초기 데이터 로딩 중 (autoLogin 시)
+  if (_mentor.initialLoading) {
+    return `
+      <div class="desk-header">
+        <div style="display:flex;align-items:center;gap:14px">
+          <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
+          <div>
+            <h1>고교학점플래너 <span style="color:var(--primary-light)">멘토</span></h1>
+            <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">${user?.name || '멘토'}</p>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
+        <i class="fas fa-spinner fa-spin" style="font-size:36px;color:var(--primary-light)"></i>
+        <p style="margin-top:16px;font-size:16px;font-weight:600">대시보드 데이터를 불러오는 중...</p>
+        <p style="margin-top:8px;font-size:13px">학생 기록, 질문, 사진을 로딩합니다</p>
+      </div>
+    `;
+  }
+
   // 학생 상세 보기 모드
   if (_mentor.selectedStudentId) {
     return renderMentorStudentDetail();
@@ -11938,7 +11953,7 @@ function renderMentorStudents() {
     </div>`;
   }
 
-  // 오늘 통계 집계
+  // 이번 주 통계 집계
   let totalClass = 0, totalQuestion = 0, totalTeach = 0, totalAssign = 0;
   students.forEach(s => {
     const p = s.periodStats || {};
@@ -11957,29 +11972,57 @@ function renderMentorStudents() {
       <div class="stat-card"><div class="stat-label">질문</div><div class="stat-value" style="color:var(--question-b)">${totalQuestion}</div><div class="stat-change" style="color:var(--text-muted)">이번 주 합계</div></div>
       <div class="stat-card"><div class="stat-label">교학상장</div><div class="stat-value" style="color:var(--teach-green)">${totalTeach}</div><div class="stat-change" style="color:var(--text-muted)">이번 주 합계</div></div>
     </div>
-    <table class="student-table">
-      <thead><tr><th>학생</th><th>학년</th><th>레벨</th><th>수업기록</th><th>질문</th><th>교학상장</th><th>최근접속</th><th>상태</th></tr></thead>
-      <tbody>
-        ${students.map(s => {
-          const p = s.periodStats || {};
-          const total = p.total || 0;
-          const lastLogin = s.last_login_at ? s.last_login_at.slice(0,10) : '-';
-          const daysSince = s.last_login_at ? Math.floor((Date.now() - new Date(s.last_login_at).getTime()) / 86400000) : 999;
-          const statusColor = daysSince <= 1 ? 'green' : daysSince <= 3 ? 'yellow' : 'red';
-          return `<tr data-student-id="${s.id}" data-student-name="${s.name}" class="m-student-row">
-            <td style="font-weight:600">${s.profile_emoji || '🐻'} ${s.name}</td>
-            <td>${s.grade || '-'}</td>
-            <td>Lv.${s.level || 1}</td>
-            <td>${p.classRecords || 0}</td>
-            <td>${p.questionRecords || 0}</td>
-            <td>${p.teachRecords || 0}</td>
-            <td style="font-size:12px;color:var(--text-muted)">${lastLogin}</td>
-            <td><span class="status-dot status-${statusColor}"></span></td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-    <div style="margin-top:12px;display:flex;gap:16px;font-size:12px;color:var(--text-muted)">
+
+    <div style="margin:16px 0 12px;display:flex;justify-content:space-between;align-items:center">
+      <h3 style="font-size:15px;font-weight:700">👩‍🎓 학생 목록</h3>
+      <span style="font-size:12px;color:var(--primary-light);font-weight:600">👆 학생 카드를 클릭하면 수업기록·질문·사진을 모두 확인할 수 있습니다</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">
+      ${students.map(s => {
+        const p = s.periodStats || {};
+        const total = p.total || 0;
+        const lastLogin = s.last_login_at ? s.last_login_at.slice(0,10) : '-';
+        const daysSince = s.last_login_at ? Math.floor((Date.now() - new Date(s.last_login_at).getTime()) / 86400000) : 999;
+        const statusColor = daysSince <= 1 ? 'green' : daysSince <= 3 ? 'yellow' : 'red';
+        const statusText = daysSince <= 1 ? '오늘 활동' : daysSince <= 3 ? `${daysSince}일 전` : `${daysSince}일+ 미접속`;
+        return `
+        <div class="stat-card m-student-row" data-student-id="${s.id}" data-student-name="${s.name}" style="cursor:pointer;padding:16px;transition:all 0.2s;border:2px solid transparent" onmouseenter="this.style.borderColor='var(--primary-light)'" onmouseleave="this.style.borderColor='transparent'">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <div style="width:44px;height:44px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${s.profile_emoji || '🐻'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:15px">${s.name} <span style="font-size:12px;color:var(--text-muted);font-weight:400">${s.school_name || ''} ${s.grade || ''}학년</span></div>
+              <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-top:2px">
+                <span>Lv.${s.level || 1}</span> · <span>XP ${s.xp || 0}</span> ·
+                <span style="display:inline-flex;align-items:center;gap:3px"><span class="status-dot status-${statusColor}" style="vertical-align:middle"></span>${statusText}</span>
+              </div>
+            </div>
+            <i class="fas fa-chevron-right" style="color:var(--primary-light);font-size:14px"></i>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center">
+            <div style="padding:6px 0;background:var(--bg-input);border-radius:8px">
+              <div style="font-size:18px;font-weight:800;color:var(--primary-light)">${p.classRecords || 0}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px">수업기록</div>
+            </div>
+            <div style="padding:6px 0;background:var(--bg-input);border-radius:8px">
+              <div style="font-size:18px;font-weight:800;color:var(--question-b)">${p.questionRecords || 0}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px">질문</div>
+            </div>
+            <div style="padding:6px 0;background:var(--bg-input);border-radius:8px">
+              <div style="font-size:18px;font-weight:800;color:var(--teach-green)">${p.teachRecords || 0}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px">교학상장</div>
+            </div>
+            <div style="padding:6px 0;background:var(--bg-input);border-radius:8px">
+              <div style="font-size:18px;font-weight:800;color:var(--warning)">${p.assignments || 0}</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px">과제</div>
+            </div>
+          </div>
+          ${total > 0 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(99,179,237,0.08);border-radius:8px;font-size:12px;color:var(--primary-light)">📊 이번 주 총 ${total}건 활동 — 탭하여 상세 보기</div>` : `<div style="margin-top:10px;padding:8px 12px;background:rgba(214,48,49,0.08);border-radius:8px;font-size:12px;color:var(--danger)">⚠️ 이번 주 활동 기록 없음 — 탭하여 확인</div>`}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:16px;font-size:12px;color:var(--text-muted)">
       <span><span class="status-dot status-green" style="vertical-align:middle"></span> 오늘 활동 ${students.filter(s => { const d = s.last_login_at; return d && Math.floor((Date.now()-new Date(d).getTime())/86400000)<=1; }).length}명</span>
       <span><span class="status-dot status-yellow" style="vertical-align:middle"></span> 2-3일 전 ${students.filter(s => { const d = s.last_login_at; const ds = d ? Math.floor((Date.now()-new Date(d).getTime())/86400000) : 999; return ds > 1 && ds <= 3; }).length}명</span>
       <span><span class="status-dot status-red" style="vertical-align:middle"></span> 3일+ 미접속 ${students.filter(s => { const d = s.last_login_at; return !d || Math.floor((Date.now()-new Date(d).getTime())/86400000) > 3; }).length}명</span>
@@ -12133,25 +12176,32 @@ function renderMentorStudentDetail() {
 
   const s = d.summary || {};
   const tabs = [
-    { id: 'timeline', label: `📋 타임라인 (${(d.dailyRecords||[]).length})` },
+    { id: 'timeline', label: `📋 타임라인 (${(d.dailyRecords||[]).length}일)` },
     { id: 'exams', label: `📝 시험 (${(d.exams||[]).length})` },
     { id: 'photos', label: `📸 사진 (${s.classPhotos || 0})` },
     { id: 'feedback', label: `💬 피드백 (${(d.feedbacks||[]).length})` },
   ];
 
+  // 학생 정보 찾기
+  const studentInfo = _mentor.studentList.find(st => st.id == sid) || _mentor.groupSummary.find(st => st.id == sid) || {};
+
   return `
     <div class="desk-header">
       <div style="display:flex;align-items:center;gap:12px">
-        <button onclick="_mentor.selectedStudentId=null;_mentor.studentDetail=null;renderScreen()" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer"><i class="fas fa-arrow-left"></i></button>
-        <h1 style="font-size:20px">${name} <span style="font-size:14px;color:var(--text-muted);font-weight:400">학생 데이터</span></h1>
+        <button onclick="_mentor.selectedStudentId=null;_mentor.studentDetail=null;renderScreen()" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer;padding:8px"><i class="fas fa-arrow-left"></i></button>
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:20px">${studentInfo.profile_emoji || '🐻'}</div>
+        <div>
+          <h1 style="font-size:20px">${name}</h1>
+          <p style="font-size:12px;color:var(--text-muted)">${studentInfo.school_name || ''} ${studentInfo.grade || ''}학년 · Lv.${studentInfo.level || 1} · XP ${studentInfo.xp || 0}</p>
+        </div>
       </div>
     </div>
     <!-- 요약 통계 -->
     <div class="stats-row" style="padding:16px 28px 0">
-      <div class="stat-card"><div class="stat-label">수업 기록</div><div class="stat-value" style="color:var(--primary-light)">${s.classRecords || 0}</div></div>
-      <div class="stat-card"><div class="stat-label">질문</div><div class="stat-value" style="color:var(--question-b)">${s.questionRecords || 0}</div></div>
-      <div class="stat-card"><div class="stat-label">교학상장</div><div class="stat-value" style="color:var(--teach-green)">${s.teachRecords || 0}</div></div>
-      <div class="stat-card"><div class="stat-label">나의 질문방</div><div class="stat-value">${s.myQuestions || 0}</div></div>
+      <div class="stat-card"><div class="stat-label">수업 기록</div><div class="stat-value" style="color:var(--primary-light)">${s.classRecords || 0}</div><div class="stat-change" style="font-size:11px;color:var(--text-muted)">전체 기간</div></div>
+      <div class="stat-card"><div class="stat-label">질문</div><div class="stat-value" style="color:var(--question-b)">${s.questionRecords || 0}</div><div class="stat-change" style="font-size:11px;color:var(--text-muted)">전체 기간</div></div>
+      <div class="stat-card"><div class="stat-label">교학상장</div><div class="stat-value" style="color:var(--teach-green)">${s.teachRecords || 0}</div><div class="stat-change" style="font-size:11px;color:var(--text-muted)">전체 기간</div></div>
+      <div class="stat-card"><div class="stat-label">사진·과제·활동</div><div class="stat-value">${(s.classPhotos||0) + (s.assignments||0) + (s.activityRecords||0)}</div><div class="stat-change" style="font-size:11px;color:var(--text-muted)">📸${s.classPhotos||0} 📋${s.assignments||0} 🎯${s.activityRecords||0}</div></div>
     </div>
     <div class="desk-tabs">
       ${tabs.map(t => `<button class="desk-tab ${_mentor.detailTab===t.id?'active':''}" data-mdetail="${t.id}">${t.label}</button>`).join('')}
@@ -12175,40 +12225,70 @@ function renderMentorDetailTab() {
 function renderDetailTimeline() {
   const d = _mentor.studentDetail;
   if (!d || !d.dailyRecords || d.dailyRecords.length === 0) {
-    return '<div style="text-align:center;padding:40px;color:var(--text-muted)">기록이 없습니다</div>';
+    return '<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-inbox" style="font-size:36px;margin-bottom:12px;display:block;opacity:0.3"></i>기록이 없습니다</div>';
   }
 
   const typeLabel = { class: '📖 수업', question: '❓ 질문', teach: '🤝 교학상장', activity: '🎯 활동', activity_log: '📝 활동일지', assignment: '📋 과제', report: '📊 탐구', my_question: '💬 질문방' };
   const typeColor = { class: 'var(--primary-light)', question: 'var(--question-b)', teach: 'var(--teach-green)', activity: 'var(--accent)', activity_log: 'var(--text-secondary)', assignment: 'var(--warning)', report: 'var(--success)', my_question: '#e84393' };
 
   return d.dailyRecords.slice(0, 30).map(day => `
-    <div style="margin-bottom:20px">
-      <div style="font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">${day.date}</div>
+    <div style="margin-bottom:24px">
+      <div style="font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">📅</span> ${day.date}
+        <span style="font-size:12px;color:var(--text-muted);font-weight:400;margin-left:auto">${day.records.length}건</span>
+      </div>
       ${day.records.map(r => {
         const tl = typeLabel[r.type] || r.type;
         const tc = typeColor[r.type] || 'var(--text-muted)';
         let detail = '';
+        let extra = '';
+
         if (r.type === 'class') {
-          detail = `<strong>${r.subject || ''}</strong> ${r.keyword || ''} ${r.understanding ? '이해도:' + '⭐'.repeat(r.understanding) : ''} ${r._photoCount ? `<span style="color:var(--primary-light)">📸${r._photoCount}</span>` : ''}${r.teacher_note ? ` <span style="color:var(--warning)">✏️멘토노트</span>` : ''}`;
+          const stars = r.understanding ? '⭐'.repeat(Math.min(r.understanding, 5)) : '';
+          const keywords = (() => { try { return JSON.parse(r.keywords || r.keyword || '[]'); } catch { return r.keyword ? [r.keyword] : []; } })();
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.subject || '과목미정'} ${r.period ? `<span style="font-size:11px;color:var(--text-muted);font-weight:400">${r.period}교시</span>` : ''}</div>`;
+          if (r.content) detail += `<div style="font-size:13px;color:var(--text-main);margin-bottom:4px;line-height:1.5">${r.content}</div>`;
+          if (keywords.length > 0) detail += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">${keywords.map(k => `<span style="font-size:11px;padding:2px 8px;background:rgba(99,179,237,0.15);border-radius:10px;color:var(--primary-light)">#${k}</span>`).join('')}</div>`;
+          if (stars) detail += `<div style="font-size:12px">이해도: ${stars}</div>`;
+          if (r.memo) detail += `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;font-style:italic">${r.memo}</div>`;
+          if (r.teacher_note) detail += `<div style="font-size:12px;color:var(--warning);margin-top:2px">✏️ 멘토노트: ${r.teacher_note}</div>`;
+          // 사진 표시
+          if (r._photoCount > 0 && r._photoIds) {
+            extra = `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${r._photoIds.map(pid => `<div onclick="event.stopPropagation();mentorLoadPhoto(${pid})" style="width:60px;height:60px;border-radius:8px;background:var(--bg-input);display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid var(--border);transition:all 0.15s" onmouseenter="this.style.borderColor='var(--primary-light)'" onmouseleave="this.style.borderColor='var(--border)'"><i class="fas fa-camera" style="color:var(--primary-light);font-size:16px"></i></div>`).join('')}<span style="font-size:11px;color:var(--primary-light);align-self:center">📸 사진 ${r._photoCount}장 (클릭하여 보기)</span></div>`;
+          }
         } else if (r.type === 'question') {
-          detail = `<strong>${r.subject || ''}</strong> ${r.question || ''} <span style="color:var(--question-${(r.level||'A').toLowerCase()})">[${r.level || 'A'}]</span>`;
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.subject || ''} <span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:${r.level==='C'?'rgba(214,48,49,0.15)':r.level==='B'?'rgba(243,156,18,0.15)':'rgba(0,184,148,0.15)'};color:${r.level==='C'?'var(--danger)':r.level==='B'?'var(--warning)':'var(--success)'}">${r.level || 'A'}등급</span></div>`;
+          if (r.question) detail += `<div style="font-size:13px;color:var(--text-main);line-height:1.5;margin-bottom:2px">❓ ${r.question}</div>`;
+          if (r.context) detail += `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">💡 ${r.context}</div>`;
         } else if (r.type === 'teach') {
-          detail = `<strong>${r.subject || ''}</strong> ${r.topic || ''} → ${r.audience || ''}`;
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.subject || ''}</div>`;
+          if (r.topic) detail += `<div style="font-size:13px;color:var(--text-main)">📝 주제: ${r.topic}</div>`;
+          if (r.audience) detail += `<div style="font-size:12px;color:var(--text-muted)">👥 대상: ${r.audience}</div>`;
         } else if (r.type === 'assignment') {
-          detail = `<strong>${r.subject || ''}</strong> ${r.title || ''} <span style="color:${r.status==='완료'?'var(--success)':'var(--warning)'};">${r.status || ''} ${r.progress || 0}%</span>`;
+          const statusIcon = r.status === '완료' ? '✅' : r.status === '진행중' ? '🔄' : '📋';
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.subject || ''} — ${r.title || ''}</div>`;
+          detail += `<div style="font-size:12px">${statusIcon} ${r.status || '미정'} · 진행률 ${r.progress || 0}%</div>`;
+          if (r.due_date) detail += `<div style="font-size:11px;color:var(--text-muted)">마감: ${r.due_date}</div>`;
         } else if (r.type === 'my_question') {
-          detail = `<strong>${r.subject || ''}</strong> ${r.title || ''} ${r.image_key ? '📸' : ''} <span style="color:${r.status==='답변완료'?'var(--success)':'var(--warning)'}">${r.status || ''}</span>`;
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.subject || ''} — ${r.title || ''}</div>`;
+          detail += `<div style="font-size:12px">${r.image_key ? '📸 ' : ''}${r.status === '답변완료' ? '<span style="color:var(--success)">✅ 답변완료</span>' : '<span style="color:var(--warning)">⏳ 답변대기</span>'} · 답변 ${r.answer_count || 0}건</div>`;
         } else if (r.type === 'activity') {
-          detail = `<strong>${r.activity_type || ''}</strong> ${r.name || ''} ${r.progress || 0}%`;
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.activity_type || ''} — ${r.name || ''}</div>`;
+          detail += `<div style="font-size:12px">진행률: ${r.progress || 0}%</div>`;
         } else if (r.type === 'activity_log') {
-          detail = `${r.content || r.reflection || ''}`;
+          detail = `<div style="font-size:13px;color:var(--text-main);line-height:1.5">${r.content || r.reflection || ''}</div>`;
         } else if (r.type === 'report') {
-          detail = `<strong>${r.title || ''}</strong> ${r.phase || ''}`;
+          detail = `<div style="font-weight:700;font-size:14px;margin-bottom:4px">${r.title || ''}</div>`;
+          if (r.phase) detail += `<div style="font-size:12px;color:var(--text-muted)">단계: ${r.phase}</div>`;
         }
-        return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(48,54,61,0.3)">
-          <span style="font-size:12px;font-weight:700;color:${tc};white-space:nowrap;min-width:80px">${tl}</span>
-          <div style="flex:1;font-size:13px;color:var(--text-secondary);line-height:1.5">${detail}</div>
-          <button class="m-fb-btn" data-fb-type="${r.type}" data-fb-id="${r.id || ''}" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;white-space:nowrap;padding:2px 6px;border-radius:4px;transition:all 0.15s" title="피드백 작성">💬</button>
+        return `<div style="padding:12px;margin-bottom:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;border-left:3px solid ${tc}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:700;color:${tc};white-space:nowrap;padding:2px 8px;background:${tc}15;border-radius:6px">${tl}</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted)">${r.created_at ? r.created_at.slice(11,16) : ''}</span>
+            <button class="m-fb-btn" data-fb-type="${r.type}" data-fb-id="${r.id || ''}" style="background:var(--bg-input);border:1px solid var(--border);color:var(--primary-light);font-size:12px;cursor:pointer;padding:4px 10px;border-radius:6px;transition:all 0.15s;font-weight:600" title="피드백 작성">💬 피드백</button>
+          </div>
+          <div style="padding-left:4px">${detail}</div>
+          ${extra}
         </div>`;
       }).join('')}
     </div>
@@ -12256,30 +12336,36 @@ function renderDetailPhotos() {
   const d = _mentor.studentDetail;
   if (!d) return '';
 
-  // dailyRecords에서 사진이 있는 class 기록 추출
+  // dailyRecords에서 사진이 있는 class 기록 추출 + thumbnail 매칭
   const photoRecords = [];
+  const allPhotos = {};
+  // 모든 class record에서 사진 정보 수집
   (d.dailyRecords || []).forEach(day => {
     day.records.forEach(r => {
       if (r.type === 'class' && r._photoCount > 0) {
-        photoRecords.push({ date: day.date, subject: r.subject, keyword: r.keyword, photoIds: r._photoIds || [] });
+        (r._photoIds || []).forEach(pid => {
+          photoRecords.push({ id: pid, date: day.date, subject: r.subject, keyword: r.keyword, content: r.content, period: r.period });
+        });
       }
     });
   });
 
-  if (photoRecords.length === 0) return '<div style="text-align:center;padding:40px;color:var(--text-muted)">수업 기록 사진이 없습니다</div>';
+  if (photoRecords.length === 0) return '<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-images" style="font-size:36px;margin-bottom:12px;display:block;opacity:0.3"></i>수업 기록 사진이 없습니다</div>';
 
   return `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
-      ${photoRecords.map(pr => pr.photoIds.map(pid => `
-        <div class="stat-card" style="cursor:pointer;padding:10px" onclick="mentorLoadPhoto(${pid})">
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${pr.date} · ${pr.subject || ''}</div>
-          <div style="text-align:center;padding:16px;background:var(--bg-input);border-radius:8px">
-            <i class="fas fa-image" style="font-size:24px;color:var(--primary-light)"></i>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">클릭하여 보기</div>
+    <div style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">총 ${photoRecords.length}장의 수업 기록 사진</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+      ${photoRecords.map(pr => `
+        <div class="stat-card" style="cursor:pointer;padding:12px;transition:all 0.2s;border:2px solid transparent" onclick="mentorLoadPhoto(${pr.id})" onmouseenter="this.style.borderColor='var(--primary-light)'" onmouseleave="this.style.borderColor='transparent'">
+          <div style="text-align:center;padding:24px;background:var(--bg-input);border-radius:10px;margin-bottom:8px">
+            <i class="fas fa-camera" style="font-size:28px;color:var(--primary-light)"></i>
+            <div style="font-size:11px;color:var(--primary-light);margin-top:6px;font-weight:600">클릭하여 보기</div>
           </div>
-          ${pr.keyword ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px">${pr.keyword}</div>` : ''}
+          <div style="font-size:13px;font-weight:700">${pr.subject || '과목미정'} ${pr.period ? `${pr.period}교시` : ''}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${pr.date}</div>
+          ${pr.keyword ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:4px">${(() => { try { return JSON.parse(pr.keyword).join(', '); } catch { return pr.keyword; } })()}</div>` : ''}
         </div>
-      `).join('')).join('')}
+      `).join('')}
     </div>
   `;
 }
