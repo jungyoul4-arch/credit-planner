@@ -11851,6 +11851,33 @@ async function mentorDeleteFeedback(feedbackId) {
 // ─── 렌더링 ───
 
 function renderMentorDashboard() {
+  // 멘토 로그인이 아닌 경우 안내 메시지
+  if (state._authRole !== 'mentor') {
+    return `
+      <div class="desk-header">
+        <div style="display:flex;align-items:center;gap:14px">
+          <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
+          <div>
+            <h1>고교학점플래너 <span style="color:var(--primary-light)">멘토</span></h1>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:80px 20px">
+        <div style="font-size:64px;margin-bottom:24px;opacity:0.3">👨‍🏫</div>
+        <h2 style="font-size:22px;font-weight:800;margin-bottom:12px;color:var(--text-main)">멘토 계정으로 로그인해주세요</h2>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;max-width:400px;margin:0 auto 24px">
+          멘토 대시보드를 사용하려면 멘토 계정이 필요합니다.<br>
+          멘토 계정으로 로그인하면 담당 학생들의<br>
+          수업 기록, 질문, 교학상장, 시험 결과를 모두 확인하고<br>
+          피드백을 보낼 수 있습니다.
+        </p>
+        <button onclick="logout();goScreen('login-mentor')" class="btn-primary" style="width:auto;padding:14px 32px;font-size:15px">
+          <i class="fas fa-sign-in-alt" style="margin-right:8px"></i>멘토 로그인
+        </button>
+      </div>
+    `;
+  }
+
   const user = state._authUser;
   const today = new Date().toISOString().slice(0,10);
   const totalStudents = _mentor.studentList.length || _mentor.groupSummary.length || 0;
@@ -12874,6 +12901,14 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.classList.add('active');
     state.mode = btn.dataset.mode;
     if (state.mode === 'student') { state.currentScreen = 'main'; state.studentTab = 'home'; }
+    // 멘토 모드 전환 시: 멘토 로그인 상태이면 데이터 로드, 아니면 안내
+    if (state.mode === 'mentor') {
+      if (state._authRole === 'mentor' && state._authUser?.id) {
+        if (_mentor.groups.length === 0) {
+          mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(e => console.error('[MENTOR] mode-switch load error:', e));
+        }
+      }
+    }
     renderScreen();
   });
 });
