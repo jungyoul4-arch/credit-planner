@@ -11963,6 +11963,9 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
   state.currentScreen = 'main';
   state.studentTab = 'home';
   state._msvActivePanel = 'all';
+  state._mentorMyQaLoaded = false;
+  state._mentorMyQaList = [];
+  state._myQaStatsLoaded = false;
   renderScreen();
 
   // 3. all-records + profile + class-records(사진 포함) = 총 3건 호출
@@ -12095,12 +12098,153 @@ function mentorExitStudentView() {
   _mentor._savedAuthUser = null;
   _mentor._savedAuthRole = null;
   state._msvActivePanel = null;
+  state._mentorMyQaLoaded = false;
+  state._mentorMyQaList = [];
   renderScreen();
 }
 
 function renderMentorStudentViewer() {
   // Legacy — no longer used, replaced by renderMentorStudentDashboard()
   return renderMentorStudentDashboard();
+}
+
+// ==================== 멘토용 내 질문 패널 (iframe 대신 직접 렌더링) ====================
+function renderMentorMyQaPanel() {
+  const stats = state.myQaStats || {};
+  const questions = state._mentorMyQaList || [];
+  const studentId = _mentor.viewerStudentId || state._authUser?.id;
+
+  // 아직 로드 안 됐으면 비동기 로드
+  if (!state._mentorMyQaLoaded && studentId) {
+    state._mentorMyQaLoaded = true;
+    fetch(`/api/my-questions?studentId=${studentId}`)
+      .then(r => r.json())
+      .then(data => {
+        state._mentorMyQaList = data.questions || [];
+        renderScreen();
+      })
+      .catch(() => {});
+  }
+
+  const total = stats.total || 0;
+  const unanswered = stats.unanswered || 0;
+  const answered = stats.answered || 0;
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <h1>❓ 나만의 질문방</h1>
+      </div>
+      <div class="form-body">
+        <!-- 통계 -->
+        <div class="card" style="margin-bottom:16px;padding:14px;background:linear-gradient(135deg,rgba(108,92,231,0.08),rgba(232,67,147,0.08))">
+          <div style="display:flex;justify-content:space-around;text-align:center">
+            <div>
+              <div style="font-size:22px;font-weight:800;color:var(--primary-light)">${total}</div>
+              <div style="font-size:11px;color:var(--text-muted)">총 질문</div>
+            </div>
+            <div>
+              <div style="font-size:22px;font-weight:800;color:var(--accent)">${unanswered}</div>
+              <div style="font-size:11px;color:var(--text-muted)">미답변</div>
+            </div>
+            <div>
+              <div style="font-size:22px;font-weight:800;color:var(--success)">${answered}</div>
+              <div style="font-size:11px;color:var(--text-muted)">답변완료</div>
+            </div>
+            <div>
+              <div style="font-size:22px;font-weight:800;color:#FF6B6B">${stats.avgResolveDays || '-'}</div>
+              <div style="font-size:11px;color:var(--text-muted)">평균 해결일</div>
+            </div>
+          </div>
+        </div>
+        ${(stats.subjectStats || []).length > 0 ? `
+        <div class="card" style="margin-bottom:16px;padding:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px">과목별 질문 분포</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${stats.subjectStats.map(s => `<span style="background:rgba(108,92,231,0.12);color:var(--primary-light);padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600">${s.subject} ${s.cnt}</span>`).join('')}
+          </div>
+        </div>` : ''}
+
+        <!-- 질문 목록 -->
+        ${questions.length === 0 ? `
+          <div style="text-align:center;padding:40px 0;color:var(--text-muted)">
+            <span style="font-size:48px;display:block;margin-bottom:12px">❓</span>
+            <p style="font-size:14px;font-weight:600;margin:0">아직 질문이 없습니다</p>
+            <p style="font-size:12px;margin-top:6px">학생이 수업 중 궁금한 것을 질문방에 남기면 여기에 표시됩니다</p>
+          </div>
+        ` : `
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">전체 질문 ${questions.length}건</div>
+          ${questions.map(q => {
+            const statusColor = q.status === '답변완료' ? 'var(--success)' : 'var(--accent)';
+            const statusIcon = q.status === '답변완료' ? '✅' : '⏳';
+            const date = (q.created_at || '').slice(0,10);
+            return `
+            <div class="card" style="margin-bottom:10px;padding:14px;cursor:pointer;transition:all 0.2s;border-left:3px solid ${statusColor}" onclick="mentorViewQuestion(${q.id})">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">${statusIcon} ${q.status || '미답변'}</span>
+                    <span style="background:rgba(108,92,231,0.12);color:var(--primary-light);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">${q.subject || '기타'}</span>
+                    ${q.question_type ? `<span style="font-size:11px;color:var(--text-muted)">${q.question_type}</span>` : ''}
+                  </div>
+                  <div style="font-size:14px;font-weight:600;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.title || q.content?.slice(0,50) || '(제목 없음)'}</div>
+                  ${q.content ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">${q.content.slice(0,80)}</div>` : ''}
+                </div>
+                <div style="text-align:right;flex-shrink:0;margin-left:12px">
+                  <div style="font-size:11px;color:var(--text-muted)">${date}</div>
+                  ${q.answer_count > 0 ? `<div style="font-size:11px;color:var(--success);margin-top:4px">💬 답변 ${q.answer_count}개</div>` : ''}
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// 멘토용 질문 상세 보기
+async function mentorViewQuestion(questionId) {
+  try {
+    const res = await fetch(`/api/my-questions/${questionId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const q = data.question;
+    const answers = data.answers || [];
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+    const statusColor = q.status === '답변완료' ? 'var(--success)' : 'var(--accent)';
+    overlay.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:16px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;padding:24px" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="background:${statusColor}20;color:${statusColor};padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">${q.status || '미답변'}</span>
+            <span style="background:rgba(108,92,231,0.12);color:var(--primary-light);padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">${q.subject || '기타'}</span>
+          </div>
+          <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
+        </div>
+        <h3 style="font-size:18px;font-weight:700;color:var(--text-main);margin-bottom:8px">${q.title || '(제목 없음)'}</h3>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">${(q.created_at || '').slice(0,16)} ${q.question_type ? '· ' + q.question_type : ''}</div>
+        <div style="font-size:14px;color:var(--text-main);line-height:1.7;padding:16px;background:var(--bg-input);border-radius:12px;margin-bottom:20px;white-space:pre-wrap">${q.content || ''}</div>
+        ${q.image_key ? `<img src="${q.image_key}" style="max-width:100%;border-radius:12px;margin-bottom:20px" />` : ''}
+        <div style="font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:12px">💬 답변 (${answers.length}건)</div>
+        ${answers.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">아직 답변이 없습니다</div>' :
+          answers.map(a => `
+            <div style="background:linear-gradient(135deg,rgba(0,206,148,0.06),rgba(108,92,231,0.06));border-radius:12px;padding:14px;margin-bottom:10px;border-left:3px solid var(--success)">
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${(a.created_at || '').slice(0,16)} ${a.resolve_days ? '· ' + a.resolve_days + '일 후 답변' : ''}</div>
+              <div style="font-size:14px;color:var(--text-main);line-height:1.7;white-space:pre-wrap">${a.content || ''}</div>
+              ${a.image_key ? `<img src="${a.image_key}" style="max-width:100%;border-radius:8px;margin-top:8px" />` : ''}
+            </div>
+          `).join('')}
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  } catch (e) {
+    console.error('mentorViewQuestion:', e);
+  }
 }
 
 // ==================== 멘토 학생 대시보드 (데스크톱 최적화) ====================
@@ -12139,6 +12283,7 @@ function renderMentorStudentDashboard() {
     { id: 'home', icon: 'fas fa-home', label: '홈' },
     { id: 'record', icon: 'fas fa-pen', label: '기록' },
     { id: 'planner', icon: 'fas fa-calendar-alt', label: '플래너' },
+    { id: 'myqa', icon: 'fas fa-circle-question', label: '내 질문' },
     { id: 'growth', icon: 'fas fa-chart-line', label: '성장' },
     { id: 'my', icon: 'fas fa-user', label: '마이' },
   ];
@@ -12147,6 +12292,7 @@ function renderMentorStudentDashboard() {
   const homeContent = renderHomeTab();
   const recordContent = renderRecordTab();
   const plannerContent = renderPlannerTab();
+  const myqaContent = renderMentorMyQaPanel();
   const growthContent = renderGrowthTab();
   const myContent = renderMyTab();
 
@@ -12166,6 +12312,10 @@ function renderMentorStudentDashboard() {
           <div class="msv-panel-header"><i class="fas fa-calendar-alt"></i> 플래너 <button class="msv-expand-btn" data-msvexpand="planner"><i class="fas fa-expand-alt"></i></button></div>
           <div class="msv-panel-body">${plannerContent}</div>
         </div>
+        <div class="msv-panel" data-msvpanel="myqa">
+          <div class="msv-panel-header"><i class="fas fa-circle-question"></i> 내 질문 <button class="msv-expand-btn" data-msvexpand="myqa"><i class="fas fa-expand-alt"></i></button></div>
+          <div class="msv-panel-body">${myqaContent}</div>
+        </div>
         <div class="msv-panel" data-msvpanel="growth">
           <div class="msv-panel-header"><i class="fas fa-chart-line"></i> 성장 <button class="msv-expand-btn" data-msvexpand="growth"><i class="fas fa-expand-alt"></i></button></div>
           <div class="msv-panel-body">${growthContent}</div>
@@ -12182,6 +12332,7 @@ function renderMentorStudentDashboard() {
       case 'home': singleContent = homeContent; break;
       case 'record': singleContent = recordContent; break;
       case 'planner': singleContent = plannerContent; break;
+      case 'myqa': singleContent = myqaContent; break;
       case 'growth': singleContent = growthContent; break;
       case 'my': singleContent = myContent; break;
     }
