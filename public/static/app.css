@@ -972,7 +972,8 @@ body {
 /* Screen Header */
 .screen-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 0 12px; background:var(--bg-dark); position:sticky; top:0; z-index:50;
+  padding:16px 0 12px; padding-top:calc(env(safe-area-inset-top, 0px) + 16px);
+  background:var(--bg-dark); position:sticky; top:0; z-index:50;
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
 }
 .screen-header h1 { font-size:32px; font-weight:900; color:#FFFFFF; }
