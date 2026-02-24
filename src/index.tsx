@@ -1395,7 +1395,7 @@ app.get('/api/mentor/student/:studentId/all-records', async (c) => {
     const dateFrom = c.req.query('from') || '2000-01-01';
     const dateTo = c.req.query('to') || '2099-12-31';
 
-    const [classRecords, questionRecords, teachRecords, activityRecords, activityLogs, assignments, exams, examResults, reportRecords] = await Promise.all([
+    const [classRecords, questionRecords, teachRecords, activityRecords, activityLogs, assignments, exams, examResults, reportRecords, classPhotos, myQuestions, feedbacks] = await Promise.all([
       c.env.DB.prepare('SELECT * FROM class_records WHERE student_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, created_at DESC').bind(studentId, dateFrom, dateTo).all(),
       c.env.DB.prepare('SELECT * FROM question_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ? ORDER BY created_at DESC').bind(studentId, dateFrom, dateTo).all(),
       c.env.DB.prepare('SELECT * FROM teach_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ? ORDER BY created_at DESC').bind(studentId, dateFrom, dateTo).all(),
@@ -1405,7 +1405,22 @@ app.get('/api/mentor/student/:studentId/all-records', async (c) => {
       c.env.DB.prepare('SELECT * FROM exams WHERE student_id = ? ORDER BY start_date DESC').bind(studentId).all(),
       c.env.DB.prepare('SELECT er.*, e.name as exam_name FROM exam_results er JOIN exams e ON er.exam_id = e.id WHERE er.student_id = ? ORDER BY e.start_date DESC').bind(studentId).all(),
       c.env.DB.prepare('SELECT * FROM report_records WHERE student_id = ? ORDER BY created_at DESC').bind(studentId).all(),
+      // 추가: 수업 기록 사진 (thumbnail만 — 원본은 /api/photos/:id로 별도 조회)
+      c.env.DB.prepare('SELECT id, class_record_id, thumbnail, file_size, created_at FROM class_record_photos WHERE student_id = ? ORDER BY id DESC LIMIT 200').bind(studentId).all(),
+      // 추가: 나만의 질문방
+      c.env.DB.prepare('SELECT q.*, (SELECT COUNT(*) FROM my_answers a WHERE a.question_id = q.id) as answer_count FROM my_questions q WHERE q.student_id = ? AND DATE(q.created_at) BETWEEN ? AND ? ORDER BY q.created_at DESC').bind(studentId, dateFrom, dateTo).all(),
+      // 추가: 멘토 피드백
+      c.env.DB.prepare('SELECT * FROM mentor_feedbacks WHERE student_id = ? ORDER BY created_at DESC LIMIT 100').bind(studentId).all().catch(() => ({ results: [] })),
     ]);
+
+    // 사진을 class_record_id별로 매핑
+    const photoMap: Record<number, any[]> = {};
+    (classPhotos.results as any[]).forEach(p => {
+      if (p.class_record_id) {
+        if (!photoMap[p.class_record_id]) photoMap[p.class_record_id] = [];
+        photoMap[p.class_record_id].push({ id: p.id, thumbnail: p.thumbnail, file_size: p.file_size });
+      }
+    });
 
     // 날짜별로 통합
     const dateMap: Record<string, any> = {};
@@ -1414,13 +1429,18 @@ app.get('/api/mentor/student/:studentId/all-records', async (c) => {
       dateMap[date].records.push({ type, ...data });
     };
 
-    (classRecords.results as any[]).forEach(r => addToDate(r.date, 'class', r));
+    (classRecords.results as any[]).forEach(r => {
+      // 수업 기록에 사진 정보 첨부
+      const photos = photoMap[r.id] || [];
+      addToDate(r.date, 'class', { ...r, _photoCount: photos.length, _photoIds: photos.map((p: any) => p.id) });
+    });
     (questionRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'question', r));
     (teachRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'teach', r));
     (activityRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'activity', r));
     (activityLogs.results as any[]).forEach(r => addToDate(r.date || r.created_at?.slice(0,10) || '', 'activity_log', r));
     (assignments.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'assignment', r));
     (reportRecords.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'report', r));
+    (myQuestions.results as any[]).forEach(r => addToDate(r.created_at?.slice(0,10) || '', 'my_question', r));
 
     const sortedDates = Object.values(dateMap).sort((a: any, b: any) => b.date.localeCompare(a.date));
 
@@ -1438,10 +1458,13 @@ app.get('/api/mentor/student/:studentId/all-records', async (c) => {
         exams: (exams.results as any[]).length,
         examResults: (examResults.results as any[]).length,
         reportRecords: (reportRecords.results as any[]).length,
+        myQuestions: (myQuestions.results as any[]).length,
+        classPhotos: (classPhotos.results as any[]).length,
       },
       exams: exams.results,
       examResults: examResults.results,
       reportRecords: reportRecords.results,
+      feedbacks: feedbacks.results,
     });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1705,6 +1728,12 @@ app.get('/api/migrate', async (c) => {
       `CREATE TABLE IF NOT EXISTS class_record_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, class_record_id INTEGER, photo_data TEXT NOT NULL, thumbnail TEXT DEFAULT '', mime_type TEXT DEFAULT 'image/jpeg', file_size INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_crp_student ON class_record_photos(student_id)`,
       `CREATE INDEX IF NOT EXISTS idx_crp_record ON class_record_photos(class_record_id)`,
+      // ===== 멘토 피드백 테이블 =====
+      `CREATE TABLE IF NOT EXISTS mentor_feedbacks (id INTEGER PRIMARY KEY AUTOINCREMENT, mentor_id INTEGER NOT NULL, student_id INTEGER NOT NULL, record_type TEXT NOT NULL DEFAULT 'general', record_id INTEGER DEFAULT NULL, content TEXT NOT NULL, feedback_type TEXT DEFAULT 'note', is_read INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (mentor_id) REFERENCES mentors(id), FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
+      `CREATE INDEX IF NOT EXISTS idx_mf_student ON mentor_feedbacks(student_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_mf_mentor ON mentor_feedbacks(mentor_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_mf_record ON mentor_feedbacks(record_type, record_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_mf_unread ON mentor_feedbacks(student_id, is_read)`,
     ];
     for (const sql of stmts) {
       try { await c.env.DB.prepare(sql).run(); } catch(_) { /* column may already exist */ }
@@ -1893,6 +1922,79 @@ app.post('/api/qa-auth-token', async (c) => {
     return c.json({ error: e.message }, 500)
   }
 })
+
+// ==================== 멘토 피드백 API ====================
+
+// 피드백 작성
+app.post('/api/mentor/feedback', async (c) => {
+  try {
+    const { mentorId, studentId, recordType, recordId, content, feedbackType } = await c.req.json();
+    if (!mentorId || !studentId || !content) return c.json({ error: '필수 항목 누락' }, 400);
+    const result = await c.env.DB.prepare(
+      'INSERT INTO mentor_feedbacks (mentor_id, student_id, record_type, record_id, content, feedback_type) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(mentorId, studentId, recordType || 'general', recordId || null, content, feedbackType || 'note').run();
+    return c.json({ success: true, id: result.meta.last_row_id });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// 학생별 피드백 조회 (멘토용)
+app.get('/api/mentor/feedback/student/:studentId', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const feedbacks = await c.env.DB.prepare(
+      'SELECT f.*, m.name as mentor_name FROM mentor_feedbacks f JOIN mentors m ON f.mentor_id = m.id WHERE f.student_id = ? ORDER BY f.created_at DESC LIMIT 100'
+    ).bind(studentId).all();
+    return c.json({ feedbacks: feedbacks.results });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// 학생이 자기 피드백 조회 + 읽음 처리
+app.get('/api/student/:studentId/feedbacks', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const feedbacks = await c.env.DB.prepare(
+      'SELECT f.*, m.name as mentor_name FROM mentor_feedbacks f JOIN mentors m ON f.mentor_id = m.id WHERE f.student_id = ? ORDER BY f.created_at DESC LIMIT 50'
+    ).bind(studentId).all();
+    // 미읽음 개수
+    const unread = await c.env.DB.prepare(
+      'SELECT COUNT(*) as cnt FROM mentor_feedbacks WHERE student_id = ? AND is_read = 0'
+    ).bind(studentId).first();
+    return c.json({ feedbacks: feedbacks.results, unreadCount: (unread as any)?.cnt || 0 });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// 피드백 읽음 처리
+app.put('/api/student/feedback/:feedbackId/read', async (c) => {
+  try {
+    const feedbackId = c.req.param('feedbackId');
+    await c.env.DB.prepare('UPDATE mentor_feedbacks SET is_read = 1 WHERE id = ?').bind(feedbackId).run();
+    return c.json({ success: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// 피드백 수정
+app.put('/api/mentor/feedback/:feedbackId', async (c) => {
+  try {
+    const feedbackId = c.req.param('feedbackId');
+    const { content, feedbackType } = await c.req.json();
+    const fields: string[] = []; const values: any[] = [];
+    if (content !== undefined) { fields.push('content = ?'); values.push(content); }
+    if (feedbackType !== undefined) { fields.push('feedback_type = ?'); values.push(feedbackType); }
+    fields.push("updated_at = datetime('now')");
+    values.push(feedbackId);
+    await c.env.DB.prepare(`UPDATE mentor_feedbacks SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+    return c.json({ success: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
+
+// 피드백 삭제
+app.delete('/api/mentor/feedback/:feedbackId', async (c) => {
+  try {
+    const feedbackId = c.req.param('feedbackId');
+    await c.env.DB.prepare('DELETE FROM mentor_feedbacks WHERE id = ?').bind(feedbackId).run();
+    return c.json({ success: true });
+  } catch (e: any) { return c.json({ error: e.message }, 500); }
+});
 
 // ==================== 헬스체크 ====================
 app.get('/api/health', (c) => {
