@@ -11920,10 +11920,10 @@ function renderMentorStudentViewer() {
   `;
 
   // 학생 화면 콘텐츠 렌더 (renderStudentApp의 내부 로직 재사용)
+  // 학생 화면 콘텐츠: renderStudentApp()을 직접 재사용
+  // 작성 화면은 읽기전용 안내로 대체
+  const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine'];
   let content = '';
-  const prevScreen = state.currentScreen;
-  const prevTab = state.studentTab;
-  // 학생 앱이 렌더하는 것과 동일한 콘텐츠
   if (state.currentScreen === 'main') {
     switch (state.studentTab) {
       case 'home': content = typeof renderHomeTab === 'function' ? renderHomeTab() : ''; break;
@@ -11933,32 +11933,41 @@ function renderMentorStudentViewer() {
       case 'my': content = typeof renderMyTab === 'function' ? renderMyTab() : ''; break;
       default: content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
     }
-  } else if (state.currentScreen === 'record-history') {
-    content = typeof renderRecordHistory === 'function' ? renderRecordHistory() : '';
-  } else if (state.currentScreen === 'exam-list') {
-    content = typeof renderExamList === 'function' ? renderExamList() : '';
-  } else if (state.currentScreen === 'exam-detail') {
-    content = typeof renderExamDetail === 'function' ? renderExamDetail() : '';
-  } else if (state.currentScreen === 'assignment-list') {
-    content = typeof renderAssignmentList === 'function' ? renderAssignmentList() : '';
-  } else if (state.currentScreen === 'portfolio') {
-    content = typeof renderPortfolio === 'function' ? renderPortfolio() : '';
-  } else if (state.currentScreen === 'weekly-report') {
-    content = typeof renderWeeklyReportStudent === 'function' ? renderWeeklyReportStudent() : '';
-  } else if (state.currentScreen === 'notifications') {
-    content = typeof renderNotifications === 'function' ? renderNotifications() : '';
-  } else if (state.currentScreen === 'mentor-feedback') {
-    content = typeof renderStudentFeedbackScreen === 'function' ? renderStudentFeedbackScreen() : '';
-  } else if (state.currentScreen === 'growth-analysis') {
-    content = typeof renderGrowthAnalysis === 'function' ? renderGrowthAnalysis() : (typeof renderGrowthTab === 'function' ? renderGrowthTab() : '');
-  } else if (state.currentScreen === 'record-class') {
-    content = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-lock" style="font-size:24px;margin-bottom:12px;display:block;opacity:0.3"></i>열람 모드에서는 기록 작성이 불가합니다</div>';
-  } else if (state.currentScreen === 'record-question' || state.currentScreen === 'record-teach' || state.currentScreen === 'record-activity' || state.currentScreen === 'record-assignment') {
-    content = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-lock" style="font-size:24px;margin-bottom:12px;display:block;opacity:0.3"></i>열람 모드에서는 기록 작성이 불가합니다</div>';
+  } else if (writeScreens.includes(state.currentScreen)) {
+    content = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><i class="fas fa-eye" style="font-size:36px;margin-bottom:16px;display:block;opacity:0.3"></i><p style="font-size:16px;font-weight:600;margin-bottom:8px">열람 전용 모드</p><p style="font-size:13px">멘토 열람 모드에서는 기록 작성이 불가합니다.</p><button onclick="state.currentScreen=\'main\';renderScreen()" style="margin-top:16px;padding:10px 24px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">← 돌아가기</button></div>';
   } else {
-    // 기타 화면은 main으로 돌리기
-    state.currentScreen = 'main';
-    content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
+    // 나머지 모든 학생 화면은 renderStudentApp() 라우터와 동일하게 매핑
+    const screenFnMap = {
+      'record-history': 'renderRecordHistory',
+      'class-record-history': 'renderClassRecordHistory',
+      'class-record-detail': 'renderClassRecordDetail',
+      'record-status': 'renderRecordStatus',
+      'exam-list': 'renderExamList',
+      'exam-detail': 'renderExamDetail',
+      'exam-report': 'renderExamReport',
+      'assignment-list': 'renderAssignmentList',
+      'assignment-plan': 'renderAssignmentPlan',
+      'portfolio': 'renderPortfolio',
+      'weekly-report': 'renderWeeklyReportStudent',
+      'notifications': 'renderNotifications',
+      'mentor-feedback': 'renderStudentFeedbackScreen',
+      'growth-analysis': 'renderGrowthAnalysis',
+      'report-project': 'renderReportProject',
+      'activity-detail': 'renderActivityDetail',
+    };
+    const fnName = screenFnMap[state.currentScreen];
+    if (fnName && typeof window[fnName] === 'function') {
+      try { content = window[fnName](); } catch (e) { console.error('Viewer render error:', e); content = ''; }
+    }
+    // 함수를 못 찾으면 전역 스코프에서 eval로 시도
+    if (!content && fnName) {
+      try { content = eval(fnName + '()'); } catch (e) { content = ''; }
+    }
+    // 그래도 없으면 홈으로
+    if (!content) {
+      state.currentScreen = 'main';
+      content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
+    }
   }
 
   return `
