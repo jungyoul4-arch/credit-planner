@@ -4148,12 +4148,98 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   color:var(--primary-light); background:rgba(108,92,231,0.15);
   font-weight:800;
 }
-.ea-date-subjects { display:flex; flex-direction:column; gap:4px; }
-.ea-date-empty {
-  text-align:center; padding:8px; color:var(--text-secondary);
-  font-size:12px; font-style:italic;
-  opacity:0.8;
+
+/* ── Period Slots (교시별 인라인) ── */
+.ea-period-slots {
+  display:flex; flex-direction:column; gap:4px;
 }
+.ea-slot {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px; border-radius:8px;
+  transition:all 0.15s ease; cursor:pointer;
+}
+.ea-slot.empty {
+  background:rgba(255,255,255,0.03);
+  border:1px dashed var(--border);
+}
+.ea-slot.empty:hover {
+  background:rgba(108,92,231,0.06); border-color:var(--primary-light);
+}
+.ea-slot.empty:active { transform:scale(0.98); }
+.ea-slot.filled {
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+}
+.ea-slot-period {
+  font-family:'Roboto','Pretendard Variable',sans-serif;
+  font-size:11px; font-weight:700; color:var(--text-muted);
+  min-width:36px; flex-shrink:0;
+}
+.ea-slot-subj {
+  font-size:14px; font-weight:700; flex:1;
+}
+.ea-slot-hint {
+  font-size:12px; color:var(--text-muted); flex:1;
+  opacity:0.7;
+}
+.ea-slot-arrow {
+  font-size:10px; color:var(--text-muted); opacity:0.4;
+}
+.ea-slot-clear {
+  width:22px; height:22px; border-radius:50%; border:none;
+  background:rgba(255,107,107,0.12); color:#FF6B6B; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:10px;
+  flex-shrink:0; transition:all 0.2s;
+}
+.ea-slot-clear:hover { background:rgba(255,107,107,0.3); }
+
+/* ── Period Count Row ── */
+.ea-period-count-row {
+  display:flex; gap:8px; margin-bottom:14px;
+}
+.ea-period-count-btn {
+  flex:1; padding:10px 0; border-radius:10px; border:1.5px solid var(--border-light);
+  background:transparent; color:var(--text-secondary);
+  font-family:'Pretendard Variable','Noto Sans KR',sans-serif;
+  font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s;
+}
+.ea-period-count-btn.active {
+  border-color:var(--primary); color:var(--primary);
+  background:rgba(108,92,231,0.1);
+}
+.ea-period-count-btn:hover { border-color:var(--primary-light); }
+
+/* ── Period Picker Bottom Sheet ── */
+.ea-pp-hint {
+  display:flex; align-items:center;
+  padding:10px 14px; border-radius:10px; margin-bottom:14px;
+  background:rgba(108,92,231,0.08);
+  border:1px solid rgba(108,92,231,0.15);
+  font-size:13px; color:var(--primary-light); font-weight:600;
+}
+.ea-pp-hint strong { color:#FFFFFF; margin-left:4px; }
+.ea-pp-grid {
+  display:grid; grid-template-columns:repeat(5,1fr); gap:6px;
+  margin-bottom:8px;
+}
+.ea-pp-subj-btn {
+  padding:10px 4px; border-radius:10px;
+  border:1.5px solid var(--border-light);
+  background:var(--bg-elevated); color:#FFFFFF;
+  font-size:13px; font-weight:600; cursor:pointer;
+  transition:all 0.2s; text-align:center;
+  font-family:'Pretendard Variable','Noto Sans KR',sans-serif;
+}
+.ea-pp-subj-btn:hover {
+  border-color:var(--subj-color, var(--primary));
+  background:rgba(108,92,231,0.08);
+}
+.ea-pp-subj-btn:active {
+  transform:scale(0.95);
+  background:rgba(108,92,231,0.15);
+  border-color:var(--subj-color, var(--primary));
+}
+/* Legacy subject row styles (kept for exam detail view) */
 .ea-subj-row {
   display:flex; align-items:center; gap:8px;
   padding:7px 10px; border-radius:8px;

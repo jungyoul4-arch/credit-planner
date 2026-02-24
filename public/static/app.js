@@ -3966,45 +3966,64 @@ function renderExamAddMidterm() {
   const defaultStart = _eaMidtermStart || `${y}-${m}-21`;
   const defaultEnd = _eaMidtermEnd || `${y}-${m}-25`;
 
-  // 날짜별 과목 카드 생성
+  // 날짜별 교시 카드 생성 (교시 기반 인라인 선택)
   let dateCards = '';
+  const examPeriods = _eaMidtermPeriodCount || 4; // 기본 4교시
   if (_eaMidtermStart && _eaMidtermEnd) {
     const dates = getDateRange(_eaMidtermStart, _eaMidtermEnd);
     const dayNames = ['일','월','화','수','목','금','토'];
+    const dayIdxMap = {'월':0,'화':1,'수':2,'목':3,'금':4};
     const dayColors = {'토':'#74B9FF','일':'#FF6B6B'};
     dateCards = dates.map((d, di) => {
       const dt = new Date(d + 'T00:00:00');
       const dayName = dayNames[dt.getDay()];
       const dayStyle = dayColors[dayName] ? `color:${dayColors[dayName]}` : '';
-      const subjects = (_eaMidtermSubjects[d] || []);
-      const hasSubj = subjects.length > 0;
+      const slotsForDay = _eaMidtermSubjects[d] || {};
+      const filledCount = Object.values(slotsForDay).filter(v => v && v.subject).length;
+      // 시간표에서 해당 요일의 교시 과목 가져오기
+      const ttDayIdx = dayIdxMap[dayName];
+      const ttSchool = state.timetable?.school || [];
       return `
-      <div class="ea-date-card ${hasSubj?'has-subj':''} stagger-${di+1} animate-in">
+      <div class="ea-date-card ${filledCount>0?'has-subj':''} stagger-${Math.min(di+1,5)} animate-in">
         <div class="ea-date-header">
           <span class="ea-date-badge"><span class="ea-date-day" style="${dayStyle}">${d.slice(5).replace('-','/')}</span> <span class="ea-date-dayname">(${dayName})</span></span>
-          <span class="ea-date-pill ${hasSubj?'filled':''}">${subjects.length}과목</span>
+          <span class="ea-date-pill ${filledCount>0?'filled':''}">${filledCount}과목</span>
         </div>
-        ${hasSubj ? `
-        <div class="ea-date-subjects" id="ea-subj-${d}">
-          ${subjects.map((s,si) => `
-            <div class="ea-subj-row">
-              <div class="ea-subj-color" style="background:${s.color}"></div>
-              <span class="ea-subj-name">${s.subject}</span>
-              <span class="ea-subj-time">${s.time || ''}</span>
-              <span class="ea-subj-range">${s.range || ''}</span>
-              <button class="ea-subj-del" onclick="removeMidtermSubject('${d}',${si})"><i class="fas fa-times"></i></button>
-            </div>
-          `).join('')}
+        <div class="ea-period-slots">
+          ${Array.from({length: examPeriods}, (_,pi) => {
+            const pNum = pi + 1;
+            const slot = slotsForDay[pNum];
+            const subj = slot?.subject || '';
+            const color = slot?.color || '';
+            // 시간표 기반 추천 과목
+            const ttSubj = (ttDayIdx !== undefined && ttSchool[pi]) ? (ttSchool[pi][ttDayIdx] || '') : '';
+            if (subj) {
+              return `<div class="ea-slot filled" style="border-left:3px solid ${color}">
+                <span class="ea-slot-period">${pNum}교시</span>
+                <span class="ea-slot-subj" style="color:${color}">${subj}</span>
+                <button class="ea-slot-clear" onclick="clearPeriodSlot('${d}',${pNum})"><i class="fas fa-times"></i></button>
+              </div>`;
+            } else {
+              return `<div class="ea-slot empty" onclick="openPeriodPicker('${d}',${pNum})">
+                <span class="ea-slot-period">${pNum}교시</span>
+                ${ttSubj && !['체육','미술','음악','창체','동아리'].includes(ttSubj) 
+                  ? `<span class="ea-slot-hint">${ttSubj}</span>` 
+                  : `<span class="ea-slot-hint">탭하여 선택</span>`}
+                <i class="fas fa-chevron-right ea-slot-arrow"></i>
+              </div>`;
+            }
+          }).join('')}
         </div>
-        ` : `<div class="ea-date-empty">과목을 추가해주세요</div>`}
-        <button class="ea-add-subj-btn" onclick="openMidtermSubjectAdd('${d}')">
-          <i class="fas fa-plus"></i> ${hasSubj ? '추가' : '과목 추가'}
-        </button>
       </div>`;
     }).join('');
   }
 
-  const totalSubjects = Object.values(_eaMidtermSubjects).reduce((s,arr) => s + arr.length, 0);
+  const totalSubjects = Object.values(_eaMidtermSubjects).reduce((s,slots) => {
+    if (typeof slots === 'object' && !Array.isArray(slots)) {
+      return s + Object.values(slots).filter(v => v && v.subject).length;
+    }
+    return s + (Array.isArray(slots) ? slots.length : 0);
+  }, 0);
   const typeLabel = _eaMidtermType === 'final' ? '기말고사' : '중간고사';
 
   return `
@@ -4039,6 +4058,14 @@ function renderExamAddMidterm() {
           </div>
         </div>
 
+        <!-- 시험 교시 수 -->
+        <label class="form-label" style="margin-top:10px">시험 교시 수</label>
+        <div class="ea-period-count-row">
+          ${[3,4,5].map(n => `
+            <button class="ea-period-count-btn ${examPeriods===n?'active':''}" onclick="_eaMidtermPeriodCount=${n};renderScreen()">${n}교시</button>
+          `).join('')}
+        </div>
+
         <!-- 날짜별 과목 카드 -->
         ${_eaMidtermStart && _eaMidtermEnd ? `
           <div class="ea-section-label">
@@ -4062,28 +4089,27 @@ function renderExamAddMidterm() {
       </div>
     </div>
 
-    <!-- 과목 추가 모달 -->
-    <div class="ea-modal-overlay" id="ea-subj-modal">
+    <!-- 교시 과목 선택 바텀시트 -->
+    <div class="ea-modal-overlay" id="ea-period-picker">
       <div class="ea-modal">
         <div class="ea-modal-header">
-          <h3><i class="fas fa-plus-circle" style="color:var(--primary);margin-right:6px"></i>과목 추가</h3>
-          <button class="ea-modal-close" onclick="closeEaModal()"><i class="fas fa-times"></i></button>
+          <h3 id="ea-pp-title"><i class="fas fa-book" style="color:var(--primary);margin-right:6px"></i>과목 선택</h3>
+          <button class="ea-modal-close" onclick="closePeriodPicker()"><i class="fas fa-times"></i></button>
         </div>
         <div class="ea-modal-body">
-          <label class="form-label">과목명</label>
-          <div class="ea-quick-subjects">
-            ${['국어','수학','영어','과학','한국사','사회','물리','화학','생명과학','지구과학'].map(s => 
-              `<button class="ea-quick-subj-btn" onclick="pickQuickSubject('${s}')">${s}</button>`
-            ).join('')}
+          <div class="ea-pp-hint" id="ea-pp-hint"></div>
+          <div class="ea-pp-grid" id="ea-pp-grid"></div>
+          <div style="margin-top:12px">
+            <label class="form-label" style="margin-top:0;font-size:13px">직접 입력</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="ea-pp-custom" class="form-input" placeholder="과목명 입력" style="flex:1;font-size:14px;padding:10px 12px">
+              <button class="btn-primary" style="padding:10px 16px;font-size:13px;white-space:nowrap" onclick="confirmPeriodCustom()">확인</button>
+            </div>
           </div>
-          <input type="text" id="ea-modal-subj" class="form-input" placeholder="직접 입력">
-          <label class="form-label">교시 / 시간</label>
-          <input type="text" id="ea-modal-time" class="form-input" placeholder="예: 1교시, 09:00">
-          <label class="form-label">시험 범위</label>
-          <input type="text" id="ea-modal-range" class="form-input" placeholder="예: 수학Ⅱ 1~3단원">
-          <button class="btn-primary" style="width:100%;margin-top:16px" onclick="confirmMidtermSubjectAdd()">
-            <i class="fas fa-plus" style="margin-right:6px"></i>추가
-          </button>
+          <div style="margin-top:10px">
+            <label class="form-label" style="margin-top:0;font-size:13px">시험 범위 (선택)</label>
+            <input type="text" id="ea-pp-range" class="form-input" placeholder="예: 수학Ⅱ 1~3단원" style="font-size:14px;padding:10px 12px">
+          </div>
         </div>
       </div>
     </div>
@@ -5166,8 +5192,11 @@ let _eaMidtermType = 'midterm';
 let _eaMidtermName = '';
 let _eaMidtermStart = '';
 let _eaMidtermEnd = '';
-let _eaMidtermSubjects = {}; // { '2026-04-21': [{subject,time,range,color}], ... }
+let _eaMidtermSubjects = {}; // { '2026-04-21': {1:{subject,color,range}, 2:{...}}, ... }
 let _eaMidtermAddingDate = ''; // 모달에서 추가 중인 날짜
+let _eaMidtermPeriodCount = 4; // 시험 교시 수 (기본 4교시)
+let _eaMidtermPickerDate = ''; // 현재 피커에서 선택 중인 날짜
+let _eaMidtermPickerPeriod = 0; // 현재 피커에서 선택 중인 교시
 // 수행평가 상태
 let _eaPerfSubject = '';
 let _eaPerfName = '';
@@ -5182,7 +5211,8 @@ let _eaMockDate = '';
 function resetExamAddState() {
   _examAddMode = null;
   _eaMidtermType = 'midterm'; _eaMidtermName = ''; _eaMidtermStart = ''; _eaMidtermEnd = '';
-  _eaMidtermSubjects = {}; _eaMidtermAddingDate = '';
+  _eaMidtermSubjects = {}; _eaMidtermAddingDate = ''; _eaMidtermPeriodCount = 4;
+  _eaMidtermPickerDate = ''; _eaMidtermPickerPeriod = 0;
   _eaPerfSubject = ''; _eaPerfName = ''; _eaPerfDeadline = ''; _eaPerfTopic = ''; _eaPerfMemo = '';
   _eaMockPreset = ''; _eaMockName = ''; _eaMockDate = '';
 }
@@ -5211,30 +5241,97 @@ function onMidtermPeriodChange() {
   if (_eaMidtermStart && _eaMidtermEnd) {
     const dates = getDateRange(_eaMidtermStart, _eaMidtermEnd);
     const newSubj = {};
-    dates.forEach(d => { newSubj[d] = _eaMidtermSubjects[d] || []; });
+    dates.forEach(d => { newSubj[d] = _eaMidtermSubjects[d] || {}; });
     _eaMidtermSubjects = newSubj;
   }
   renderScreen();
 }
 
-/* ── 중간·기말: 과목 추가 모달 ── */
-function openMidtermSubjectAdd(date) {
-  _eaMidtermAddingDate = date;
+/* ── 중간·기말: 교시별 과목 선택 피커 ── */
+function openPeriodPicker(date, period) {
+  _eaMidtermPickerDate = date;
+  _eaMidtermPickerPeriod = period;
   // 이름 저장
   const nameEl = document.getElementById('ea-mid-name');
   if (nameEl) _eaMidtermName = nameEl.value.trim();
-  const modal = document.getElementById('ea-subj-modal');
+
+  const modal = document.getElementById('ea-period-picker');
   if (modal) modal.classList.add('open');
-  setTimeout(() => { document.getElementById('ea-modal-subj')?.focus(); }, 200);
+
+  // 해당 날짜의 요일 기반 시간표 과목 추천
+  const dt = new Date(date + 'T00:00:00');
+  const dayNames = ['일','월','화','수','목','금','토'];
+  const dayIdxMap = {'월':0,'화':1,'수':2,'목':3,'금':4};
+  const dayName = dayNames[dt.getDay()];
+  const ttDayIdx = dayIdxMap[dayName];
+  const ttSchool = state.timetable?.school || [];
+  const ttSubj = (ttDayIdx !== undefined && ttSchool[period-1]) ? (ttSchool[period-1][ttDayIdx] || '') : '';
+
+  // 타이틀 업데이트
+  const titleEl = document.getElementById('ea-pp-title');
+  if (titleEl) titleEl.innerHTML = `<i class="fas fa-book" style="color:var(--primary);margin-right:6px"></i>${date.slice(5).replace('-','/')} (${dayName}) ${period}교시`;
+
+  // 힌트
+  const hintEl = document.getElementById('ea-pp-hint');
+  if (hintEl && ttSubj && !['체육','미술','음악','창체','동아리'].includes(ttSubj)) {
+    hintEl.innerHTML = `<i class="fas fa-magic" style="margin-right:6px"></i>시간표 기준: <strong>${ttSubj}</strong>`;
+    hintEl.style.display = 'flex';
+  } else if (hintEl) {
+    hintEl.style.display = 'none';
+  }
+
+  // 주요 과목 그리드 생성
+  const examSubjects = ['국어','수학','영어','과학','한국사','사회','물리','화학','생명과학','지구과학'];
+  const gridEl = document.getElementById('ea-pp-grid');
+  if (gridEl) {
+    gridEl.innerHTML = examSubjects.map(s => {
+      const c = _subjectColorMap[s] || '#888';
+      return `<button class="ea-pp-subj-btn" style="--subj-color:${c}" onclick="pickPeriodSubject('${s}')">${s}</button>`;
+    }).join('');
+  }
+
+  // 범위 초기화
+  const rangeEl = document.getElementById('ea-pp-range');
+  if (rangeEl) rangeEl.value = '';
+  const customEl = document.getElementById('ea-pp-custom');
+  if (customEl) customEl.value = '';
 }
 
-function closeEaModal() {
-  const modal = document.getElementById('ea-subj-modal');
+function closePeriodPicker() {
+  const modal = document.getElementById('ea-period-picker');
   if (modal) modal.classList.remove('open');
 }
 
+function pickPeriodSubject(subj) {
+  const d = _eaMidtermPickerDate;
+  const p = _eaMidtermPickerPeriod;
+  if (!_eaMidtermSubjects[d]) _eaMidtermSubjects[d] = {};
+  const color = _subjectColorMap[subj] || _subjectColorFallback[p % _subjectColorFallback.length];
+  const range = document.getElementById('ea-pp-range')?.value?.trim() || '';
+  _eaMidtermSubjects[d][p] = { subject: subj, color, range, period: p, date: d, readiness: 0, notes: '' };
+  closePeriodPicker();
+  renderScreen();
+}
+
+function confirmPeriodCustom() {
+  const subj = document.getElementById('ea-pp-custom')?.value?.trim();
+  if (!subj) { alert('과목명을 입력하세요'); return; }
+  pickPeriodSubject(subj);
+}
+
+function clearPeriodSlot(date, period) {
+  if (_eaMidtermSubjects[date]) {
+    delete _eaMidtermSubjects[date][period];
+    renderScreen();
+  }
+}
+
+function closeEaModal() {
+  closePeriodPicker();
+}
+
 function pickQuickSubject(name) {
-  const el = document.getElementById('ea-modal-subj');
+  const el = document.getElementById('ea-pp-custom');
   if (el) el.value = name;
 }
 
@@ -5246,24 +5343,12 @@ const _subjectColorMap = {
 const _subjectColorFallback = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#E056A0','#A29BFE','#FF9F43'];
 
 function confirmMidtermSubjectAdd() {
-  const subj = document.getElementById('ea-modal-subj')?.value?.trim();
-  const time = document.getElementById('ea-modal-time')?.value?.trim() || '';
-  const range = document.getElementById('ea-modal-range')?.value?.trim() || '';
-  if (!subj) { alert('과목명을 입력하세요'); return; }
-  const d = _eaMidtermAddingDate;
-  if (!_eaMidtermSubjects[d]) _eaMidtermSubjects[d] = [];
-  const idx = Object.values(_eaMidtermSubjects).reduce((s,a)=>s+a.length,0);
-  const color = _subjectColorMap[subj] || _subjectColorFallback[idx % _subjectColorFallback.length];
-  _eaMidtermSubjects[d].push({ subject:subj, time, range, color, date:d, readiness:0, notes:'' });
-  closeEaModal();
-  renderScreen();
+  // Legacy compatibility - redirect to period picker
+  confirmPeriodCustom();
 }
 
-function removeMidtermSubject(date, idx) {
-  if (_eaMidtermSubjects[date]) {
-    _eaMidtermSubjects[date].splice(idx, 1);
-    renderScreen();
-  }
+function removeMidtermSubject(date, period) {
+  clearPeriodSlot(date, period);
 }
 
 /* ── 중간·기말: 저장 ── */
@@ -5272,8 +5357,14 @@ function saveMidtermExam() {
   const name = nameEl?.value?.trim() || _eaMidtermName;
   if (!name) { alert('시험 이름을 입력하세요'); return; }
   const subjects = [];
-  Object.entries(_eaMidtermSubjects).forEach(([date, arr]) => {
-    arr.forEach(s => subjects.push({ ...s, date }));
+  Object.entries(_eaMidtermSubjects).forEach(([date, slots]) => {
+    if (typeof slots === 'object' && !Array.isArray(slots)) {
+      Object.entries(slots).forEach(([period, s]) => {
+        if (s && s.subject) {
+          subjects.push({ ...s, date, time: period + '교시' });
+        }
+      });
+    }
   });
   if (subjects.length === 0) { alert('최소 1개 과목을 추가하세요'); return; }
 
