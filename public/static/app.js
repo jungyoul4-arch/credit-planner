@@ -835,9 +835,16 @@ function renderOnboardingGuide() {
 // ==================== LOGIN / REGISTER SCREENS ====================
 
 function renderLoginScreen() {
+  // URL 파라미터에서 초대코드 확인 (예: ?code=JYCC-X2Z8-2ND7)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlInviteCode = urlParams.get('code') || urlParams.get('invite') || '';
   // 이전에 저장된 초대코드 자동 채우기
   const savedAuth = (() => { try { return JSON.parse(localStorage.getItem('cp_auth') || '{}'); } catch { return {}; } })();
-  const savedInviteCode = savedAuth.inviteCode || savedAuth.group?.inviteCode || '';
+  const savedInviteCode = urlInviteCode || savedAuth.inviteCode || savedAuth.group?.inviteCode || '';
+  
+  // 기본 초대코드 (멘토가 학생에게 공유용)
+  const DEFAULT_INVITE_CODE = 'JYCC-X2Z8-2ND7';
+  const showInviteCode = savedInviteCode || DEFAULT_INVITE_CODE;
   return `
     <div class="onboarding-screen animate-in">
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
@@ -854,9 +861,15 @@ function renderLoginScreen() {
 
         ${state._loginError ? `<div style="background:rgba(255,107,107,0.15);color:#FF6B6B;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;width:100%;text-align:center">${state._loginError}</div>` : ''}
 
+        <div style="background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(139,92,246,0.12));border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:12px 16px;margin-bottom:20px;width:100%;text-align:center">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">📋 정율사관학원 초대코드</div>
+          <div style="font-size:18px;font-weight:700;color:var(--primary-light);letter-spacing:3px;font-family:monospace">${DEFAULT_INVITE_CODE}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">이름과 비밀번호만 입력하면 로그인!</div>
+        </div>
+
         <div class="field-group" style="width:100%">
           <label class="field-label">초대 코드</label>
-          <input class="input-field" id="login-invite-code" placeholder="JYCC-XXXX-XXXX" value="${savedInviteCode}" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px" autocomplete="off">
+          <input class="input-field" id="login-invite-code" placeholder="JYCC-XXXX-XXXX" value="${showInviteCode}" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px" autocomplete="off">
         </div>
         <div class="field-group" style="width:100%">
           <label class="field-label">이름 (가입할 때 입력한 이름)</label>
@@ -884,6 +897,11 @@ function renderLoginScreen() {
 }
 
 function renderStudentRegister() {
+  // URL 파라미터 또는 기본 초대코드
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlCode = urlParams.get('code') || urlParams.get('invite') || '';
+  const DEFAULT_INVITE_CODE = 'JYCC-X2Z8-2ND7';
+  const prefillCode = urlCode || DEFAULT_INVITE_CODE;
   return `
     <div class="onboarding-screen animate-slide">
       <div class="screen-header" style="padding:0 0 16px 0">
@@ -893,9 +911,14 @@ function renderStudentRegister() {
 
       ${state._loginError ? `<div style="background:rgba(255,107,107,0.15);color:#FF6B6B;padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:16px;text-align:center">${state._loginError}</div>` : ''}
 
+      <div style="background:linear-gradient(135deg,rgba(34,197,94,0.12),rgba(16,185,129,0.12));border:1px solid rgba(34,197,94,0.25);border-radius:12px;padding:10px 16px;margin-bottom:16px;text-align:center">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">✅ 초대코드가 자동으로 입력되었어요</div>
+        <div style="font-size:15px;font-weight:700;color:#22c55e;letter-spacing:2px;font-family:monospace">${prefillCode}</div>
+      </div>
+
       <div class="field-group">
         <label class="field-label">초대 코드 <span style="color:#FF6B6B">*</span></label>
-        <input class="input-field" id="reg-invite-code" placeholder="선생님이 알려준 코드" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px">
+        <input class="input-field" id="reg-invite-code" placeholder="선생님이 알려준 코드" value="${prefillCode}" style="text-align:center;font-size:16px;font-weight:600;letter-spacing:2px">
         <div id="invite-code-status" style="font-size:12px;margin-top:4px;min-height:18px"></div>
       </div>
       <div class="field-group">
@@ -1050,6 +1073,8 @@ function initAuthEvents(container) {
       DB.loadAll().then(() => renderScreen());
       // 수업 종료 자동 감지 시작
       startClassEndChecker();
+      // 멀티디바이스 자동 동기화 시작
+      startAutoSync();
     } catch (e) {
       state._loginError = e.message;
       state._loginLoading = false;
@@ -1220,6 +1245,9 @@ function initAuthEvents(container) {
 // 로그아웃
 function logout() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
+  // 타이머 정리
+  stopAutoSync();
+  if (_classCheckTimer) { clearInterval(_classCheckTimer); _classCheckTimer = null; }
   state._authUser = null;
   state._authToken = null;
   state._authRole = null;
@@ -1263,6 +1291,8 @@ function autoLogin() {
         DB.loadAll().then(() => renderScreen());
         // 수업 종료 자동 감지 시작
         startClassEndChecker();
+        // 멀티디바이스 자동 동기화 시작
+        startAutoSync();
       }).catch(() => {
         // 서버 검증 실패 → 로그아웃
         console.log('Auto-login verification failed, logging out');
@@ -2018,6 +2048,117 @@ function startClassEndChecker() {
     }
   }, 60000); // 1분마다
 }
+
+// ==================== 자동 동기화 (멀티디바이스 지원) ====================
+let _syncTimer = null;
+let _syncInProgress = false;
+const SYNC_INTERVAL = 45000; // 45초
+
+function startAutoSync() {
+  if (_syncTimer) clearInterval(_syncTimer);
+  console.log('[SYNC] Auto-sync started (every 45s)');
+  _syncTimer = setInterval(async () => {
+    // 동기화 조건: 학생 모드, 로그인 상태, 메인 화면, 이전 동기화 완료
+    if (_syncInProgress) return;
+    if (!state._authUser?.id) return;
+    if (state._authRole !== 'student' && state.mode !== 'student') return;
+    // 기록 작성 중(record-class, record-question 등)이면 동기화 스킵
+    const recordScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','class-end-popup','academy-record-popup','evening-routine'];
+    if (recordScreens.includes(state.currentScreen)) return;
+    
+    _syncInProgress = true;
+    try {
+      const sid = state._authUser.id;
+      const [crRes, qrRes, trRes, assignRes, profileRes] = await Promise.all([
+        fetch(`/api/student/${sid}/class-records`).catch(() => null),
+        fetch(`/api/student/${sid}/question-records`).catch(() => null),
+        fetch(`/api/student/${sid}/teach-records`).catch(() => null),
+        fetch(`/api/student/${sid}/assignments`).catch(() => null),
+        fetch(`/api/student/${sid}/profile`).catch(() => null),
+      ]);
+      
+      let changed = false;
+      
+      if (crRes?.ok) {
+        const data = await crRes.json();
+        const newRecords = (data.records || []).map(r => ({ ...r, _source: 'db', id: r.id, _dbId: r.id }));
+        if (newRecords.length !== (state._dbClassRecords || []).length) {
+          state._dbClassRecords = newRecords;
+          changed = true;
+        }
+      }
+      if (qrRes?.ok) {
+        const data = await qrRes.json();
+        const newRecords = (data.records || []).map(r => ({ ...r, _source: 'db', id: r.id, _dbId: r.id }));
+        if (newRecords.length !== (state._dbQuestionRecords || []).length) {
+          state._dbQuestionRecords = newRecords;
+          changed = true;
+        }
+      }
+      if (trRes?.ok) {
+        const data = await trRes.json();
+        const newRecords = data.records || [];
+        if (newRecords.length !== (state._dbTeachRecords || []).length) {
+          state._dbTeachRecords = newRecords;
+          changed = true;
+        }
+      }
+      if (assignRes?.ok) {
+        const data = await assignRes.json();
+        const newAssignments = data.assignments || [];
+        if (newAssignments.length !== (state._dbAssignments || []).length) {
+          state._dbAssignments = newAssignments;
+          changed = true;
+        }
+      }
+      if (profileRes?.ok) {
+        const data = await profileRes.json();
+        if (data.xp !== state.xp || data.level !== state.level) {
+          state.xp = data.xp || 0;
+          state.level = data.level || 1;
+          changed = true;
+        }
+      }
+      
+      if (changed) {
+        console.log('[SYNC] Data changed, refreshing UI');
+        // todayRecords도 갱신
+        if (typeof syncTodayRecords === 'function') syncTodayRecords();
+        renderScreen();
+      }
+    } catch (e) {
+      console.error('[SYNC] Auto-sync error:', e);
+    } finally {
+      _syncInProgress = false;
+    }
+  }, SYNC_INTERVAL);
+}
+
+function stopAutoSync() {
+  if (_syncTimer) {
+    clearInterval(_syncTimer);
+    _syncTimer = null;
+    console.log('[SYNC] Auto-sync stopped');
+  }
+}
+
+// 탭 전환 시 동기화 관리 (배터리 절약)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // 탭 비활성 → 동기화 일시 정지
+    stopAutoSync();
+  } else {
+    // 탭 활성화 → 즉시 1회 동기화 + 타이머 재시작
+    if (state._authRole === 'student' && state._authUser?.id) {
+      console.log('[SYNC] Tab visible, resuming sync');
+      DB.loadAll().then(() => {
+        if (typeof syncTodayRecords === 'function') syncTodayRecords();
+        renderScreen();
+      });
+      startAutoSync();
+    }
+  }
+});
 
 // 수업 종료 인앱 알림 배너
 function showClassEndNotification(record) {
