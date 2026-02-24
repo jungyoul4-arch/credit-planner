@@ -465,12 +465,54 @@ function renderScreen() {
     deskContainer.innerHTML = renderMentorDashboard();
     initMentorEvents();
   } else if (state.mode === 'mentor-student-viewer') {
-    // 멘토가 학생 플래너를 직접 열람하는 모드
+    // 멘토가 학생 플래너를 열람: 학생 모드와 100% 동일한 UI, 상단 멘토 바만 추가
+    desktopContainer.style.display = 'none';
     phoneContainer.style.display = 'none';
-    tabletContainer.style.display = 'none';
-    desktopContainer.style.display = 'block';
-    deskContainer.innerHTML = renderMentorStudentViewer();
-    initMentorStudentViewerEvents();
+    tabletContainer.style.display = 'flex';
+    
+    // 사이드바: 학생과 동일하게 렌더링
+    const sidebarEl = document.getElementById('tablet-sidebar');
+    if (sidebarEl) {
+      sidebarEl.style.display = 'flex';
+      sidebarEl.innerHTML = renderSidebar();
+      sidebarEl.querySelectorAll('.sidebar-nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tab = btn.dataset.tab;
+          if (tab === 'myqa') { openMyQaIframe(); return; }
+          if (tab === 'community') { openCommunityNewTab(); return; }
+          state.studentTab = tab;
+          state.currentScreen = 'main';
+          renderScreen();
+        });
+      });
+    }
+    
+    // 멘토 바 (작은 상단 배너) + 학생 콘텐츠
+    const sname = _mentor.viewerStudentName || '';
+    const semoji = _mentor.viewerStudentEmoji || '🐻';
+    const mentorBarHtml = `
+      <div id="mentor-viewer-bar" style="background:linear-gradient(135deg,var(--primary),#4a6cf7);padding:8px 16px;display:flex;align-items:center;gap:10px;color:white;font-size:13px;flex-shrink:0">
+        <button onclick="mentorExitStudentView()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap"><i class="fas fa-arrow-left" style="margin-right:4px"></i>학생 목록</button>
+        <span style="font-size:16px">${semoji}</span>
+        <span style="font-weight:700;font-size:13px">${sname} 학생의 플래너</span>
+        <span style="margin-left:auto;padding:3px 10px;background:rgba(255,255,255,0.2);border-radius:14px;font-size:11px;font-weight:600;white-space:nowrap">👁 열람 모드</span>
+      </div>`;
+    
+    if (_mentor.viewerLoading) {
+      tabletContent.innerHTML = mentorBarHtml + `
+        <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
+          <i class="fas fa-spinner fa-spin" style="font-size:36px;color:var(--primary-light)"></i>
+          <p style="margin-top:16px;font-size:16px;font-weight:600">${sname} 학생 데이터를 불러오는 중...</p>
+        </div>`;
+    } else {
+      tabletContent.innerHTML = mentorBarHtml + renderStudentApp();
+      initStudentEvents(tabletContent);
+    }
+    
+    setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
+    setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
+    setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
+    setTimeout(() => smartScrollTimetable(), 80);
   } else {
     phoneContainer.style.display = 'none';
     tabletContainer.style.display = 'none';
