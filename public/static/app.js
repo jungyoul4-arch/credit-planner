@@ -11788,15 +11788,12 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
     myQaStats: state.myQaStats,
   };
 
-  // 2. 뷰어 상태 설정
+  // 2. 뷰어 상태 설정 + 즉시 화면 전환
   _mentor.viewerStudentId = studentId;
   _mentor.viewerStudentName = studentName || '';
   _mentor.viewerStudentEmoji = studentEmoji || '🐻';
   _mentor.viewerLoading = true;
-  _mentor.viewerTab = 'home';
-  _mentor.viewerScreen = 'main';
 
-  // 3. 학생 모드로 전환 (데이터 로드용)
   state._authUser = { id: studentId, name: studentName };
   state._authRole = 'student';
   state.mode = 'mentor-student-viewer';
@@ -11804,10 +11801,14 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
   state.studentTab = 'home';
   renderScreen();
 
-  // 4. 학생 데이터 로드
+  // 3. all-records API 1건 + profile 1건 = 총 2건만 호출 (빠름!)
   try {
-    // 프로필 먼저 로드
-    const profileRes = await fetch(`/api/student/${studentId}/profile`);
+    const [profileRes, allRes] = await Promise.all([
+      fetch(`/api/student/${studentId}/profile`),
+      fetch(`/api/mentor/student/${studentId}/all-records`),
+    ]);
+
+    // 프로필
     if (profileRes.ok) {
       const profile = await profileRes.json();
       state.xp = profile.xp || 0;
@@ -11815,17 +11816,67 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
       state.streak = profile.streak || 0;
       state._authUser = { ...state._authUser, ...profile };
     }
-    // 전체 데이터 로드
-    await DB.loadAll();
-    // QA 통계 로드
+
+    // all-records → state에 직접 매핑
+    if (allRes.ok) {
+      const d = await allRes.json();
+      const allRecs = d.dailyRecords || [];
+
+      // class records
+      state._dbClassRecords = [];
+      // question records
+      state._dbQuestionRecords = [];
+      // teach records
+      state._dbTeachRecords = [];
+      // activity records
+      state._dbActivityRecords = [];
+      // report records
+      state._dbReportRecords = [];
+      // assignments
+      state._dbAssignments = [];
+
+      allRecs.forEach(day => {
+        (day.records || []).forEach(r => {
+          if (r.type === 'class') {
+            state._dbClassRecords.push({
+              id: r.id, date: r.date, subject: r.subject, period: r.period,
+              content: r.content, keywords: r.keywords || r.keyword,
+              understanding: r.understanding, memo: r.memo,
+              teacher_note: r.teacher_note, created_at: r.created_at,
+              _photoCount: r._photoCount, _photoIds: r._photoIds,
+            });
+          } else if (r.type === 'question') {
+            state._dbQuestionRecords.push({
+              id: r.id, subject: r.subject, question: r.question,
+              context: r.context, level: r.level, created_at: r.created_at,
+            });
+          } else if (r.type === 'teach') {
+            state._dbTeachRecords.push(r);
+          } else if (r.type === 'activity') {
+            state._dbActivityRecords.push(r);
+          } else if (r.type === 'report') {
+            state._dbReportRecords.push(r);
+          } else if (r.type === 'assignment') {
+            state._dbAssignments.push(r);
+          }
+        });
+      });
+
+      // exams, feedbacks
+      state._dbExams = d.exams || [];
+      state._mentorFeedbacks = d.feedbacks || [];
+      state._mentorFeedbackUnread = 0;
+    }
+
+    // QA 통계 (비동기, 안 기다림)
     fetch(`/api/my-questions/stats?studentId=${studentId}`)
-      .then(r => r.json()).then(d => { state.myQaStats = d; }).catch(() => {});
+      .then(r => r.json()).then(data => { state.myQaStats = data; }).catch(() => {});
+
   } catch (e) {
     console.error('mentorEnterStudentView:', e);
   }
 
   _mentor.viewerLoading = false;
-  // syncTodayRecords / initTodayAcademy는 시간표 데이터가 필요하므로 호출
   syncTodayRecords();
   initTodayAcademy();
   renderScreen();
