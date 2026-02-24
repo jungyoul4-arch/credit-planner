@@ -13477,3 +13477,115 @@ syncTodayRecords(); // 오늘 요일 기준 학교 시간표 동적 생성
 initTodayAcademy(); // 오늘 요일 기준 학원 시간표 동적 생성
 autoLogin();
 renderScreen();
+
+// ==================== PWA 설치 유도 + 업데이트 알림 ====================
+// (기존 로직과 완전 독립 — 이 블록은 추가만 되며 기존 함수를 수정하지 않음)
+
+(function initPWA() {
+  // --- 1. Android/Desktop: beforeinstallprompt 캡처 ---
+  let _deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    _deferredPrompt = e;
+    showInstallBanner('android');
+  });
+
+  // --- 2. 설치 완료 감지 ---
+  window.addEventListener('appinstalled', () => {
+    _deferredPrompt = null;
+    hideInstallBanner();
+    console.log('[PWA] App installed!');
+  });
+
+  // --- 3. iOS 감지 (standalone이 아닐 때만) ---
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  if (isIOS && !isStandalone) {
+    // iOS는 beforeinstallprompt가 없으므로 첫 방문 3초 후 가이드 표시
+    const dismissed = localStorage.getItem('pwa_ios_dismissed');
+    if (!dismissed) {
+      setTimeout(() => showInstallBanner('ios'), 3000);
+    }
+  }
+
+  // --- 4. 배너 표시 함수 ---
+  function showInstallBanner(type) {
+    if (isStandalone) return; // 이미 앱으로 실행 중이면 표시 안 함
+    if (document.getElementById('pwa-install-banner')) return; // 중복 방지
+
+    const banner = document.createElement('div');
+    banner.id = 'pwa-install-banner';
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom));background:linear-gradient(135deg,#6C5CE7,#8B5CF6);box-shadow:0 -4px 20px rgba(0,0,0,0.3);animation:slideUp .3s ease';
+
+    if (type === 'ios') {
+      banner.innerHTML = `
+        <div style="max-width:400px;margin:0 auto;color:#fff">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <img src="/static/icon-192.png" style="width:36px;height:36px;border-radius:8px" alt="">
+              <div>
+                <div style="font-weight:700;font-size:14px">앱으로 설치하기</div>
+                <div style="font-size:11px;opacity:0.85">홈 화면에 추가하면 더 빠르게!</div>
+              </div>
+            </div>
+            <button onclick="document.getElementById('pwa-install-banner').remove();localStorage.setItem('pwa_ios_dismissed','1')" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px">✕</button>
+          </div>
+          <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:10px 14px;font-size:12px;line-height:1.6">
+            <span style="font-size:16px">📲</span> 하단 <b>공유 버튼</b> <span style="font-size:14px">⎋</span> 탭 → <b>"홈 화면에 추가"</b> 선택
+          </div>
+        </div>`;
+    } else {
+      banner.innerHTML = `
+        <div style="max-width:400px;margin:0 auto;color:#fff;display:flex;align-items:center;gap:12px">
+          <img src="/static/icon-192.png" style="width:40px;height:40px;border-radius:8px" alt="">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">학점플래너 앱 설치</div>
+            <div style="font-size:11px;opacity:0.85">홈 화면에서 바로 실행!</div>
+          </div>
+          <button id="pwa-install-btn" style="background:#fff;color:#6C5CE7;border:none;border-radius:8px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer">설치</button>
+          <button onclick="document.getElementById('pwa-install-banner').remove()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px">✕</button>
+        </div>`;
+    }
+    document.body.appendChild(banner);
+
+    // Android/Desktop 설치 버튼 이벤트
+    const installBtn = banner.querySelector('#pwa-install-btn');
+    if (installBtn && _deferredPrompt) {
+      installBtn.addEventListener('click', async () => {
+        _deferredPrompt.prompt();
+        const { outcome } = await _deferredPrompt.userChoice;
+        console.log('[PWA] Install prompt outcome:', outcome);
+        _deferredPrompt = null;
+        hideInstallBanner();
+      });
+    }
+  }
+
+  function hideInstallBanner() {
+    const el = document.getElementById('pwa-install-banner');
+    if (el) el.remove();
+  }
+
+  // --- 5. 업데이트 토스트 알림 ---
+  window._showPwaUpdateToast = function() {
+    if (document.getElementById('pwa-update-toast')) return;
+    const toast = document.createElement('div');
+    toast.id = 'pwa-update-toast';
+    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:99999;background:#1e293b;color:#fff;padding:12px 20px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.3);font-size:13px;display:flex;align-items:center;gap:10px;animation:slideDown .3s ease;max-width:90vw';
+    toast.innerHTML = `
+      <span>🔄 새 버전이 있습니다</span>
+      <button onclick="location.reload()" style="background:#6C5CE7;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">업데이트</button>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#999;font-size:16px;cursor:pointer">✕</button>`;
+    document.body.appendChild(toast);
+    setTimeout(() => { if (document.body.contains(toast)) toast.remove(); }, 15000);
+  };
+
+  // --- 6. CSS 애니메이션 추가 (기존 스타일 시트에 영향 없음) ---
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  `;
+  document.head.appendChild(style);
+})();

@@ -2104,8 +2104,27 @@ app.get('/', (c) => {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/static/sw.js')
-          .then(reg => console.log('SW registered:', reg.scope))
+          .then(reg => {
+            console.log('SW registered:', reg.scope);
+            // 새 SW가 대기 중이면 즉시 활성화
+            reg.addEventListener('updatefound', () => {
+              const newSW = reg.installing;
+              if (newSW) {
+                newSW.addEventListener('statechange', () => {
+                  if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+                    console.log('[PWA] New version available');
+                    if (typeof window._showPwaUpdateToast === 'function') window._showPwaUpdateToast();
+                  }
+                });
+              }
+            });
+          })
           .catch(err => console.log('SW registration failed:', err));
+      });
+      // 컨트롤러 변경 시 새로고침 (새 SW 활성화 완료)
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (window._swReloading) return;
+        window._swReloading = true;
       });
     }
   </script>
