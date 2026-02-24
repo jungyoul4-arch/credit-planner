@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'cp-v2';
+const CACHE_VERSION = 'cp-v3';
 const STATIC_ASSETS = [
   '/',
   '/static/app.js',
