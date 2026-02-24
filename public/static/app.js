@@ -3694,7 +3694,7 @@ function renderExamList() {
       <div class="screen-header">
         <button class="back-btn" onclick="goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
         <h1>🎯 시험 관리</h1>
-        <button class="header-action-btn" onclick="goScreen('exam-add')" title="시험 추가"><i class="fas fa-plus"></i></button>
+        <button class="header-action-btn" onclick="resetExamAddState();goScreen('exam-add')" title="시험 추가"><i class="fas fa-plus"></i></button>
       </div>
       <div class="form-body">
 
@@ -3759,7 +3759,7 @@ function renderExamList() {
         `).join('')}
         ` : ''}
 
-        <button class="btn-primary" style="width:100%;margin-top:20px" onclick="goScreen('exam-add')">
+        <button class="btn-primary" style="width:100%;margin-top:20px" onclick="resetExamAddState();goScreen('exam-add')">
           <i class="fas fa-plus" style="margin-right:6px"></i>시험 추가
         </button>
 
@@ -3917,61 +3917,314 @@ function renderExamDetail() {
 
 
 function renderExamAdd() {
-  const types = [
-    { key:'midterm', icon:'📘', label:'중간고사' },
-    { key:'final', icon:'📕', label:'기말고사' },
-    { key:'mock', icon:'📗', label:'모의고사' },
-    { key:'performance', icon:'📝', label:'수행평가' },
-  ];
-  return `
+  // 모드가 아직 선택되지 않았으면 모드 선택 화면
+  if (!_examAddMode) {
+    return `
     <div class="full-screen animate-in">
       <div class="screen-header">
         <button class="back-btn" onclick="goScreen('exam-list')"><i class="fas fa-arrow-left"></i></button>
         <h1>📝 시험 추가</h1>
       </div>
       <div class="form-body">
-
-        <label class="form-label">시험 유형</label>
-        <div class="exam-type-grid">
-          ${types.map(t => `
-            <button class="exam-type-btn ${_selectedExamType===t.key?'active':''}" data-type="${t.key}" onclick="selectExamType(this,'${t.key}')">
-              <span style="font-size:20px">${t.icon}</span>
-              <span>${t.label}</span>
-            </button>
-          `).join('')}
+        <div class="ea-mode-title">어떤 시험을 추가할까요?</div>
+        <div class="ea-mode-grid">
+          <button class="ea-mode-card" onclick="_examAddMode='midterm';renderScreen()">
+            <div class="ea-mode-icon" style="background:rgba(108,92,231,0.15);color:#6C5CE7">📘</div>
+            <div class="ea-mode-label">중간 · 기말고사</div>
+            <div class="ea-mode-desc">시험 기간 설정 후 날짜별 과목을 추가해요</div>
+            <i class="fas fa-chevron-right ea-mode-arrow"></i>
+          </button>
+          <button class="ea-mode-card" onclick="_examAddMode='performance';renderScreen()">
+            <div class="ea-mode-icon" style="background:rgba(253,203,110,0.2);color:#F39C12">📝</div>
+            <div class="ea-mode-label">수행평가</div>
+            <div class="ea-mode-desc">마감 기한과 평가 주제만 간단히 입력해요</div>
+            <i class="fas fa-chevron-right ea-mode-arrow"></i>
+          </button>
+          <button class="ea-mode-card" onclick="_examAddMode='mock';renderScreen()">
+            <div class="ea-mode-icon" style="background:rgba(0,184,148,0.15);color:#00B894">📗</div>
+            <div class="ea-mode-label">모의고사</div>
+            <div class="ea-mode-desc">프리셋으로 한 번에 입력! 클릭 한 번이면 끝</div>
+            <i class="fas fa-chevron-right ea-mode-arrow"></i>
+          </button>
         </div>
+      </div>
+    </div>`;
+  }
 
-        <label class="form-label">시험 이름</label>
-        <input type="text" id="exam-name" class="form-input" placeholder="예: 1학기 중간고사">
+  // 모드별 분기
+  if (_examAddMode === 'midterm') return renderExamAddMidterm();
+  if (_examAddMode === 'performance') return renderExamAddPerformance();
+  if (_examAddMode === 'mock') return renderExamAddMock();
+  return '';
+}
 
-        <div style="display:flex;gap:8px">
-          <div style="flex:1">
-            <label class="form-label">시작일</label>
-            <input type="date" id="exam-start" class="form-input" value="2025-04-21">
-          </div>
-          <div style="flex:1">
-            <label class="form-label">종료일</label>
-            <input type="date" id="exam-end" class="form-input" value="2025-04-25">
-          </div>
+/* ── 중간 · 기말고사 모드 ── */
+function renderExamAddMidterm() {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth()+1).padStart(2,'0');
+  const defaultStart = _eaMidtermStart || `${y}-${m}-21`;
+  const defaultEnd = _eaMidtermEnd || `${y}-${m}-25`;
+
+  // 날짜별 과목 카드 생성
+  let dateCards = '';
+  if (_eaMidtermStart && _eaMidtermEnd) {
+    const dates = getDateRange(_eaMidtermStart, _eaMidtermEnd);
+    const dayNames = ['일','월','화','수','목','금','토'];
+    dateCards = dates.map((d, di) => {
+      const dt = new Date(d + 'T00:00:00');
+      const dayName = dayNames[dt.getDay()];
+      const subjects = (_eaMidtermSubjects[d] || []);
+      return `
+      <div class="ea-date-card stagger-${di+1} animate-in">
+        <div class="ea-date-header">
+          <span class="ea-date-badge">${d.slice(5).replace('-','/')} (${dayName})</span>
+          <span class="ea-date-count">${subjects.length}과목</span>
         </div>
-
-        <label class="form-label" style="margin-top:16px">시험 과목 추가</label>
-        <div id="exam-subjects-container">
-          <div class="exam-add-subj-card">
-            <div class="exam-add-subj-top">
-              <input type="text" class="form-input exam-subj-input" placeholder="과목명 (예: 수학)">
-              <input type="date" class="form-input exam-date-input" value="2025-04-21">
+        <div class="ea-date-subjects" id="ea-subj-${d}">
+          ${subjects.map((s,si) => `
+            <div class="ea-subj-row">
+              <div class="ea-subj-color" style="background:${s.color}"></div>
+              <span class="ea-subj-name">${s.subject}</span>
+              <span class="ea-subj-time">${s.time || ''}</span>
+              <span class="ea-subj-range">${s.range || ''}</span>
+              <button class="ea-subj-del" onclick="removeMidtermSubject('${d}',${si})"><i class="fas fa-times"></i></button>
             </div>
-            <input type="text" class="form-input exam-range-input" placeholder="시험 범위 (예: 수학Ⅱ 1~3단원)">
-          </div>
+          `).join('')}
+          ${subjects.length === 0 ? '<div class="ea-date-empty">과목을 추가해주세요</div>' : ''}
         </div>
-        <button class="btn-text" onclick="addExamSubjectRow()" style="margin-top:8px;font-size:13px">
+        <button class="ea-add-subj-btn" onclick="openMidtermSubjectAdd('${d}')">
           <i class="fas fa-plus"></i> 과목 추가
         </button>
+      </div>`;
+    }).join('');
+  }
 
-        <button class="btn-primary" style="width:100%;margin-top:24px" onclick="saveNewExam()">
-          <i class="fas fa-check" style="margin-right:6px"></i>시험 저장
-        </button>
+  const totalSubjects = Object.values(_eaMidtermSubjects).reduce((s,arr) => s + arr.length, 0);
+  const typeLabel = _eaMidtermType === 'final' ? '기말고사' : '중간고사';
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="_examAddMode=null;renderScreen()"><i class="fas fa-arrow-left"></i></button>
+        <h1>📘 ${typeLabel} 추가</h1>
+      </div>
+      <div class="form-body" style="padding-bottom:100px">
+
+        <!-- 중간/기말 토글 -->
+        <div class="ea-toggle-row">
+          <button class="ea-toggle-btn ${_eaMidtermType!=='final'?'active':''}" onclick="_eaMidtermType='midterm';renderScreen()">중간고사</button>
+          <button class="ea-toggle-btn ${_eaMidtermType==='final'?'active':''}" onclick="_eaMidtermType='final';renderScreen()">기말고사</button>
+        </div>
+
+        <!-- 시험 이름 -->
+        <label class="form-label">시험 이름</label>
+        <input type="text" id="ea-mid-name" class="form-input" placeholder="예: 1학기 ${typeLabel}" value="${_eaMidtermName || ''}">
+
+        <!-- 시험 기간 바 -->
+        <label class="form-label" style="margin-top:14px">시험 기간</label>
+        <div class="ea-period-bar">
+          <div class="ea-period-field">
+            <i class="fas fa-calendar-day"></i>
+            <input type="date" id="ea-mid-start" class="ea-period-input" value="${defaultStart}" onchange="onMidtermPeriodChange()">
+          </div>
+          <div class="ea-period-arrow"><i class="fas fa-arrow-right"></i></div>
+          <div class="ea-period-field">
+            <i class="fas fa-calendar-check"></i>
+            <input type="date" id="ea-mid-end" class="ea-period-input" value="${defaultEnd}" onchange="onMidtermPeriodChange()">
+          </div>
+        </div>
+
+        <!-- 날짜별 과목 카드 -->
+        ${_eaMidtermStart && _eaMidtermEnd ? `
+          <div class="ea-section-label">
+            <span>날짜별 시험 과목</span>
+            <span class="ea-section-count">${totalSubjects}과목</span>
+          </div>
+          ${dateCards}
+        ` : `
+          <div class="ea-hint-box">
+            <i class="fas fa-info-circle"></i>
+            시험 기간을 설정하면 날짜별 과목을 추가할 수 있어요
+          </div>
+        `}
+
+        <!-- 하단 저장 버튼 -->
+        <div class="ea-bottom-bar">
+          <button class="btn-primary ea-save-btn" onclick="saveMidtermExam()" ${totalSubjects===0?'disabled':''}>
+            <i class="fas fa-check" style="margin-right:8px"></i>${typeLabel} 저장
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 과목 추가 모달 -->
+    <div class="ea-modal-overlay" id="ea-subj-modal">
+      <div class="ea-modal">
+        <div class="ea-modal-header">
+          <h3><i class="fas fa-plus-circle" style="color:var(--primary);margin-right:6px"></i>과목 추가</h3>
+          <button class="ea-modal-close" onclick="closeEaModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="ea-modal-body">
+          <label class="form-label">과목명</label>
+          <div class="ea-quick-subjects">
+            ${['국어','수학','영어','과학','한국사','사회','물리','화학','생명과학','지구과학'].map(s => 
+              `<button class="ea-quick-subj-btn" onclick="pickQuickSubject('${s}')">${s}</button>`
+            ).join('')}
+          </div>
+          <input type="text" id="ea-modal-subj" class="form-input" placeholder="직접 입력">
+          <label class="form-label">교시 / 시간</label>
+          <input type="text" id="ea-modal-time" class="form-input" placeholder="예: 1교시, 09:00">
+          <label class="form-label">시험 범위</label>
+          <input type="text" id="ea-modal-range" class="form-input" placeholder="예: 수학Ⅱ 1~3단원">
+          <button class="btn-primary" style="width:100%;margin-top:16px" onclick="confirmMidtermSubjectAdd()">
+            <i class="fas fa-plus" style="margin-right:6px"></i>추가
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── 수행평가 모드 ── */
+function renderExamAddPerformance() {
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="_examAddMode=null;renderScreen()"><i class="fas fa-arrow-left"></i></button>
+        <h1>📝 수행평가 추가</h1>
+      </div>
+      <div class="form-body" style="padding-bottom:100px">
+
+        <label class="form-label">과목</label>
+        <div class="ea-quick-subjects" style="margin-bottom:6px">
+          ${['국어','수학','영어','과학','한국사','사회','물리','화학','생명과학','미술','음악','체육'].map(s => 
+            `<button class="ea-quick-subj-btn ${_eaPerfSubject===s?'active':''}" onclick="_eaPerfSubject='${s}';document.getElementById('ea-perf-subj').value='${s}';renderScreen()">${s}</button>`
+          ).join('')}
+        </div>
+        <input type="text" id="ea-perf-subj" class="form-input" placeholder="직접 입력" value="${_eaPerfSubject || ''}">
+
+        <label class="form-label" style="margin-top:14px">수행평가 이름</label>
+        <input type="text" id="ea-perf-name" class="form-input" placeholder="예: 수학 탐구보고서, 영어 발표" value="${_eaPerfName || ''}">
+
+        <label class="form-label" style="margin-top:14px">마감 기한</label>
+        <div class="ea-period-field ea-single-date">
+          <i class="fas fa-clock" style="color:#F39C12"></i>
+          <input type="date" id="ea-perf-deadline" class="ea-period-input" value="${_eaPerfDeadline || ''}">
+        </div>
+
+        <label class="form-label" style="margin-top:14px">평가 주제</label>
+        <textarea id="ea-perf-topic" class="form-input ea-textarea" placeholder="예: 자유주제 탐구보고서 A4 5장 이상\n미적분 활용 사례 조사">${_eaPerfTopic || ''}</textarea>
+
+        <label class="form-label" style="margin-top:14px">메모 (선택)</label>
+        <input type="text" id="ea-perf-memo" class="form-input" placeholder="참고 사항을 입력하세요" value="${_eaPerfMemo || ''}">
+
+        <!-- 하단 저장 버튼 -->
+        <div class="ea-bottom-bar">
+          <button class="btn-primary ea-save-btn" onclick="savePerformanceExam()">
+            <i class="fas fa-check" style="margin-right:8px"></i>수행평가 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── 모의고사 모드 ── */
+function renderExamAddMock() {
+  // 프리셋 목록
+  const presets = [
+    { key:'3월', label:'3월 전국연합학력평가', month:3 },
+    { key:'4월', label:'4월 전국연합학력평가', month:4 },
+    { key:'6월', label:'6월 모의평가 (평가원)', month:6 },
+    { key:'7월', label:'7월 전국연합학력평가', month:7 },
+    { key:'9월', label:'9월 모의평가 (평가원)', month:9 },
+    { key:'10월', label:'10월 전국연합학력평가', month:10 },
+    { key:'수능', label:'대학수학능력시험', month:11 },
+  ];
+  const mockSubjects = [
+    { subject:'국어', time:'1교시 (08:40~10:00)', range:'독서+문학+언어와 매체', color:'#FF6B6B' },
+    { subject:'수학', time:'2교시 (10:30~12:10)', range:'수학Ⅰ+수학Ⅱ+확률과 통계/미적분/기하', color:'#6C5CE7' },
+    { subject:'영어', time:'3교시 (13:10~14:20)', range:'듣기+독해 전 범위', color:'#00B894' },
+    { subject:'한국사', time:'3교시 (14:30~14:50)', range:'전 범위', color:'#74B9FF' },
+    { subject:'탐구1', time:'4교시 (15:20~15:50)', range:'선택과목 1', color:'#FDCB6E' },
+    { subject:'탐구2', time:'4교시 (15:50~16:20)', range:'선택과목 2', color:'#E056A0' },
+  ];
+
+  const year = new Date().getFullYear();
+
+  return `
+    <div class="full-screen animate-in">
+      <div class="screen-header">
+        <button class="back-btn" onclick="_examAddMode=null;renderScreen()"><i class="fas fa-arrow-left"></i></button>
+        <h1>📗 모의고사 추가</h1>
+      </div>
+      <div class="form-body" style="padding-bottom:100px">
+
+        <div class="ea-mock-intro">
+          <i class="fas fa-magic" style="color:var(--primary);font-size:18px"></i>
+          <span>프리셋을 선택하면 과목·시간이 자동으로 채워져요</span>
+        </div>
+
+        <!-- 프리셋 버튼 -->
+        <div class="ea-section-label"><span>🗓️ ${year}년 모의고사 프리셋</span></div>
+        <div class="ea-preset-grid">
+          ${presets.map((p,i) => {
+            const sel = _eaMockPreset === p.key;
+            return `
+            <button class="ea-preset-btn ${sel?'active':''} stagger-${i+1} animate-in" onclick="selectMockPreset('${p.key}')">
+              <span class="ea-preset-month">${p.key}</span>
+              <span class="ea-preset-name">${p.label}</span>
+              ${sel ? '<i class="fas fa-check-circle ea-preset-check"></i>' : ''}
+            </button>`;
+          }).join('')}
+        </div>
+
+        <!-- 선택 후 상세 -->
+        ${_eaMockPreset ? `
+          <label class="form-label" style="margin-top:16px">시험 이름</label>
+          <input type="text" id="ea-mock-name" class="form-input" value="${_eaMockName || presets.find(p=>p.key===_eaMockPreset)?.label || ''}" placeholder="시험 이름">
+
+          <label class="form-label" style="margin-top:14px">시험 날짜</label>
+          <div class="ea-period-field ea-single-date">
+            <i class="fas fa-calendar-day" style="color:#00B894"></i>
+            <input type="date" id="ea-mock-date" class="ea-period-input" value="${_eaMockDate || `${year}-${String(presets.find(p=>p.key===_eaMockPreset)?.month||3).padStart(2,'0')}-06`}">
+          </div>
+
+          <div class="ea-section-label" style="margin-top:16px">
+            <span>📋 시험 과목 (자동 설정)</span>
+            <span class="ea-section-count">${mockSubjects.length}과목</span>
+          </div>
+          <div class="ea-mock-subjects">
+            ${mockSubjects.map(s => `
+              <div class="ea-mock-subj-row">
+                <div class="ea-subj-color" style="background:${s.color}"></div>
+                <div class="ea-mock-subj-info">
+                  <span class="ea-mock-subj-name">${s.subject}</span>
+                  <span class="ea-mock-subj-time">${s.time}</span>
+                </div>
+                <span class="ea-mock-subj-range">${s.range}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="ea-mock-custom-note">
+            <i class="fas fa-pencil-alt"></i>
+            탐구 과목은 저장 후 상세 화면에서 수정할 수 있어요
+          </div>
+
+          <!-- 하단 저장 -->
+          <div class="ea-bottom-bar">
+            <button class="btn-primary ea-save-btn" onclick="saveMockExam()">
+              <i class="fas fa-check" style="margin-right:8px"></i>모의고사 저장
+            </button>
+          </div>
+        ` : `
+          <div class="ea-hint-box" style="margin-top:16px">
+            <i class="fas fa-hand-pointer"></i>
+            위 프리셋 중 하나를 선택해주세요
+          </div>
+        `}
       </div>
     </div>
   `;
@@ -4902,80 +5155,229 @@ function drawGrowthChart() {
 
 // ==================== EXAM UTILITY FUNCTIONS ====================
 
-let _selectedExamType = 'midterm';
-function selectExamType(btn, type) {
-  _selectedExamType = type;
-  document.querySelectorAll('.exam-type-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+// ==================== EXAM ADD STATE ====================
+let _examAddMode = null; // null, 'midterm', 'performance', 'mock'
+// 중간·기말 상태
+let _eaMidtermType = 'midterm';
+let _eaMidtermName = '';
+let _eaMidtermStart = '';
+let _eaMidtermEnd = '';
+let _eaMidtermSubjects = {}; // { '2026-04-21': [{subject,time,range,color}], ... }
+let _eaMidtermAddingDate = ''; // 모달에서 추가 중인 날짜
+// 수행평가 상태
+let _eaPerfSubject = '';
+let _eaPerfName = '';
+let _eaPerfDeadline = '';
+let _eaPerfTopic = '';
+let _eaPerfMemo = '';
+// 모의고사 상태
+let _eaMockPreset = '';
+let _eaMockName = '';
+let _eaMockDate = '';
+
+function resetExamAddState() {
+  _examAddMode = null;
+  _eaMidtermType = 'midterm'; _eaMidtermName = ''; _eaMidtermStart = ''; _eaMidtermEnd = '';
+  _eaMidtermSubjects = {}; _eaMidtermAddingDate = '';
+  _eaPerfSubject = ''; _eaPerfName = ''; _eaPerfDeadline = ''; _eaPerfTopic = ''; _eaPerfMemo = '';
+  _eaMockPreset = ''; _eaMockName = ''; _eaMockDate = '';
 }
 
-function addExamSubjectRow() {
-  const container = document.getElementById('exam-subjects-container');
-  if (!container) return;
-  const card = document.createElement('div');
-  card.className = 'exam-add-subj-card';
-  card.innerHTML = `
-    <div class="exam-add-subj-top">
-      <input type="text" class="form-input exam-subj-input" placeholder="과목명 (예: 영어)">
-      <input type="date" class="form-input exam-date-input" value="2025-04-21">
-      <button class="exam-remove-subj-btn" onclick="this.closest('.exam-add-subj-card').remove()"><i class="fas fa-times"></i></button>
-    </div>
-    <input type="text" class="form-input exam-range-input" placeholder="시험 범위 (예: 3~5과 본문, 관계대명사)">
-  `;
-  container.appendChild(card);
+function getDateRange(start, end) {
+  const dates = [];
+  let cur = new Date(start + 'T00:00:00');
+  const last = new Date(end + 'T00:00:00');
+  while (cur <= last) {
+    dates.push(cur.toISOString().slice(0,10));
+    cur.setDate(cur.getDate()+1);
+  }
+  return dates;
 }
 
-function saveNewExam() {
-  const name = document.getElementById('exam-name')?.value?.trim();
-  const startDate = document.getElementById('exam-start')?.value;
-  const endDate = document.getElementById('exam-end')?.value;
+/* ── 중간·기말: 기간 변경 ── */
+function onMidtermPeriodChange() {
+  const s = document.getElementById('ea-mid-start')?.value;
+  const e = document.getElementById('ea-mid-end')?.value;
+  if (s) _eaMidtermStart = s;
+  if (e) _eaMidtermEnd = e;
+  // 이름 자동 입력
+  const nameEl = document.getElementById('ea-mid-name');
+  if (nameEl) _eaMidtermName = nameEl.value.trim();
+  // 기존 날짜에 없는 날짜 제거, 새 날짜 추가
+  if (_eaMidtermStart && _eaMidtermEnd) {
+    const dates = getDateRange(_eaMidtermStart, _eaMidtermEnd);
+    const newSubj = {};
+    dates.forEach(d => { newSubj[d] = _eaMidtermSubjects[d] || []; });
+    _eaMidtermSubjects = newSubj;
+  }
+  renderScreen();
+}
+
+/* ── 중간·기말: 과목 추가 모달 ── */
+function openMidtermSubjectAdd(date) {
+  _eaMidtermAddingDate = date;
+  // 이름 저장
+  const nameEl = document.getElementById('ea-mid-name');
+  if (nameEl) _eaMidtermName = nameEl.value.trim();
+  const modal = document.getElementById('ea-subj-modal');
+  if (modal) modal.classList.add('open');
+  setTimeout(() => { document.getElementById('ea-modal-subj')?.focus(); }, 200);
+}
+
+function closeEaModal() {
+  const modal = document.getElementById('ea-subj-modal');
+  if (modal) modal.classList.remove('open');
+}
+
+function pickQuickSubject(name) {
+  const el = document.getElementById('ea-modal-subj');
+  if (el) el.value = name;
+}
+
+const _subjectColorMap = {
+  '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
+  '한국사':'#74B9FF','사회':'#A29BFE','물리':'#E056A0','화학':'#FF9F43',
+  '생명과학':'#00CEC9','지구과학':'#E17055','미술':'#FD79A8','음악':'#fd79a8','체육':'#A29BFE'
+};
+const _subjectColorFallback = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#E056A0','#A29BFE','#FF9F43'];
+
+function confirmMidtermSubjectAdd() {
+  const subj = document.getElementById('ea-modal-subj')?.value?.trim();
+  const time = document.getElementById('ea-modal-time')?.value?.trim() || '';
+  const range = document.getElementById('ea-modal-range')?.value?.trim() || '';
+  if (!subj) { alert('과목명을 입력하세요'); return; }
+  const d = _eaMidtermAddingDate;
+  if (!_eaMidtermSubjects[d]) _eaMidtermSubjects[d] = [];
+  const idx = Object.values(_eaMidtermSubjects).reduce((s,a)=>s+a.length,0);
+  const color = _subjectColorMap[subj] || _subjectColorFallback[idx % _subjectColorFallback.length];
+  _eaMidtermSubjects[d].push({ subject:subj, time, range, color, date:d, readiness:0, notes:'' });
+  closeEaModal();
+  renderScreen();
+}
+
+function removeMidtermSubject(date, idx) {
+  if (_eaMidtermSubjects[date]) {
+    _eaMidtermSubjects[date].splice(idx, 1);
+    renderScreen();
+  }
+}
+
+/* ── 중간·기말: 저장 ── */
+function saveMidtermExam() {
+  const nameEl = document.getElementById('ea-mid-name');
+  const name = nameEl?.value?.trim() || _eaMidtermName;
   if (!name) { alert('시험 이름을 입력하세요'); return; }
-
-  const subjectColors = ['#6C5CE7','#FF6B6B','#00B894','#FDCB6E','#74B9FF','#E056A0','#A29BFE','#FF9F43'];
-  const rows = document.querySelectorAll('.exam-add-subj-card');
   const subjects = [];
-  rows.forEach((card, i) => {
-    const subj = card.querySelector('.exam-subj-input')?.value?.trim();
-    const range = card.querySelector('.exam-range-input')?.value?.trim();
-    const date = card.querySelector('.exam-date-input')?.value || startDate;
-    if (subj) {
-      subjects.push({ subject:subj, date, time:'', range:range||'', readiness:0, notes:'', color:subjectColors[i % subjectColors.length] });
-    }
+  Object.entries(_eaMidtermSubjects).forEach(([date, arr]) => {
+    arr.forEach(s => subjects.push({ ...s, date }));
   });
-
   if (subjects.length === 0) { alert('최소 1개 과목을 추가하세요'); return; }
 
   const newExam = {
     id: 'exam' + Date.now(),
-    type: _selectedExamType,
+    type: _eaMidtermType === 'final' ? 'final' : 'midterm',
     name,
-    startDate: startDate || '2026-04-21',
-    endDate: endDate || startDate || '2026-04-21',
+    startDate: _eaMidtermStart,
+    endDate: _eaMidtermEnd,
     subjects,
     status: 'upcoming',
     aiPlan: null,
   };
-
   state.exams.push(newExam);
   state.viewingExam = newExam.id;
 
-  // DB 저장 (비동기)
   if (DB.studentId()) {
-    DB.saveExam({
-      name,
-      type: _selectedExamType,
-      startDate: startDate || '2026-04-21',
-      subjects,
-      memo: '',
-    }).then(dbId => {
-      if (dbId) {
-        newExam._dbId = dbId;
-        newExam.id = String(dbId);
-        state.viewingExam = newExam.id;
-      }
-    });
+    DB.saveExam({ name, type: newExam.type, startDate: _eaMidtermStart, endDate: _eaMidtermEnd, subjects, memo:'' })
+      .then(dbId => { if (dbId) { newExam._dbId = dbId; newExam.id = String(dbId); state.viewingExam = newExam.id; }});
   }
+  resetExamAddState();
+  goScreen('exam-detail');
+}
 
+/* ── 수행평가: 저장 ── */
+function savePerformanceExam() {
+  const subj = document.getElementById('ea-perf-subj')?.value?.trim() || _eaPerfSubject;
+  const name = document.getElementById('ea-perf-name')?.value?.trim() || _eaPerfName;
+  const deadline = document.getElementById('ea-perf-deadline')?.value || _eaPerfDeadline;
+  const topic = document.getElementById('ea-perf-topic')?.value?.trim() || _eaPerfTopic;
+  const memo = document.getElementById('ea-perf-memo')?.value?.trim() || _eaPerfMemo;
+
+  if (!subj) { alert('과목을 입력하세요'); return; }
+  if (!name) { alert('수행평가 이름을 입력하세요'); return; }
+  if (!deadline) { alert('마감 기한을 입력하세요'); return; }
+
+  const color = _subjectColorMap[subj] || '#FDCB6E';
+  const newExam = {
+    id: 'exam' + Date.now(),
+    type: 'performance',
+    name,
+    startDate: deadline,
+    endDate: deadline,
+    subjects: [{ subject:subj, date:deadline, time:'제출', range:topic, readiness:0, notes:memo, color }],
+    status: 'upcoming',
+    aiPlan: null,
+  };
+  state.exams.push(newExam);
+  state.viewingExam = newExam.id;
+
+  if (DB.studentId()) {
+    DB.saveExam({ name, type:'performance', startDate:deadline, subjects:newExam.subjects, memo })
+      .then(dbId => { if (dbId) { newExam._dbId = dbId; newExam.id = String(dbId); state.viewingExam = newExam.id; }});
+  }
+  resetExamAddState();
+  goScreen('exam-detail');
+}
+
+/* ── 모의고사: 프리셋 선택 ── */
+function selectMockPreset(key) {
+  _eaMockPreset = key;
+  const presets = {
+    '3월':{label:'3월 전국연합학력평가',m:3}, '4월':{label:'4월 전국연합학력평가',m:4},
+    '6월':{label:'6월 모의평가 (평가원)',m:6}, '7월':{label:'7월 전국연합학력평가',m:7},
+    '9월':{label:'9월 모의평가 (평가원)',m:9}, '10월':{label:'10월 전국연합학력평가',m:10},
+    '수능':{label:'대학수학능력시험',m:11}
+  };
+  const p = presets[key];
+  const y = new Date().getFullYear();
+  _eaMockName = p ? p.label : '';
+  _eaMockDate = p ? `${y}-${String(p.m).padStart(2,'0')}-06` : '';
+  renderScreen();
+}
+
+/* ── 모의고사: 저장 ── */
+function saveMockExam() {
+  const name = document.getElementById('ea-mock-name')?.value?.trim() || _eaMockName;
+  const date = document.getElementById('ea-mock-date')?.value || _eaMockDate;
+  if (!name) { alert('시험 이름을 입력하세요'); return; }
+  if (!date) { alert('시험 날짜를 입력하세요'); return; }
+
+  const subjects = [
+    { subject:'국어', time:'1교시 (08:40~10:00)', range:'독서+문학+언어와 매체', color:'#FF6B6B' },
+    { subject:'수학', time:'2교시 (10:30~12:10)', range:'수학Ⅰ+수학Ⅱ+확률과 통계/미적분/기하', color:'#6C5CE7' },
+    { subject:'영어', time:'3교시 (13:10~14:20)', range:'듣기+독해 전 범위', color:'#00B894' },
+    { subject:'한국사', time:'3교시 (14:30~14:50)', range:'전 범위', color:'#74B9FF' },
+    { subject:'탐구1', time:'4교시 (15:20~15:50)', range:'선택과목 1', color:'#FDCB6E' },
+    { subject:'탐구2', time:'4교시 (15:50~16:20)', range:'선택과목 2', color:'#E056A0' },
+  ].map(s => ({ ...s, date, readiness:0, notes:'' }));
+
+  const newExam = {
+    id: 'exam' + Date.now(),
+    type: 'mock',
+    name,
+    startDate: date,
+    endDate: date,
+    subjects,
+    status: 'upcoming',
+    aiPlan: null,
+  };
+  state.exams.push(newExam);
+  state.viewingExam = newExam.id;
+
+  if (DB.studentId()) {
+    DB.saveExam({ name, type:'mock', startDate:date, subjects, memo:'' })
+      .then(dbId => { if (dbId) { newExam._dbId = dbId; newExam.id = String(dbId); state.viewingExam = newExam.id; }});
+  }
+  resetExamAddState();
   goScreen('exam-detail');
 }
 
