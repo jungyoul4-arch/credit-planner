@@ -4066,7 +4066,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   border-color:var(--primary);
   box-shadow:0 0 0 3px rgba(108,92,231,0.12);
 }
-.ea-period-field i { color:var(--primary-light); font-size:16px; flex-shrink:0; }
+.ea-period-field i { color:#C8A96E; font-size:16px; flex-shrink:0; }
 .ea-period-input {
   flex:1; background:transparent !important; border:none !important;
   color:#FFFFFF; font-size:15px; font-weight:600;
@@ -4076,15 +4076,17 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 .ea-period-arrow { color:var(--text-muted); font-size:14px; flex-shrink:0; }
 .ea-single-date { max-width:300px; }
 
-/* ── Input Fields (Brighter BG) ── */
+/* ── Input Fields (Brighter BG + Vertical Center) ── */
 .ea-mode-card ~ .form-input,
 .ea-toggle-row ~ .form-input,
 [class*="ea-"] ~ .form-input,
 .ea-modal-body .form-input {
   background:var(--bg-elevated);
   border:1.5px solid var(--border-light);
-  color:#FFFFFF; font-size:15px; font-weight:500;
+  color:#FFFFFF; font-size:16px; font-weight:600;
   padding:14px 16px; border-radius:12px;
+  line-height:1.4;
+  display:flex; align-items:center;
 }
 .ea-modal-body .form-input:focus,
 [class*="ea-"] ~ .form-input:focus {
@@ -4099,7 +4101,7 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 /* ── Section Label ── */
 .ea-section-label {
   display:flex; align-items:center; justify-content:space-between;
-  margin:20px 0 12px; padding-bottom:8px;
+  margin:16px 0 10px; padding-bottom:6px;
   border-bottom:1px solid var(--border);
 }
 .ea-section-label span:first-child {
@@ -4112,38 +4114,55 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   background:rgba(108,92,231,0.15); padding:3px 12px; border-radius:10px;
 }
 
-/* ── Date Card (중간·기말) ── */
+/* ── Date Card (중간·기말) ── COMPACT REDESIGN */
 .ea-date-card {
   background:var(--bg-card);
   border:1.5px solid var(--border-light);
-  border-radius:14px; padding:16px; margin-bottom:12px;
+  border-radius:12px; padding:10px 12px; margin-bottom:8px;
 }
+.ea-date-card.has-subj { padding:10px 12px 8px; }
 .ea-date-header {
   display:flex; align-items:center; justify-content:space-between;
-  margin-bottom:12px;
+  margin-bottom:6px;
 }
 .ea-date-badge {
   font-family:'Roboto','Pretendard Variable',sans-serif;
-  font-size:14px; font-weight:700; color:#FFFFFF;
-  background:rgba(108,92,231,0.15); padding:4px 12px; border-radius:8px;
+  font-size:15px; font-weight:800; color:#FFFFFF;
+  display:flex; align-items:center; gap:5px;
 }
-.ea-date-count {
-  font-size:12px; color:var(--text-secondary); font-weight:600;
+.ea-date-day {
+  font-size:16px; font-weight:900; color:#FFFFFF;
+  letter-spacing:-0.3px;
 }
-.ea-date-subjects { display:flex; flex-direction:column; gap:8px; }
+.ea-date-dayname {
+  font-size:13px; font-weight:600; color:var(--text-secondary);
+}
+/* 과목수 배지 - Pill Shape */
+.ea-date-pill {
+  font-family:'Roboto','Pretendard Variable',sans-serif;
+  font-size:11px; font-weight:700; color:var(--text-muted);
+  background:rgba(255,255,255,0.06); padding:3px 10px; border-radius:20px;
+  letter-spacing:0.2px;
+}
+.ea-date-pill.filled {
+  color:var(--primary-light); background:rgba(108,92,231,0.15);
+  font-weight:800;
+}
+.ea-date-subjects { display:flex; flex-direction:column; gap:4px; }
 .ea-date-empty {
-  text-align:center; padding:16px; color:var(--text-muted);
-  font-size:13px; font-style:italic;
+  text-align:center; padding:8px; color:var(--text-secondary);
+  font-size:12px; font-style:italic;
+  opacity:0.8;
 }
 .ea-subj-row {
-  display:flex; align-items:center; gap:10px;
-  padding:10px 12px; border-radius:10px;
+  display:flex; align-items:center; gap:8px;
+  padding:7px 10px; border-radius:8px;
   background:var(--bg-elevated);
   border:1px solid var(--border);
 }
-.ea-subj-color { width:5px; height:32px; border-radius:3px; flex-shrink:0; }
+.ea-subj-color { width:4px; height:24px; border-radius:2px; flex-shrink:0; }
 .ea-subj-name {
-  font-size:14px; font-weight:700; color:#FFFFFF; min-width:44px;
+  font-size:13px; font-weight:700; color:#FFFFFF; min-width:40px;
 }
 .ea-subj-time {
   font-size:12px; color:var(--text-secondary); flex-shrink:0; font-weight:500;
@@ -4153,18 +4172,18 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ea-subj-del {
-  width:26px; height:26px; border-radius:50%; border:none;
+  width:22px; height:22px; border-radius:50%; border:none;
   background:rgba(255,107,107,0.12); color:#FF6B6B; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; font-size:11px;
+  display:flex; align-items:center; justify-content:center; font-size:10px;
   flex-shrink:0; transition:all 0.2s;
 }
 .ea-subj-del:hover { background:rgba(255,107,107,0.3); }
 
 .ea-add-subj-btn {
-  width:100%; padding:10px; margin-top:8px;
-  border:1.5px dashed rgba(108,92,231,0.35);
-  border-radius:10px; background:transparent;
-  color:var(--primary-light); font-size:13px; font-weight:700;
+  width:100%; padding:7px; margin-top:4px;
+  border:1.5px dashed rgba(108,92,231,0.3);
+  border-radius:8px; background:transparent;
+  color:var(--primary-light); font-size:12px; font-weight:700;
   cursor:pointer; transition:all 0.2s;
   font-family:'Pretendard Variable','Noto Sans KR',sans-serif;
 }

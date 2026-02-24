@@ -3971,16 +3971,20 @@ function renderExamAddMidterm() {
   if (_eaMidtermStart && _eaMidtermEnd) {
     const dates = getDateRange(_eaMidtermStart, _eaMidtermEnd);
     const dayNames = ['일','월','화','수','목','금','토'];
+    const dayColors = {'토':'#74B9FF','일':'#FF6B6B'};
     dateCards = dates.map((d, di) => {
       const dt = new Date(d + 'T00:00:00');
       const dayName = dayNames[dt.getDay()];
+      const dayStyle = dayColors[dayName] ? `color:${dayColors[dayName]}` : '';
       const subjects = (_eaMidtermSubjects[d] || []);
+      const hasSubj = subjects.length > 0;
       return `
-      <div class="ea-date-card stagger-${di+1} animate-in">
+      <div class="ea-date-card ${hasSubj?'has-subj':''} stagger-${di+1} animate-in">
         <div class="ea-date-header">
-          <span class="ea-date-badge">${d.slice(5).replace('-','/')} (${dayName})</span>
-          <span class="ea-date-count">${subjects.length}과목</span>
+          <span class="ea-date-badge"><span class="ea-date-day" style="${dayStyle}">${d.slice(5).replace('-','/')}</span> <span class="ea-date-dayname">(${dayName})</span></span>
+          <span class="ea-date-pill ${hasSubj?'filled':''}">${subjects.length}과목</span>
         </div>
+        ${hasSubj ? `
         <div class="ea-date-subjects" id="ea-subj-${d}">
           ${subjects.map((s,si) => `
             <div class="ea-subj-row">
@@ -3991,10 +3995,10 @@ function renderExamAddMidterm() {
               <button class="ea-subj-del" onclick="removeMidtermSubject('${d}',${si})"><i class="fas fa-times"></i></button>
             </div>
           `).join('')}
-          ${subjects.length === 0 ? '<div class="ea-date-empty">과목을 추가해주세요</div>' : ''}
         </div>
+        ` : `<div class="ea-date-empty">과목을 추가해주세요</div>`}
         <button class="ea-add-subj-btn" onclick="openMidtermSubjectAdd('${d}')">
-          <i class="fas fa-plus"></i> 과목 추가
+          <i class="fas fa-plus"></i> ${hasSubj ? '추가' : '과목 추가'}
         </button>
       </div>`;
     }).join('');
