@@ -3083,7 +3083,7 @@ function renderHomeTab() {
     setTimeout(() => {
       fetch(`/api/my-questions/stats?studentId=${state._authUser.id}`)
         .then(r => r.json())
-        .then(data => { state.myQaStats = data; render(); })
+        .then(data => { state.myQaStats = data; renderScreen(); })
         .catch(() => {});
     }, 200);
   }
@@ -11948,6 +11948,12 @@ function renderMentorStudentViewer() {
     content = typeof renderNotifications === 'function' ? renderNotifications() : '';
   } else if (state.currentScreen === 'mentor-feedback') {
     content = typeof renderStudentFeedbackScreen === 'function' ? renderStudentFeedbackScreen() : '';
+  } else if (state.currentScreen === 'growth-analysis') {
+    content = typeof renderGrowthAnalysis === 'function' ? renderGrowthAnalysis() : (typeof renderGrowthTab === 'function' ? renderGrowthTab() : '');
+  } else if (state.currentScreen === 'record-class') {
+    content = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-lock" style="font-size:24px;margin-bottom:12px;display:block;opacity:0.3"></i>열람 모드에서는 기록 작성이 불가합니다</div>';
+  } else if (state.currentScreen === 'record-question' || state.currentScreen === 'record-teach' || state.currentScreen === 'record-activity' || state.currentScreen === 'record-assignment') {
+    content = '<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-lock" style="font-size:24px;margin-bottom:12px;display:block;opacity:0.3"></i>열람 모드에서는 기록 작성이 불가합니다</div>';
   } else {
     // 기타 화면은 main으로 돌리기
     state.currentScreen = 'main';
