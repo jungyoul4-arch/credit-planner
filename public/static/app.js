@@ -12461,12 +12461,44 @@ function renderMentorStudents() {
   const activeCount = students.filter(s => (s.periodStats?.total || 0) > 0).length;
   const recordRate = students.length > 0 ? Math.round(activeCount / students.length * 100) : 0;
 
+  // 3대 비율 지표 평균 계산
+  const avgColor = (v) => v >= 80 ? '#22C55E' : v >= 50 ? '#EAB308' : '#EF4444';
+  let sumClassRate = 0, countClassRate = 0;
+  let sumPlannerRate = 0, countPlannerRate = 0;
+  let sumAcademyRate = 0, countAcademyRate = 0;
+  students.forEach(s => {
+    const rs = s.rateStats || {};
+    if (typeof rs.classRecordRate === 'number') { sumClassRate += rs.classRecordRate; countClassRate++; }
+    if (typeof rs.plannerRate === 'number' && rs.plannerRate >= 0) { sumPlannerRate += rs.plannerRate; countPlannerRate++; }
+    if (typeof rs.academyTodayRate === 'number' && rs.academyTodayRate >= 0) { sumAcademyRate += rs.academyTodayRate; countAcademyRate++; }
+  });
+  const avgClassRate = countClassRate > 0 ? Math.round(sumClassRate / countClassRate) : 0;
+  const avgPlannerRate = countPlannerRate > 0 ? Math.round(sumPlannerRate / countPlannerRate) : -1;
+  const avgAcademyRate = countAcademyRate > 0 ? Math.round(sumAcademyRate / countAcademyRate) : -1;
+
   return `
     <div class="stats-row">
       <div class="stat-card"><div class="stat-label">활동 학생</div><div class="stat-value">${activeCount}/${students.length}</div><div class="stat-change" style="color:var(--text-muted)">이번 주 기록률 ${recordRate}%</div></div>
       <div class="stat-card"><div class="stat-label">수업 기록</div><div class="stat-value" style="color:var(--primary-light)">${totalClass}</div><div class="stat-change" style="color:var(--text-muted)">이번 주 합계</div></div>
       <div class="stat-card"><div class="stat-label">질문</div><div class="stat-value" style="color:var(--question-b)">${totalQuestion}</div><div class="stat-change" style="color:var(--text-muted)">이번 주 합계</div></div>
       <div class="stat-card"><div class="stat-label">교학상장</div><div class="stat-value" style="color:var(--teach-green)">${totalTeach}</div><div class="stat-change" style="color:var(--text-muted)">이번 주 합계</div></div>
+    </div>
+    <div class="stats-row" style="margin-top:8px">
+      <div class="stat-card">
+        <div class="stat-label">평균 기록률</div>
+        <div class="stat-value" style="color:${avgColor(avgClassRate)}">${avgClassRate}%</div>
+        <div style="height:6px;background:var(--bg-input);border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${avgClassRate}%;background:${avgColor(avgClassRate)};border-radius:3px"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">평균 실행률</div>
+        <div class="stat-value" style="color:${avgPlannerRate >= 0 ? avgColor(avgPlannerRate) : 'var(--text-muted)'}">${avgPlannerRate >= 0 ? avgPlannerRate + '%' : '-'}</div>
+        ${avgPlannerRate >= 0 ? `<div style="height:6px;background:var(--bg-input);border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${avgPlannerRate}%;background:${avgColor(avgPlannerRate)};border-radius:3px"></div></div>` : `<div style="font-size:10px;color:var(--text-muted);margin-top:6px">과제 데이터 없음</div>`}
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">평균 당일완료율</div>
+        <div class="stat-value" style="color:${avgAcademyRate >= 0 ? avgColor(avgAcademyRate) : 'var(--text-muted)'}">${avgAcademyRate >= 0 ? avgAcademyRate + '%' : '-'}</div>
+        ${avgAcademyRate >= 0 ? `<div style="height:6px;background:var(--bg-input);border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${avgAcademyRate}%;background:${avgColor(avgAcademyRate)};border-radius:3px"></div></div>` : `<div style="font-size:10px;color:var(--text-muted);margin-top:6px">오늘 학원 없음</div>`}
+      </div>
     </div>
 
     <div style="margin:16px 0 12px;display:flex;justify-content:space-between;align-items:center">
@@ -12513,6 +12545,30 @@ function renderMentorStudents() {
               <div style="font-size:10px;color:var(--text-muted);margin-top:2px">과제</div>
             </div>
           </div>
+          ${(() => {
+            // 3대 비율 지표 프로그레스바
+            const rs = s.rateStats || {};
+            const getBarColor = (v) => v >= 80 ? '#22C55E' : v >= 50 ? '#EAB308' : '#EF4444';
+            const bars = [
+              { label: '수업 기록률', value: rs.classRecordRate ?? 0, detail: `${rs.actualClassRecords ?? 0}/${rs.expectedClasses ?? 0}` },
+              { label: '과제 실행률', value: rs.plannerRate ?? -1, detail: rs.plannerRate >= 0 ? `${rs.completedAssignments ?? 0}/${rs.totalAssignments ?? 0}` : '과제 없음' },
+              { label: '학원 당일완료', value: rs.academyTodayRate ?? -1, detail: rs.academyTodayRate >= 0 ? `${rs.todayAcademyCount ?? 0}건 완료` : '오늘 학원 없음' },
+            ];
+            return `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+              ${bars.map(b => {
+                const isNA = b.value < 0;
+                const pct = isNA ? 0 : b.value;
+                const color = isNA ? 'var(--text-muted)' : getBarColor(pct);
+                return `<div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:10px;color:var(--text-muted);width:68px;flex-shrink:0;text-align:right">${b.label}</span>
+                  <div style="flex:1;height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;transition:width 0.5s"></div>
+                  </div>
+                  <span style="font-size:11px;font-weight:700;color:${color};min-width:42px;text-align:right">${isNA ? '-' : pct + '%'}</span>
+                </div>`;
+              }).join('')}
+            </div>`;
+          })()}
           ${total > 0 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(99,179,237,0.08);border-radius:8px;font-size:12px;color:var(--primary-light)">📊 이번 주 총 ${total}건 활동 — 탭하여 상세 보기</div>` : `<div style="margin-top:10px;padding:8px 12px;background:rgba(214,48,49,0.08);border-radius:8px;font-size:12px;color:var(--danger)">⚠️ 이번 주 활동 기록 없음 — 탭하여 확인</div>`}
         </div>`;
       }).join('')}

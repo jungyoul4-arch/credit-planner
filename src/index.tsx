@@ -1478,19 +1478,78 @@ app.get('/api/mentor/groups/:groupId/summary', async (c) => {
     const dateFrom = c.req.query('from') || new Date().toISOString().slice(0,10);
     const dateTo = c.req.query('to') || new Date().toISOString().slice(0,10);
 
+    // KST 기준 오늘 날짜 (UTC+9)
+    const kstNow = new Date(Date.now() + 9 * 3600000);
+    const kstToday = kstNow.toISOString().slice(0,10);
+    const kstDayOfWeek = kstNow.getUTCDay(); // 0=Sun,1=Mon,...6=Sat
+
+    // 이번 주 평일 수 계산 (from~to 범위 내 월~금)
+    const countWeekdays = (from: string, to: string): number => {
+      let count = 0;
+      const d = new Date(from + 'T00:00:00Z');
+      const end = new Date(to + 'T00:00:00Z');
+      while (d <= end) {
+        const dow = d.getUTCDay();
+        if (dow >= 1 && dow <= 5) count++;
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+      return count;
+    };
+    const weekdaysInRange = countWeekdays(dateFrom, dateTo);
+    // 학교 수업: 평일 평균 6교시 기준
+    const CLASSES_PER_DAY = 6;
+    const expectedSchoolClasses = weekdaysInRange * CLASSES_PER_DAY;
+
     const students = await c.env.DB.prepare(
       'SELECT id, name, school_name, grade, profile_emoji, xp, level, last_login_at FROM students WHERE group_id = ? AND is_active = 1 ORDER BY name'
     ).bind(groupId).all();
 
     const summaries = [];
     for (const s of students.results as any[]) {
-      const [classCount, questionCount, teachCount, assignCount, actLogCount] = await Promise.all([
+      const [classCount, questionCount, teachCount, assignCount, actLogCount,
+             schoolClassCount, allAssignments, todayAcademyRecords, todayAllRecords] = await Promise.all([
+        // 기존 기간 통계
         c.env.DB.prepare('SELECT COUNT(*) as cnt FROM class_records WHERE student_id = ? AND date BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
         c.env.DB.prepare('SELECT COUNT(*) as cnt FROM question_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
         c.env.DB.prepare('SELECT COUNT(*) as cnt FROM teach_records WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
         c.env.DB.prepare('SELECT COUNT(*) as cnt FROM assignments WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
         c.env.DB.prepare('SELECT COUNT(*) as cnt FROM activity_logs WHERE student_id = ? AND date BETWEEN ? AND ?').bind(s.id, dateFrom, dateTo).first(),
+        // 수업 기록률: 학교 수업 기록 (memo에 isAcademy 미포함)
+        c.env.DB.prepare("SELECT COUNT(*) as cnt FROM class_records WHERE student_id = ? AND date BETWEEN ? AND ? AND (memo IS NULL OR memo NOT LIKE '%isAcademy%')").bind(s.id, dateFrom, dateTo).first(),
+        // 플래너(과제) 실행률: 기간 내 전체 과제 + 완료 과제
+        c.env.DB.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed FROM assignments WHERE student_id = ? AND DATE(created_at) BETWEEN ? AND ?").bind(s.id, dateFrom, dateTo).first(),
+        // 학원 당일 완료율: 오늘(KST) 학원 수업 기록
+        c.env.DB.prepare("SELECT COUNT(*) as cnt FROM class_records WHERE student_id = ? AND date = ? AND memo LIKE '%isAcademy%'").bind(s.id, kstToday).first(),
+        // 오늘 전체 기록 수 (학교+학원)
+        c.env.DB.prepare("SELECT COUNT(*) as cnt FROM class_records WHERE student_id = ? AND date = ?").bind(s.id, kstToday).first(),
       ]);
+
+      // 수업 기록률 = 학교 수업 기록 ÷ 기대 수업 수
+      const schoolRecords = (schoolClassCount as any)?.cnt || 0;
+      const classRecordRate = expectedSchoolClasses > 0 ? Math.min(100, Math.round(schoolRecords / expectedSchoolClasses * 100)) : 0;
+
+      // 플래너(과제) 실행률 = 완료 과제 ÷ 전체 과제
+      const totalAssign = (allAssignments as any)?.total || 0;
+      const completedAssign = (allAssignments as any)?.completed || 0;
+      const plannerRate = totalAssign > 0 ? Math.round(completedAssign / totalAssign * 100) : -1; // -1 = 과제 없음
+
+      // 학원 당일 완료율: 오늘이 평일이고 학원 수업이 있을 수 있는 날
+      // 학원 스케줄은 클라이언트에 있으므로, 기록 기반으로 계산
+      // 오늘 학원 기록이 0이고 주말이면 "학원 없음" 표시
+      const todayAcademyCount = (todayAcademyRecords as any)?.cnt || 0;
+      const todayTotalCount = (todayAllRecords as any)?.cnt || 0;
+      const isWeekend = kstDayOfWeek === 0 || kstDayOfWeek === 6;
+      // 학원 당일 완료율: -1 = 오늘 학원 없음 (데이터가 없고 주말인 경우)
+      // 학원 스케줄은 DB에 없으므로, "오늘 작성한 학원 기록 수" 기준으로 표시
+      // 학원 수업이 있다고 가정: 평일 1회, 토 2회 (일반적 학원 패턴)
+      // 실제 학원 스케줄은 학생별로 다르므로 기록 유무로 판단
+      let academyTodayRate = -1; // -1 = 학원 없음
+      if (todayAcademyCount > 0) {
+        academyTodayRate = 100; // 기록이 있으면 완료
+      } else if (!isWeekend) {
+        academyTodayRate = 0; // 평일인데 학원 기록 없음 → 0% (학원 있을 수도)
+      }
+      // 주말이고 기록 없으면 -1(학원 없음) 유지
 
       summaries.push({
         ...s,
@@ -1501,6 +1560,18 @@ app.get('/api/mentor/groups/:groupId/summary', async (c) => {
           assignments: (assignCount as any)?.cnt || 0,
           activityLogs: (actLogCount as any)?.cnt || 0,
           total: ((classCount as any)?.cnt || 0) + ((questionCount as any)?.cnt || 0) + ((teachCount as any)?.cnt || 0) + ((assignCount as any)?.cnt || 0) + ((actLogCount as any)?.cnt || 0),
+        },
+        // 3대 비율 지표
+        rateStats: {
+          classRecordRate,          // 수업 기록률 (0~100)
+          expectedClasses: expectedSchoolClasses,
+          actualClassRecords: schoolRecords,
+          plannerRate,              // 플래너(과제) 실행률 (0~100, -1=과제없음)
+          totalAssignments: totalAssign,
+          completedAssignments: completedAssign,
+          academyTodayRate,         // 학원 당일 완료율 (0~100, -1=학원없음)
+          todayAcademyCount,
+          kstToday,
         },
       });
     }
