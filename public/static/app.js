@@ -10798,26 +10798,12 @@ async function openMyQaIframe(targetPath) {
   
   const leftGroup = document.createElement('div');
   leftGroup.style.cssText = 'display:flex;align-items:center;gap:10px';
-  
-  const backBtn = document.createElement('button');
-  backBtn.innerHTML = '<i class="fas fa-arrow-left" style="margin-right:6px"></i> 플래너로 돌아가기';
-  backBtn.style.cssText = 'padding:8px 16px;background:rgba(108,92,231,0.2);color:#a29bfe;border:1px solid rgba(108,92,231,0.3);border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s';
-  backBtn.onmouseover = () => { backBtn.style.background = 'rgba(108,92,231,0.4)'; };
-  backBtn.onmouseout = () => { backBtn.style.background = 'rgba(108,92,231,0.2)'; };
-  backBtn.onclick = () => {
-    overlay.remove();
-    state.studentTab = returnTab;
-    state.currentScreen = returnScreen;
-    loadMyQaStats(); // 통계 갱신
-    renderScreen();
-  };
 
   const titleLabel = targetPath === '/new' ? '✏️ 질문 등록' : '❓ 나만의 질문방';
   const title = document.createElement('span');
   title.innerHTML = titleLabel;
   title.style.cssText = 'font-size:15px;font-weight:700;color:#fff';
 
-  leftGroup.appendChild(backBtn);
   leftGroup.appendChild(title);
   topBar.appendChild(leftGroup);
 
@@ -10840,7 +10826,23 @@ async function openMyQaIframe(targetPath) {
   iframe.allow = 'camera;microphone';
   overlay.appendChild(iframe);
 
+  // 하단 고정 돌아가기 버튼 (iframe 헤더와 겹치지 않도록)
+  const backBtn = document.createElement('button');
+  backBtn.innerHTML = '<i class="fas fa-arrow-left" style="margin-right:6px"></i> 플래너로 돌아가기';
+  backBtn.style.cssText = 'position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));left:16px;z-index:10000;padding:10px 20px;background:rgba(108,92,231,0.9);color:#fff;border:none;border-radius:24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(108,92,231,0.4);transition:all 0.2s;backdrop-filter:blur(8px)';
+  backBtn.onmouseover = () => { backBtn.style.background = 'rgba(108,92,231,1)'; backBtn.style.transform = 'scale(1.05)'; };
+  backBtn.onmouseout = () => { backBtn.style.background = 'rgba(108,92,231,0.9)'; backBtn.style.transform = 'scale(1)'; };
+  backBtn.onclick = () => {
+    overlay.remove();
+    backBtn.remove();
+    state.studentTab = returnTab;
+    state.currentScreen = returnScreen;
+    loadMyQaStats(); // 통계 갱신
+    renderScreen();
+  };
+
   document.body.appendChild(overlay);
+  document.body.appendChild(backBtn);
 }
 
 // 시간표에서 질문 등록 시 QA앱 iframe으로 이동
