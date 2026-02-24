@@ -6742,3 +6742,274 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
     font-size: 20px;
   }
 }
+
+/* ==============================
+   멘토 학생 대시보드 (데스크톱 최적화)
+   ============================== */
+
+/* 상단 멘토 바 */
+.msv-top-bar {
+  background: linear-gradient(135deg, var(--primary), #4a6cf7);
+  padding: 12px 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+.msv-back-btn {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.msv-back-btn:hover { background: rgba(255,255,255,0.35); }
+.msv-title-label {
+  font-weight: 700;
+  font-size: 16px;
+}
+.msv-badge {
+  margin-left: 8px;
+  padding: 3px 12px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 전체 레이아웃: 사이드바 + 메인 */
+.msv-layout {
+  display: flex;
+  min-height: calc(100vh - 52px);
+  background: var(--bg-main);
+}
+
+/* 사이드바 */
+.msv-sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+}
+.msv-profile-card {
+  text-align: center;
+  padding: 24px 16px;
+  background: var(--bg-main);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
+.msv-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  margin: 0 auto 12px;
+}
+.msv-profile-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+.msv-profile-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.msv-profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--primary-light);
+  font-weight: 600;
+}
+.msv-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.msv-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+.msv-nav-btn:hover { background: var(--bg-input); }
+.msv-nav-btn.active {
+  background: rgba(99,179,237,0.12);
+  color: var(--primary-light);
+  font-weight: 700;
+}
+.msv-nav-btn i { width: 18px; text-align: center; font-size: 14px; }
+
+/* 메인 콘텐츠 */
+.msv-main {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* 그리드 (전체 보기) */
+.msv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+.msv-panel {
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+}
+.msv-panel-large {
+  grid-column: span 2;
+  max-height: 500px;
+}
+.msv-panel-header {
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  background: var(--bg-card);
+}
+.msv-panel-header i { color: var(--primary-light); }
+.msv-expand-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.msv-expand-btn:hover { background: var(--bg-input); color: var(--primary-light); }
+.msv-panel-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* 패널 내부의 학생 UI 리사이즈 */
+.msv-panel-body .tab-content { padding: 0 !important; }
+.msv-panel-body .screen-header { padding: 0 0 12px !important; }
+.msv-panel-body .screen-header h1 { font-size: 24px !important; }
+.msv-panel-body .record-type-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+.msv-panel-body .home-cards-grid { gap: 12px !important; }
+.msv-panel-body .xp-bar-container { display: none !important; }
+.msv-panel-body .fab { display: none !important; }
+
+/* 단일 패널 확대 보기 */
+.msv-single-panel {
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  min-height: 70vh;
+}
+.msv-single-body {
+  padding: 32px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.msv-single-body .screen-header h1 { font-size: 24px !important; }
+.msv-single-body .xp-bar-container { display: none !important; }
+.msv-single-body .fab { display: none !important; }
+
+/* 서브 화면 (상세 페이지) */
+.msv-sub-screen {
+  padding: 32px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.msv-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-input);
+  border: none;
+  color: var(--primary-light);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  transition: all 0.15s;
+}
+.msv-breadcrumb:hover { background: rgba(99,179,237,0.15); }
+.msv-sub-content { font-size: 16px; line-height: 1.6; }
+.msv-sub-content .screen-header h1 { font-size: 24px !important; }
+.msv-back-sub {
+  margin-top: 16px;
+  padding: 10px 24px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* 1280px 미만: 2 → 1컬럼 그리드 */
+@media (max-width: 1280px) {
+  .msv-grid { grid-template-columns: 1fr; }
+  .msv-panel-large { grid-column: span 1; }
+  .msv-main { padding: 24px; }
+  .msv-sidebar { width: 220px; min-width: 220px; }
+}
+
+/* 1024px 미만: 사이드바 축소 */
+@media (max-width: 1024px) {
+  .msv-sidebar { width: 200px; min-width: 200px; padding: 16px 12px; }
+  .msv-profile-card { padding: 16px 12px; }
+  .msv-avatar { width: 56px; height: 56px; font-size: 28px; }
+  .msv-profile-name { font-size: 17px; }
+}
+
+/* 3컬럼 (1920px+) */
+@media (min-width: 1920px) {
+  .msv-grid { grid-template-columns: repeat(3, 1fr); }
+  .msv-panel-large { grid-column: span 3; }
+  .msv-main { padding: 32px 48px; }
+}

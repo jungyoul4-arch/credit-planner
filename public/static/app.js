@@ -465,54 +465,32 @@ function renderScreen() {
     deskContainer.innerHTML = renderMentorDashboard();
     initMentorEvents();
   } else if (state.mode === 'mentor-student-viewer') {
-    // 멘토가 학생 플래너를 열람: 학생 모드와 100% 동일한 UI, 상단 멘토 바만 추가
-    desktopContainer.style.display = 'none';
+    // 멘토가 학생 플래너를 열람: 데스크톱 대시보드 레이아웃
     phoneContainer.style.display = 'none';
-    tabletContainer.style.display = 'flex';
-    
-    // 사이드바: 학생과 동일하게 렌더링
-    const sidebarEl = document.getElementById('tablet-sidebar');
-    if (sidebarEl) {
-      sidebarEl.style.display = 'flex';
-      sidebarEl.innerHTML = renderSidebar();
-      sidebarEl.querySelectorAll('.sidebar-nav-item').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const tab = btn.dataset.tab;
-          if (tab === 'myqa') { openMyQaIframe(); return; }
-          if (tab === 'community') { openCommunityNewTab(); return; }
-          state.studentTab = tab;
-          state.currentScreen = 'main';
-          renderScreen();
-        });
-      });
-    }
-    
-    // 멘토 바 (작은 상단 배너) + 학생 콘텐츠
+    tabletContainer.style.display = 'none';
+    desktopContainer.style.display = 'block';
+
     const sname = _mentor.viewerStudentName || '';
     const semoji = _mentor.viewerStudentEmoji || '🐻';
-    const mentorBarHtml = `
-      <div id="mentor-viewer-bar" style="background:linear-gradient(135deg,var(--primary),#4a6cf7);padding:8px 16px;display:flex;align-items:center;gap:10px;color:white;font-size:13px;flex-shrink:0">
-        <button onclick="mentorExitStudentView()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap"><i class="fas fa-arrow-left" style="margin-right:4px"></i>학생 목록</button>
-        <span style="font-size:16px">${semoji}</span>
-        <span style="font-weight:700;font-size:13px">${sname} 학생의 플래너</span>
-        <span style="margin-left:auto;padding:3px 10px;background:rgba(255,255,255,0.2);border-radius:14px;font-size:11px;font-weight:600;white-space:nowrap">👁 열람 모드</span>
-      </div>`;
-    
+
     if (_mentor.viewerLoading) {
-      tabletContent.innerHTML = mentorBarHtml + `
-        <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
-          <i class="fas fa-spinner fa-spin" style="font-size:36px;color:var(--primary-light)"></i>
-          <p style="margin-top:16px;font-size:16px;font-weight:600">${sname} 학생 데이터를 불러오는 중...</p>
+      deskContainer.innerHTML = `
+        <div class="msv-top-bar">
+          <button onclick="mentorExitStudentView()" class="msv-back-btn"><i class="fas fa-arrow-left"></i> 학생 목록으로 돌아가기</button>
+          <span class="msv-title-label">${semoji} ${sname} 학생의 플래너 <span class="msv-badge">👁 열람 모드</span></span>
+        </div>
+        <div style="text-align:center;padding:120px 20px;color:var(--text-muted)">
+          <i class="fas fa-spinner fa-spin" style="font-size:48px;color:var(--primary-light)"></i>
+          <p style="margin-top:20px;font-size:18px;font-weight:600">${sname} 학생 데이터를 불러오는 중...</p>
         </div>`;
     } else {
-      tabletContent.innerHTML = mentorBarHtml + renderStudentApp();
-      initStudentEvents(tabletContent);
+      deskContainer.innerHTML = renderMentorStudentDashboard();
+      initMentorStudentDashboardEvents();
     }
-    
-    setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
-    setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
-    setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
-    setTimeout(() => smartScrollTimetable(), 80);
+
+    setTimeout(() => { drawGrowthChart(); }, 200);
+    setTimeout(() => { loadXpHistory(); }, 250);
+    setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 300);
   } else {
     phoneContainer.style.display = 'none';
     tabletContainer.style.display = 'none';
@@ -11984,6 +11962,7 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
   state.mode = 'mentor-student-viewer';
   state.currentScreen = 'main';
   state.studentTab = 'home';
+  state._msvActivePanel = 'all';
   renderScreen();
 
   // 3. all-records API 1건 + profile 1건 = 총 2건만 호출 (빠름!)
@@ -12099,45 +12078,48 @@ function mentorExitStudentView() {
   _mentor._savedState = null;
   _mentor._savedAuthUser = null;
   _mentor._savedAuthRole = null;
+  state._msvActivePanel = null;
   renderScreen();
 }
 
 function renderMentorStudentViewer() {
-  const sname = _mentor.viewerStudentName;
-  const semoji = _mentor.viewerStudentEmoji;
+  // Legacy — no longer used, replaced by renderMentorStudentDashboard()
+  return renderMentorStudentDashboard();
+}
 
-  if (_mentor.viewerLoading) {
+// ==================== 멘토 학생 대시보드 (데스크톱 최적화) ====================
+function renderMentorStudentDashboard() {
+  const sname = _mentor.viewerStudentName || '';
+  const semoji = _mentor.viewerStudentEmoji || '🐻';
+  const studentInfo = _mentor.studentList.find(s => s.id == _mentor.viewerStudentId) || _mentor.groupSummary.find(s => s.id == _mentor.viewerStudentId) || {};
+
+  // 비메인 화면 (학생 상세 화면 진입 시) → 단일 패널로 표시
+  if (state.currentScreen !== 'main') {
+    const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine'];
+    let subContent = '';
+    if (writeScreens.includes(state.currentScreen)) {
+      subContent = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><i class="fas fa-eye" style="font-size:36px;margin-bottom:16px;display:block;opacity:0.3"></i><p style="font-size:16px;font-weight:600;margin-bottom:8px">열람 전용 모드</p><p style="font-size:13px">멘토 열람 모드에서는 기록 작성이 불가합니다.</p><button onclick="state.currentScreen=\'main\';renderScreen()" class="msv-back-sub"><i class="fas fa-arrow-left"></i> 돌아가기</button></div>';
+    } else {
+      subContent = renderStudentApp();
+    }
     return `
-      <div style="background:var(--primary);padding:12px 24px;display:flex;align-items:center;gap:12px;color:white;font-size:14px">
-        <button onclick="mentorExitStudentView()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600"><i class="fas fa-arrow-left" style="margin-right:6px"></i>대시보드</button>
-        <span style="font-weight:700">${semoji} ${sname} 학생 플래너 열람 중</span>
-        <span style="margin-left:auto;font-size:12px;opacity:0.8">👁 열람 모드 (읽기 전용)</span>
+      <div class="msv-top-bar">
+        <button onclick="mentorExitStudentView()" class="msv-back-btn"><i class="fas fa-arrow-left"></i> 학생 목록으로 돌아가기</button>
+        <span class="msv-title-label">${semoji} ${sname} 학생의 플래너 <span class="msv-badge">👁 열람 모드</span></span>
       </div>
-      <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
-        <i class="fas fa-spinner fa-spin" style="font-size:36px;color:var(--primary-light)"></i>
-        <p style="margin-top:16px;font-size:16px;font-weight:600">${sname} 학생 데이터를 불러오는 중...</p>
-        <p style="margin-top:8px;font-size:13px">수업 기록, 질문, 과제, 시험 정보를 로딩합니다</p>
-      </div>
-    `;
+      <div class="msv-sub-screen">
+        <button onclick="state.currentScreen='main';renderScreen()" class="msv-breadcrumb"><i class="fas fa-arrow-left"></i> 대시보드로 돌아가기</button>
+        <div class="msv-sub-content">${subContent}</div>
+      </div>`;
   }
 
-  // 멘토 상단 바 + 학생 앱 콘텐츠 (데스크탑에 렌더링)
-  const studentInfo = _mentor.studentList.find(s => s.id == _mentor.viewerStudentId) || {};
-  const mentorBar = `
-    <div style="background:linear-gradient(135deg, var(--primary), #4a6cf7);padding:10px 24px;display:flex;align-items:center;gap:12px;color:white;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.15);position:sticky;top:0;z-index:100">
-      <button onclick="mentorExitStudentView()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.15s" onmouseenter="this.style.background='rgba(255,255,255,0.35)'" onmouseleave="this.style.background='rgba(255,255,255,0.2)'"><i class="fas fa-arrow-left" style="margin-right:6px"></i>대시보드로 돌아가기</button>
-      <div style="width:1px;height:20px;background:rgba(255,255,255,0.3)"></div>
-      <span style="font-size:20px">${semoji}</span>
-      <div>
-        <div style="font-weight:700;font-size:15px">${sname}</div>
-        <div style="font-size:11px;opacity:0.8">${studentInfo.school_name || ''} ${studentInfo.grade || ''}학년 · Lv.${state.level || 1} · XP ${state.xp || 0}</div>
-      </div>
-      <span style="margin-left:auto;padding:4px 12px;background:rgba(255,255,255,0.2);border-radius:20px;font-size:12px;font-weight:600">👁 멘토 열람 모드</span>
-    </div>
-  `;
+  // 메인 대시보드: 학생 탭을 동시에 다중 패널로 표시
+  // 현재 활성 탭 (전체 표시 또는 개별 탭 확대)
+  const activeTab = state._msvActivePanel || 'all';
 
-  // 학생 앱의 탭 네비게이션 (데스크탑용 가로 탭바)
-  const tabs = [
+  // 탭 아이콘/라벨
+  const tabList = [
+    { id: 'all', icon: 'fas fa-th-large', label: '전체 보기' },
     { id: 'home', icon: 'fas fa-home', label: '홈' },
     { id: 'record', icon: 'fas fa-pen', label: '기록' },
     { id: 'planner', icon: 'fas fa-calendar-alt', label: '플래너' },
@@ -12145,100 +12127,130 @@ function renderMentorStudentViewer() {
     { id: 'my', icon: 'fas fa-user', label: '마이' },
   ];
 
-  const tabBar = `
-    <div style="display:flex;border-bottom:2px solid var(--border);background:var(--bg-card);padding:0 24px">
-      ${tabs.map(t => `
-        <button class="msv-tab" data-msvtab="${t.id}" style="padding:14px 24px;border:none;background:none;font-size:14px;font-weight:${state.studentTab===t.id?'700':'400'};color:${state.studentTab===t.id?'var(--primary-light)':'var(--text-muted)'};cursor:pointer;border-bottom:2px solid ${state.studentTab===t.id?'var(--primary-light)':'transparent'};margin-bottom:-2px;transition:all 0.15s;display:flex;align-items:center;gap:6px">
-          <i class="${t.icon}" style="font-size:13px"></i> ${t.label}
-        </button>
-      `).join('')}
-    </div>
-  `;
+  // 패널 콘텐츠 생성
+  const homeContent = renderHomeTab();
+  const recordContent = renderRecordTab();
+  const plannerContent = renderPlannerTab();
+  const growthContent = renderGrowthTab();
+  const myContent = renderMyTab();
 
-  // 학생 화면 콘텐츠 렌더 (renderStudentApp의 내부 로직 재사용)
-  // 학생 화면 콘텐츠: renderStudentApp()을 직접 재사용
-  // 작성 화면은 읽기전용 안내로 대체
-  const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine'];
-  let content = '';
-  if (state.currentScreen === 'main') {
-    switch (state.studentTab) {
-      case 'home': content = typeof renderHomeTab === 'function' ? renderHomeTab() : ''; break;
-      case 'record': content = typeof renderRecordTab === 'function' ? renderRecordTab() : ''; break;
-      case 'planner': content = typeof renderPlannerTab === 'function' ? renderPlannerTab() : ''; break;
-      case 'growth': content = typeof renderGrowthTab === 'function' ? renderGrowthTab() : ''; break;
-      case 'my': content = typeof renderMyTab === 'function' ? renderMyTab() : ''; break;
-      default: content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
-    }
-  } else if (writeScreens.includes(state.currentScreen)) {
-    content = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><i class="fas fa-eye" style="font-size:36px;margin-bottom:16px;display:block;opacity:0.3"></i><p style="font-size:16px;font-weight:600;margin-bottom:8px">열람 전용 모드</p><p style="font-size:13px">멘토 열람 모드에서는 기록 작성이 불가합니다.</p><button onclick="state.currentScreen=\'main\';renderScreen()" style="margin-top:16px;padding:10px 24px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">← 돌아가기</button></div>';
+  let mainArea = '';
+  if (activeTab === 'all') {
+    mainArea = `
+      <div class="msv-grid">
+        <div class="msv-panel msv-panel-large" data-msvpanel="home">
+          <div class="msv-panel-header"><i class="fas fa-home"></i> 홈 <button class="msv-expand-btn" data-msvexpand="home"><i class="fas fa-expand-alt"></i></button></div>
+          <div class="msv-panel-body">${homeContent}</div>
+        </div>
+        <div class="msv-panel" data-msvpanel="record">
+          <div class="msv-panel-header"><i class="fas fa-pen"></i> 기록 <button class="msv-expand-btn" data-msvexpand="record"><i class="fas fa-expand-alt"></i></button></div>
+          <div class="msv-panel-body">${recordContent}</div>
+        </div>
+        <div class="msv-panel" data-msvpanel="planner">
+          <div class="msv-panel-header"><i class="fas fa-calendar-alt"></i> 플래너 <button class="msv-expand-btn" data-msvexpand="planner"><i class="fas fa-expand-alt"></i></button></div>
+          <div class="msv-panel-body">${plannerContent}</div>
+        </div>
+        <div class="msv-panel" data-msvpanel="growth">
+          <div class="msv-panel-header"><i class="fas fa-chart-line"></i> 성장 <button class="msv-expand-btn" data-msvexpand="growth"><i class="fas fa-expand-alt"></i></button></div>
+          <div class="msv-panel-body">${growthContent}</div>
+        </div>
+        <div class="msv-panel" data-msvpanel="my">
+          <div class="msv-panel-header"><i class="fas fa-user"></i> 마이페이지 <button class="msv-expand-btn" data-msvexpand="my"><i class="fas fa-expand-alt"></i></button></div>
+          <div class="msv-panel-body">${myContent}</div>
+        </div>
+      </div>`;
   } else {
-    // 나머지 모든 학생 화면은 renderStudentApp() 라우터와 동일하게 매핑
-    const screenFnMap = {
-      'record-history': 'renderRecordHistory',
-      'class-record-history': 'renderClassRecordHistory',
-      'class-record-detail': 'renderClassRecordDetail',
-      'record-status': 'renderRecordStatus',
-      'exam-list': 'renderExamList',
-      'exam-detail': 'renderExamDetail',
-      'exam-report': 'renderExamReport',
-      'assignment-list': 'renderAssignmentList',
-      'assignment-plan': 'renderAssignmentPlan',
-      'portfolio': 'renderPortfolio',
-      'weekly-report': 'renderWeeklyReportStudent',
-      'notifications': 'renderNotifications',
-      'mentor-feedback': 'renderStudentFeedbackScreen',
-      'growth-analysis': 'renderGrowthAnalysis',
-      'report-project': 'renderReportProject',
-      'activity-detail': 'renderActivityDetail',
-    };
-    const fnName = screenFnMap[state.currentScreen];
-    if (fnName && typeof window[fnName] === 'function') {
-      try { content = window[fnName](); } catch (e) { console.error('Viewer render error:', e); content = ''; }
+    // 단일 탭 확대 보기
+    let singleContent = '';
+    switch (activeTab) {
+      case 'home': singleContent = homeContent; break;
+      case 'record': singleContent = recordContent; break;
+      case 'planner': singleContent = plannerContent; break;
+      case 'growth': singleContent = growthContent; break;
+      case 'my': singleContent = myContent; break;
     }
-    // 함수를 못 찾으면 전역 스코프에서 eval로 시도
-    if (!content && fnName) {
-      try { content = eval(fnName + '()'); } catch (e) { content = ''; }
-    }
-    // 그래도 없으면 홈으로
-    if (!content) {
-      state.currentScreen = 'main';
-      content = typeof renderHomeTab === 'function' ? renderHomeTab() : '';
-    }
+    mainArea = `
+      <div class="msv-single-panel">
+        <div class="msv-panel-body msv-single-body">${singleContent}</div>
+      </div>`;
   }
 
   return `
-    ${mentorBar}
-    ${tabBar}
-    <div style="padding:20px 28px;max-width:600px;margin:0 auto;min-height:60vh" id="msv-content">
-      ${content}
+    <div class="msv-top-bar">
+      <button onclick="mentorExitStudentView()" class="msv-back-btn"><i class="fas fa-arrow-left"></i> 학생 목록으로 돌아가기</button>
+      <span class="msv-title-label">${semoji} ${sname} 학생의 플래너 <span class="msv-badge">👁 열람 모드</span></span>
     </div>
-  `;
+    <div class="msv-layout">
+      <aside class="msv-sidebar">
+        <div class="msv-profile-card">
+          <div class="msv-avatar">${semoji}</div>
+          <div class="msv-profile-name">${sname}</div>
+          <div class="msv-profile-sub">${studentInfo.school_name || ''} ${studentInfo.grade || ''}학년</div>
+          <div class="msv-profile-stats">
+            <span>Lv.${state.level || 1}</span>
+            <span>XP ${(state.xp || 0).toLocaleString()}</span>
+            <span>🔥${state.streak || 0}</span>
+          </div>
+        </div>
+        <nav class="msv-nav">
+          ${tabList.map(t => `
+            <button class="msv-nav-btn ${activeTab === t.id ? 'active' : ''}" data-msvtab="${t.id}">
+              <i class="${t.icon}"></i> ${t.label}
+            </button>
+          `).join('')}
+        </nav>
+      </aside>
+      <main class="msv-main" id="msv-content">
+        ${mainArea}
+      </main>
+    </div>`;
 }
 
-function initMentorStudentViewerEvents() {
+function initMentorStudentDashboardEvents() {
   // 탭 전환
-  document.querySelectorAll('.msv-tab').forEach(btn => {
+  document.querySelectorAll('.msv-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.studentTab = btn.dataset.msvtab;
+      state._msvActivePanel = btn.dataset.msvtab;
       state.currentScreen = 'main';
       renderScreen();
     });
   });
-  // 학생 앱 내 이벤트도 바인딩 (읽기 전용이지만 네비게이션은 허용)
+  // 패널 확대
+  document.querySelectorAll('.msv-expand-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state._msvActivePanel = btn.dataset.msvexpand;
+      state.currentScreen = 'main';
+      renderScreen();
+    });
+  });
+  // 학생 콘텐츠 내 이벤트 바인딩
   const contentEl = document.getElementById('msv-content');
   if (contentEl) {
-    // 기록 내역 등 화면 이동 이벤트
+    // 화면 이동 (data-go-screen)
     contentEl.querySelectorAll('[data-go-screen]').forEach(el => {
       el.addEventListener('click', () => {
         state.currentScreen = el.dataset.goScreen;
         renderScreen();
       });
     });
-    // 성장 차트 그리기
-    if (state.studentTab === 'growth' && state.currentScreen === 'main') {
-      setTimeout(() => { if (typeof drawGrowthChart === 'function') drawGrowthChart(); }, 100);
-    }
+    // 플래너 뷰 토글
+    contentEl.querySelectorAll('[data-pview]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.plannerView = btn.dataset.pview;
+        renderScreen();
+      });
+    });
+    // 성장 차트 (약간의 딜레이 후)
+    setTimeout(() => { if (typeof drawGrowthChart === 'function') drawGrowthChart(); }, 200);
+    // initStudentEvents 재사용 (읽기 전용이지만 네비게이션 허용)
+    initStudentEvents(contentEl);
   }
+}
+
+function initMentorStudentViewerEvents() {
+  // Legacy fallback
+  initMentorStudentDashboardEvents();
 }
 
 // 멘토 데이터 로드: 반 목록 가져오기
