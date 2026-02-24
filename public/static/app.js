@@ -377,10 +377,11 @@ function renderScreen() {
   const native = isNativeMode();
   const isPreviewMode = devicePreview !== null;
 
-  // 모드 선택 헤더/버튼/디바이스선택: PC에서만 표시 (또는 프리뷰 모드일 때)
-  if (modeHeader) modeHeader.style.display = (native && !isPreviewMode) ? 'none' : 'flex';
-  if (modeSelector) modeSelector.style.display = (native && !isPreviewMode) ? 'none' : 'flex';
-  if (deviceSelector) deviceSelector.style.display = (native && !isPreviewMode) ? 'none' : 'flex';
+  // 모드 선택 헤더/버튼/디바이스선택: PC에서만 표시 (또는 프리뷰 모드일 때), 학생뷰어에서는 숨김
+  const hideControls = (native && !isPreviewMode) || state.mode === 'mentor-student-viewer';
+  if (modeHeader) modeHeader.style.display = hideControls ? 'none' : 'flex';
+  if (modeSelector) modeSelector.style.display = hideControls ? 'none' : 'flex';
+  if (deviceSelector) deviceSelector.style.display = hideControls ? 'none' : 'flex';
 
   // 프리뷰 프레임 래퍼 관리
   let previewFrame = document.getElementById('device-preview-frame');
