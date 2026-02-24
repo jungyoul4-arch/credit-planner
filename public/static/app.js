@@ -11965,12 +11965,24 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
   state._msvActivePanel = 'all';
   renderScreen();
 
-  // 3. all-records API 1건 + profile 1건 = 총 2건만 호출 (빠름!)
+  // 3. all-records + profile + class-records(사진 포함) = 총 3건 호출
   try {
-    const [profileRes, allRes] = await Promise.all([
+    const [profileRes, allRes, classRes] = await Promise.all([
       fetch(`/api/student/${studentId}/profile`),
       fetch(`/api/mentor/student/${studentId}/all-records`),
+      fetch(`/api/student/${studentId}/class-records`),
     ]);
+
+    // class-records → photos base64 매핑 (멘토 뷰에서 사진 표시용)
+    let classRecordPhotosMap = {};
+    if (classRes.ok) {
+      const classData = await classRes.json();
+      (classData.records || []).forEach(r => {
+        let photos = [];
+        try { photos = JSON.parse(r.photos || '[]'); } catch(e) {}
+        classRecordPhotosMap[r.id] = photos;
+      });
+    }
 
     // 프로필
     if (profileRes.ok) {
@@ -12002,11 +12014,15 @@ async function mentorEnterStudentView(studentId, studentName, studentEmoji) {
       allRecs.forEach(day => {
         (day.records || []).forEach(r => {
           if (r.type === 'class') {
+            // classRecordPhotosMap에서 photos base64 배열 가져오기 (멘토 뷰 사진 표시)
+            const photosFromDb = classRecordPhotosMap[r.id] || [];
             state._dbClassRecords.push({
               id: r.id, date: r.date, subject: r.subject, period: r.period,
               content: r.content, keywords: r.keywords || r.keyword,
               understanding: r.understanding, memo: r.memo,
               teacher_note: r.teacher_note, created_at: r.created_at,
+              photos: photosFromDb,
+              topic: r.topic || '', pages: r.pages || '',
               _photoCount: r._photoCount, _photoIds: r._photoIds,
             });
           } else if (r.type === 'question') {
