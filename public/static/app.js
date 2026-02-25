@@ -552,6 +552,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'record-history') return renderRecordHistory();
   if (state.currentScreen === 'notifications') return renderNotifications();
   if (state.currentScreen === 'croquet-history') return renderCroquetHistory();
+  if (state.currentScreen === 'aha-report') return renderAhaReport();
   if (state.currentScreen === 'record-assignment') return renderRecordAssignment();
   if (state.currentScreen === 'assignment-plan') return renderAssignmentPlan();
   if (state.currentScreen === 'assignment-list') return renderAssignmentList();
@@ -3629,6 +3630,310 @@ function renderHomeTab() {
   `;
 }
 
+// ==================== 아하 리포트 ====================
+
+if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false };
+
+function renderAhaReport() {
+  const aha = state._ahaReport;
+
+  // 제출 완료 → 결과 플레이스홀더 화면
+  if (aha.submitted) {
+    return `
+      <div class="full-screen animate-slide">
+        <div class="screen-header">
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <h1>💡 아하 리포트</h1>
+        </div>
+        <div class="form-body">
+          <!-- 제출 정보 요약 -->
+          <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(255,159,67,0.1),rgba(253,203,110,0.06))">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <span style="font-size:24px">💡</span>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:var(--text-main)">아하 리포트 제출 완료</div>
+                <div style="font-size:12px;color:var(--text-muted)">${aha.subject || '과목 미선택'} ${aha.unit ? '· ' + aha.unit : ''} · 사진 ${aha.photos.length}장</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
+              ${aha.photos.map((p, i) => `<img src="${p}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;flex-shrink:0;border:1px solid var(--border)" />`).join('')}
+            </div>
+          </div>
+
+          <!-- 분석 준비 중 배너 -->
+          <div style="text-align:center;padding:16px;margin-bottom:20px">
+            <div style="font-size:32px;margin-bottom:8px">🔬</div>
+            <div style="font-size:15px;font-weight:700;color:var(--text-main)">분석 준비 중...</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">AI가 사진을 분석하여 리포트를 생성합니다</div>
+          </div>
+
+          <!-- 4개 분석 섹션 플레이스홀더 -->
+          ${[
+            { icon: '📌', title: '문제 상황' },
+            { icon: '🎯', title: '주제 설정' },
+            { icon: '🔍', title: '탐구 과정 및 결론 도출' },
+            { icon: '💡', title: '자가 피드백' },
+          ].map(sec => `
+            <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.6">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <span style="font-size:18px">${sec.icon}</span>
+                <span style="font-size:14px;font-weight:700;color:var(--text-main)">${sec.title}</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">분석 예정</span>
+              </div>
+              <div style="height:48px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center">
+                <div style="width:60%;height:10px;background:var(--border);border-radius:5px;opacity:0.5"></div>
+              </div>
+            </div>
+          `).join('')}
+
+          <!-- AI 피드백 플레이스홀더 -->
+          <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.6;border-left:3px solid var(--primary-light)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:18px">🤖</span>
+              <span style="font-size:14px;font-weight:700;color:var(--text-main)">AHA 리포트 피드백</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">분석 예정</span>
+            </div>
+            <div style="height:64px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center">
+              <div style="width:80%;height:10px;background:var(--border);border-radius:5px;opacity:0.5"></div>
+            </div>
+          </div>
+
+          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:16px">기록 탭으로 돌아가기</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // 작성 화면
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <h1>💡 아하 리포트</h1>
+      </div>
+      <div class="form-body">
+        <!-- 스텝 인디케이터 -->
+        <div style="display:flex;gap:8px;margin-bottom:20px">
+          ${[{n:1,label:'기본 정보'},{n:2,label:'사진 업로드'},{n:3,label:'제출'}].map(s => `
+            <div style="flex:1;text-align:center;padding:8px 0;border-radius:8px;font-size:12px;font-weight:600;transition:all 0.3s;${aha.step >= s.n ? 'background:rgba(255,159,67,0.15);color:#FF9F43;border:1px solid rgba(255,159,67,0.3)' : 'background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border)'}">
+              <div style="font-size:16px;font-weight:800">${s.n}</div>
+              <div>${s.label}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        ${aha.step === 1 ? `
+        <!-- Step 1: 기본 정보 -->
+        <div class="card" style="padding:20px;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:16px;color:var(--text-main)">📋 기본 정보</div>
+          
+          <div style="margin-bottom:16px">
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">과목 선택 *</label>
+            <select id="aha-subject" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px">
+              <option value="">과목을 선택하세요</option>
+              ${['국어','영어','수학','과학','사회','기타'].map(s => `<option value="${s}" ${aha.subject === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          
+          <div style="margin-bottom:16px">
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">수업 단원 및 내용 <span style="font-size:11px;color:var(--text-muted)">(생략 가능)</span></label>
+            <input type="text" id="aha-unit" value="${aha.unit || ''}" placeholder="예: 3단원 세포 분열, 미적분 극한" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px" />
+          </div>
+
+          <button onclick="ahaStep1Next()" class="btn-primary" style="width:100%;padding:14px;font-size:15px">다음 →</button>
+        </div>
+        ` : aha.step === 2 ? `
+        <!-- Step 2: 사진 업로드 -->
+        <div class="card" style="padding:20px;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--text-main)">📸 사진 업로드</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">수업 필기, 실험 결과, 자료 사진 등을 올려주세요 (최소 1장, 최대 3장)</div>
+          
+          <!-- 업로드된 사진 미리보기 -->
+          <div id="aha-photos-preview" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+            ${aha.photos.map((p, i) => `
+              <div style="position:relative;width:100px;height:100px;border-radius:12px;overflow:hidden;border:2px solid var(--border)">
+                <img src="${p}" style="width:100%;height:100%;object-fit:cover" />
+                <button onclick="ahaRemovePhoto(${i})" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.7);border:none;color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+              </div>
+            `).join('')}
+            ${aha.photos.length < 3 ? `
+              <div style="width:100px;height:100px;border-radius:12px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;transition:all 0.2s" onclick="document.getElementById('aha-photo-input').click()">
+                <i class="fas fa-plus" style="font-size:20px;color:var(--text-muted)"></i>
+                <span style="font-size:10px;color:var(--text-muted)">${aha.photos.length}/3</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- 촬영/갤러리 버튼 -->
+          <div style="display:flex;gap:10px;margin-bottom:16px">
+            <button onclick="document.getElementById('aha-camera-input').click()" style="flex:1;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+              <i class="fas fa-camera" style="color:var(--primary-light)"></i> 카메라 촬영
+            </button>
+            <button onclick="document.getElementById('aha-photo-input').click()" style="flex:1;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+              <i class="fas fa-images" style="color:#FF9F43"></i> 갤러리 선택
+            </button>
+          </div>
+
+          <!-- 숨겨진 파일 입력 -->
+          <input type="file" id="aha-camera-input" accept="image/*" capture="environment" style="display:none" onchange="ahaHandlePhotos(this)" />
+          <input type="file" id="aha-photo-input" accept="image/*" multiple style="display:none" onchange="ahaHandlePhotos(this)" />
+
+          <div id="aha-photo-error" style="display:none;padding:10px;background:rgba(214,48,49,0.1);border:1px solid rgba(214,48,49,0.3);border-radius:8px;font-size:12px;color:var(--danger);margin-bottom:12px;text-align:center"></div>
+
+          <div style="display:flex;gap:10px">
+            <button onclick="state._ahaReport.step=1;renderScreen()" class="btn-secondary" style="flex:1;padding:14px;font-size:14px">← 이전</button>
+            <button onclick="ahaStep2Next()" class="btn-primary" style="flex:2;padding:14px;font-size:15px">다음 →</button>
+          </div>
+        </div>
+        ` : `
+        <!-- Step 3: 확인 및 제출 -->
+        <div class="card" style="padding:20px;margin-bottom:16px">
+          <div style="font-size:15px;font-weight:700;margin-bottom:12px;color:var(--text-main)">✅ 제출 확인</div>
+          
+          <div style="padding:14px;background:var(--bg-input);border-radius:12px;margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span style="font-size:12px;color:var(--text-muted)">과목</span>
+              <span style="font-size:13px;font-weight:600;color:var(--text-main)">${aha.subject || '-'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span style="font-size:12px;color:var(--text-muted)">단원/내용</span>
+              <span style="font-size:13px;font-weight:600;color:var(--text-main)">${aha.unit || '(미입력)'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-size:12px;color:var(--text-muted)">사진</span>
+              <span style="font-size:13px;font-weight:600;color:var(--text-main)">${aha.photos.length}장</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:16px;padding-bottom:4px">
+            ${aha.photos.map(p => `<img src="${p}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;flex-shrink:0;border:1px solid var(--border)" />`).join('')}
+          </div>
+
+          <div style="padding:10px;background:rgba(255,159,67,0.08);border-radius:8px;font-size:12px;color:#FF9F43;text-align:center;margin-bottom:16px">
+            🍩 제출 시 크로켓 포인트 +3P 적립 예정
+          </div>
+
+          <div style="display:flex;gap:10px">
+            <button onclick="state._ahaReport.step=2;renderScreen()" class="btn-secondary" style="flex:1;padding:14px;font-size:14px">← 이전</button>
+            <button id="aha-submit-btn" onclick="ahaSubmit()" class="btn-primary" style="flex:2;padding:14px;font-size:15px;background:linear-gradient(135deg,#FF9F43,#FDCB6E)">💡 제출하기</button>
+          </div>
+        </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function ahaStep1Next() {
+  const subject = document.getElementById('aha-subject')?.value;
+  const unit = document.getElementById('aha-unit')?.value || '';
+  if (!subject) { alert('과목을 선택해주세요'); return; }
+  state._ahaReport.subject = subject;
+  state._ahaReport.unit = unit;
+  state._ahaReport.step = 2;
+  renderScreen();
+}
+
+function ahaHandlePhotos(input) {
+  const files = Array.from(input.files || []);
+  const maxSlots = 3 - (state._ahaReport.photos || []).length;
+  const toProcess = files.slice(0, maxSlots);
+  const errEl = document.getElementById('aha-photo-error');
+
+  if (toProcess.length === 0) {
+    if (errEl) { errEl.textContent = '사진은 최대 3장까지 업로드 가능합니다.'; errEl.style.display = 'block'; }
+    input.value = '';
+    return;
+  }
+
+  let processed = 0;
+  toProcess.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // 흐림 필터링: 너무 작은 이미지 (극단적 흐림 대용)
+        if (img.width < 50 || img.height < 50) {
+          if (errEl) { errEl.textContent = '사진이 너무 흐려요. 다시 찍어주세요.'; errEl.style.display = 'block'; }
+          processed++;
+          if (processed === toProcess.length) { input.value = ''; renderScreen(); }
+          return;
+        }
+        // 리사이징 (최대 1200px)
+        const maxDim = 1200;
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // 흐림 감지: Laplacian variance (극단적 흐림만)
+        try {
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const data = imageData.data;
+          let sum = 0, sumSq = 0, count = 0;
+          for (let y = 1; y < h - 1; y += 3) {
+            for (let x = 1; x < w - 1; x += 3) {
+              const idx = (y * w + x) * 4;
+              const gray = data[idx] * 0.299 + data[idx+1] * 0.587 + data[idx+2] * 0.114;
+              const grayT = data[((y-1)*w+x)*4] * 0.299 + data[((y-1)*w+x)*4+1] * 0.587 + data[((y-1)*w+x)*4+2] * 0.114;
+              const grayB = data[((y+1)*w+x)*4] * 0.299 + data[((y+1)*w+x)*4+1] * 0.587 + data[((y+1)*w+x)*4+2] * 0.114;
+              const grayL = data[(y*w+x-1)*4] * 0.299 + data[(y*w+x-1)*4+1] * 0.587 + data[(y*w+x-1)*4+2] * 0.114;
+              const grayR = data[(y*w+x+1)*4] * 0.299 + data[(y*w+x+1)*4+1] * 0.587 + data[(y*w+x+1)*4+2] * 0.114;
+              const lap = grayT + grayB + grayL + grayR - 4 * gray;
+              sum += lap; sumSq += lap * lap; count++;
+            }
+          }
+          const variance = count > 0 ? (sumSq / count) - Math.pow(sum / count, 2) : 999;
+          if (variance < 15) {
+            if (errEl) { errEl.textContent = '사진이 너무 흐려요. 다시 찍어주세요.'; errEl.style.display = 'block'; }
+            processed++;
+            if (processed === toProcess.length) { input.value = ''; renderScreen(); }
+            return;
+          }
+        } catch(_) {}
+
+        if (errEl) errEl.style.display = 'none';
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        state._ahaReport.photos.push(dataUrl);
+        processed++;
+        if (processed === toProcess.length) { input.value = ''; renderScreen(); }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function ahaRemovePhoto(idx) {
+  state._ahaReport.photos.splice(idx, 1);
+  renderScreen();
+}
+
+function ahaStep2Next() {
+  if ((state._ahaReport.photos || []).length === 0) {
+    const errEl = document.getElementById('aha-photo-error');
+    if (errEl) { errEl.textContent = '사진을 최소 1장 업로드해주세요.'; errEl.style.display = 'block'; }
+    return;
+  }
+  state._ahaReport.step = 3;
+  renderScreen();
+}
+
+function ahaSubmit() {
+  const btn = document.getElementById('aha-submit-btn');
+  if (btn) { btn.textContent = '제출 중...'; btn.disabled = true; }
+  // 이 단계에서는 AI 연동 없이 제출 완료만 처리
+  setTimeout(() => {
+    state._ahaReport.submitted = true;
+    renderScreen();
+  }, 800);
+}
+
 // ==================== 크로켓 포인트 히스토리 ====================
 
 function renderCroquetHistory() {
@@ -3747,7 +4052,7 @@ function renderRecordTab() {
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
         ${[
-          { screen:'record-class', icon:'📝', bg:'rgba(108,92,231,0.15)', title:'수업 기록', desc:'30초 만에 오늘 수업을 기록', xp:'+10' },
+          { screen:'aha-report', icon:'💡', bg:'rgba(255,159,67,0.15)', title:'아하 리포트', desc:'영역 탐구 보고서 작성 · 사진 기록', xp:'🍩+3' },
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
           { screen:'__qa-new__', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 정율 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
@@ -12358,7 +12663,7 @@ function renderMentorStudentDashboard() {
 
   // 비메인 화면 (학생 상세 화면 진입 시) → 단일 패널로 표시
   if (state.currentScreen !== 'main') {
-    const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine'];
+    const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine','aha-report'];
     let subContent = '';
     if (writeScreens.includes(state.currentScreen)) {
       subContent = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><i class="fas fa-eye" style="font-size:36px;margin-bottom:16px;display:block;opacity:0.3"></i><p style="font-size:16px;font-weight:600;margin-bottom:8px">열람 전용 모드</p><p style="font-size:13px">멘토 열람 모드에서는 기록 작성이 불가합니다.</p><button onclick="state.currentScreen=\'main\';renderScreen()" class="msv-back-sub"><i class="fas fa-arrow-left"></i> 돌아가기</button></div>';
