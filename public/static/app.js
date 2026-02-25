@@ -4362,10 +4362,10 @@ function renderAhaReportDetail() {
   const photos = Array.isArray(d.photos) ? d.photos : [];
 
   const sections = [
-    { key: 'section_problem', title: '1. 문제 상황', icon: '🔍' },
+    { key: 'section_problem', title: '1. 문제 상황', icon: '📌' },
     { key: 'section_topic', title: '2. 주제 설정', icon: '🎯' },
-    { key: 'section_research', title: '3. 탐구 과정 및 결론 도출', icon: '🔬' },
-    { key: 'section_self_feedback', title: '4. 자가 피드백', icon: '💭' }
+    { key: 'section_research', title: '3. 탐구 과정 및 결론 도출', icon: '🔍' },
+    { key: 'section_self_feedback', title: '4. 자가 피드백', icon: '💡' }
   ];
 
   // Tab content
@@ -4402,53 +4402,67 @@ function renderAhaReportDetail() {
   } else {
     // 리포트 양식 탭 (default) - 인쇄용 클린 레이아웃
     tabContent = `
-      <div id="aha-report-printable" style="padding:16px">
-        <div style="background:#fffff8;border:2px solid #e0d8c0;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-          <!-- 리포트 헤더 -->
-          <div style="background:linear-gradient(135deg,#2d3436,#636e72);padding:20px;text-align:center">
-            <div style="color:#ffeaa7;font-size:18px;font-weight:800;letter-spacing:2px">AHA-Report</div>
-            <div style="color:rgba(255,255,255,0.7);font-size:11px;margin-top:4px">영역 탐구 보고서</div>
-          </div>
+      <div id="aha-report-printable" style="padding:20px 16px;display:flex;flex-direction:column;align-items:center">
+        <div style="width:100%;max-width:720px">
           
-          <!-- 기본 정보 -->
-          <div style="padding:16px;border-bottom:1px solid #e0d8c0;background:#faf8f0">
-            <table style="width:100%;border-collapse:collapse;font-size:13px">
-              <tr>
-                <td style="padding:6px 12px;color:#636e72;font-weight:600;width:80px;border-right:1px solid #e0d8c0">과목</td>
-                <td style="padding:6px 12px;color:#2d3436;font-weight:700">${d.subject_detected || d.subject || '-'}</td>
-                <td style="padding:6px 12px;color:#636e72;font-weight:600;width:80px;border-right:1px solid #e0d8c0;border-left:1px solid #e0d8c0">이름</td>
-                <td style="padding:6px 12px;color:#2d3436;font-weight:700">${d.student_name_detected || state._authUser?.name || '-'}</td>
-              </tr>
-              <tr style="border-top:1px solid #e0d8c0">
-                <td style="padding:6px 12px;color:#636e72;font-weight:600;border-right:1px solid #e0d8c0">단원</td>
-                <td colspan="3" style="padding:6px 12px;color:#2d3436">${d.unit_detected || d.unit || '-'}</td>
-              </tr>
-              <tr style="border-top:1px solid #e0d8c0">
-                <td style="padding:6px 12px;color:#636e72;font-weight:600;border-right:1px solid #e0d8c0">날짜</td>
-                <td colspan="3" style="padding:6px 12px;color:#2d3436">${date}</td>
-              </tr>
-            </table>
-          </div>
-          
-          <!-- 4개 섹션 -->
-          ${sections.map(sec => `
-            <div style="border-bottom:1px solid #e0d8c0">
-              <div style="padding:12px 16px;background:#f5f0e0;font-weight:700;font-size:13px;color:#2d3436;display:flex;align-items:center;gap:8px">
-                <span>${sec.icon}</span> ${sec.title}
+          <!-- 리포트 헤더 카드 -->
+          <div style="background:#ffffff;border:1px solid #e2e0d8;border-radius:16px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.06);margin-bottom:20px">
+            <div style="background:linear-gradient(135deg,#2d3436,#4a5568);padding:24px 28px;text-align:center">
+              <div style="color:#ffeaa7;font-size:13px;font-weight:600;letter-spacing:3px;margin-bottom:4px">AHA-Report</div>
+              <div style="color:#fff;font-size:20px;font-weight:800">📚 영역 탐구 보고서</div>
+            </div>
+            <div style="padding:24px 28px;background:#fdfcf8">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 32px">
+                <div>
+                  <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:4px;letter-spacing:0.5px">과목</div>
+                  <div style="font-size:16px;color:#1f2937;font-weight:700">${d.subject_detected || d.subject || '-'}</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:4px;letter-spacing:0.5px">이름</div>
+                  <div style="font-size:16px;color:#1f2937;font-weight:700">${d.student_name_detected || state._authUser?.name || '-'}</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:4px;letter-spacing:0.5px">단원</div>
+                  <div style="font-size:16px;color:#1f2937;font-weight:700">${d.unit_detected || d.unit || '-'}</div>
+                </div>
+                <div>
+                  <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:4px;letter-spacing:0.5px">날짜</div>
+                  <div style="font-size:16px;color:#1f2937;font-weight:700">${date}</div>
+                </div>
               </div>
-              <div style="padding:14px 16px;color:#2d3436;font-size:13px;line-height:1.8;min-height:60px;background:#fffff8;white-space:pre-wrap">${d[sec.key] || '(내용 없음)'}</div>
+            </div>
+          </div>
+          
+          <!-- 4개 섹션 카드 (각각 분리) -->
+          ${sections.map(sec => `
+            <div style="background:#ffffff;border:1px solid #e2e0d8;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.04);margin-bottom:20px">
+              <div style="padding:16px 24px;background:#f8f6f0;border-bottom:1px solid #e8e4d8;display:flex;align-items:center;gap:10px">
+                <span style="font-size:20px">${sec.icon}</span>
+                <span style="font-size:18px;font-weight:700;color:#1f2937">${sec.title}</span>
+              </div>
+              <div style="padding:20px 24px;color:#374151;font-size:16px;line-height:1.8;min-height:60px;background:#ffffff;white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word">${d[sec.key] || '(내용 없음)'}</div>
             </div>
           `).join('')}
-        </div>
-        
-        <!-- PDF 저장 / 공유 버튼 -->
-        <div style="display:flex;gap:10px;margin-top:16px">
-          <button onclick="ahaExportPDF()" style="flex:1;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-            <i class="fas fa-file-pdf"></i> PDF 저장
-          </button>
-          <button onclick="ahaShareReport()" style="flex:1;padding:14px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-            <i class="fas fa-share-alt"></i> 공유
-          </button>
+          
+          <!-- 5. AI 피드백 카드 (배경색 차별화) -->
+          <div style="background:linear-gradient(135deg,#f0f4ff,#f5f0ff);border:1px solid #d4d0f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(108,92,231,0.08);margin-bottom:20px">
+            <div style="padding:16px 24px;background:linear-gradient(135deg,#e8eaff,#ede8ff);border-bottom:1px solid #d4d0f0;display:flex;align-items:center;gap:10px">
+              <span style="font-size:20px">🤖</span>
+              <span style="font-size:18px;font-weight:700;color:#4338ca">5. AI 피드백</span>
+            </div>
+            <div style="padding:20px 24px;color:#374151;font-size:16px;line-height:1.8;background:transparent;white-space:pre-wrap;word-break:keep-all;overflow-wrap:break-word">${d.ai_feedback || '(피드백 정보가 없습니다)'}</div>
+          </div>
+          
+          <!-- PDF 저장 / 공유 버튼 -->
+          <div style="display:flex;gap:10px;margin-top:4px">
+            <button onclick="ahaExportPDF()" style="flex:1;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+              <i class="fas fa-file-pdf"></i> PDF 저장
+            </button>
+            <button onclick="ahaShareReport()" style="flex:1;padding:14px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+              <i class="fas fa-share-alt"></i> 공유
+            </button>
+          </div>
+          
         </div>
       </div>
     `;
@@ -4515,11 +4529,11 @@ async function ahaExportPDF() {
       });
     }
 
-    const reportEl = el.querySelector('[style*="background:#fffff8"]') || el;
+    const reportEl = el;
     const canvas = await html2canvas(reportEl, {
       scale: 2,
       useCORS: true,
-      backgroundColor: '#fffff8',
+      backgroundColor: '#f5f5f0',
       logging: false
     });
 
@@ -4538,8 +4552,20 @@ async function ahaExportPDF() {
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = (canvas.height * pdfW) / canvas.width;
-    pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+    const pdfPageH = pdf.internal.pageSize.getHeight();
+    const imgH = (canvas.height * pdfW) / canvas.width;
+    
+    // 다중 페이지 처리
+    if (imgH <= pdfPageH) {
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, imgH);
+    } else {
+      let y = 0;
+      while (y < imgH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -y, pdfW, imgH);
+        y += pdfPageH;
+      }
+    }
     
     const d = state._ahaDetail;
     const filename = `AHA리포트_${d?.subject || ''}_${d?.created_at ? new Date(d.created_at).toISOString().slice(0,10) : ''}.pdf`;
@@ -4556,10 +4582,11 @@ async function ahaShareReport() {
   if (!d) return;
 
   const text = `[AHA-Report] ${d.subject} - ${d.unit_detected || d.unit || ''}\n\n` +
-    `1. 문제 상황: ${d.section_problem || ''}\n` +
-    `2. 주제 설정: ${d.section_topic || ''}\n` +
-    `3. 탐구 과정 및 결론: ${d.section_research || ''}\n` +
-    `4. 자가 피드백: ${d.section_self_feedback || ''}`;
+    `1. 문제 상황: ${d.section_problem || ''}\n\n` +
+    `2. 주제 설정: ${d.section_topic || ''}\n\n` +
+    `3. 탐구 과정 및 결론: ${d.section_research || ''}\n\n` +
+    `4. 자가 피드백: ${d.section_self_feedback || ''}\n\n` +
+    `5. AI 피드백: ${d.ai_feedback || ''}`;
 
   if (navigator.share) {
     try {
