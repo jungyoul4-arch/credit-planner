@@ -1812,6 +1812,10 @@ app.get('/api/migrate', async (c) => {
       `CREATE INDEX IF NOT EXISTS idx_cp_mentor ON croquet_points(mentor_id, created_at DESC)`,
       // students 테이블에 croquet_balance 컬럼 추가
       `ALTER TABLE students ADD COLUMN croquet_balance INTEGER NOT NULL DEFAULT 0`,
+      // 아하 리포트 저장 테이블
+      `CREATE TABLE IF NOT EXISTS aha_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, unit TEXT DEFAULT '', student_name_detected TEXT DEFAULT '', subject_detected TEXT DEFAULT '', unit_detected TEXT DEFAULT '', section_problem TEXT DEFAULT '', section_topic TEXT DEFAULT '', section_research TEXT DEFAULT '', section_self_feedback TEXT DEFAULT '', ai_feedback TEXT DEFAULT '', photos TEXT DEFAULT '[]', ai_source TEXT DEFAULT 'gemini', croquet_given INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
+      `CREATE INDEX IF NOT EXISTS idx_aha_student ON aha_reports(student_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_aha_subject ON aha_reports(student_id, subject)`,
     ];
     for (const sql of stmts) {
       try { await c.env.DB.prepare(sql).run(); } catch(_) { /* column may already exist */ }
@@ -2429,6 +2433,79 @@ app.post('/api/aha-report/give-croquet', async (c) => {
     return c.json({ success: true, newBalance, amount })
   } catch (e: any) {
     console.log('AHA croquet give error:', e)
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// ==================== 아하 리포트 저장/조회 ====================
+// 리포트 저장
+app.post('/api/aha-report/save', async (c) => {
+  try {
+    const { studentId, subject, unit, photos, sections, ai_feedback, ai_source, student_name_detected, subject_detected, unit_detected, croquet_given } = await c.req.json<{
+      studentId: number, subject: string, unit?: string, photos: string[],
+      sections: { problem: string, topic: string, research: string, self_feedback: string },
+      ai_feedback?: string, ai_source?: string,
+      student_name_detected?: string, subject_detected?: string, unit_detected?: string,
+      croquet_given?: number
+    }>()
+    if (!studentId || !subject) return c.json({ error: '필수 정보가 누락되었습니다.' }, 400)
+
+    const result = await c.env.DB.prepare(
+      `INSERT INTO aha_reports (student_id, subject, unit, photos, section_problem, section_topic, section_research, section_self_feedback, ai_feedback, ai_source, student_name_detected, subject_detected, unit_detected, croquet_given)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      studentId, subject, unit || '', JSON.stringify(photos),
+      sections?.problem || '', sections?.topic || '', sections?.research || '', sections?.self_feedback || '',
+      ai_feedback || '', ai_source || 'gemini',
+      student_name_detected || '', subject_detected || '', unit_detected || '',
+      croquet_given ? 1 : 0
+    ).run()
+
+    return c.json({ success: true, reportId: result.meta.last_row_id })
+  } catch (e: any) {
+    console.log('AHA report save error:', e)
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 학생 리포트 목록 조회
+app.get('/api/student/:studentId/aha-reports', async (c) => {
+  try {
+    const studentId = Number(c.req.param('studentId'))
+    const subject = c.req.query('subject') || ''
+    
+    let query = 'SELECT id, subject, unit, section_topic, ai_feedback, croquet_given, created_at, student_name_detected, subject_detected, unit_detected FROM aha_reports WHERE student_id = ?'
+    const binds: any[] = [studentId]
+    
+    if (subject) {
+      query += ' AND subject = ?'
+      binds.push(subject)
+    }
+    query += ' ORDER BY created_at DESC'
+    
+    const stmt = c.env.DB.prepare(query)
+    const { results } = await stmt.bind(...binds).all()
+    return c.json({ reports: results || [] })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 리포트 상세 조회
+app.get('/api/aha-report/:reportId', async (c) => {
+  try {
+    const reportId = Number(c.req.param('reportId'))
+    const report: any = await c.env.DB.prepare(
+      'SELECT * FROM aha_reports WHERE id = ?'
+    ).bind(reportId).first()
+    
+    if (!report) return c.json({ error: '리포트를 찾을 수 없습니다.' }, 404)
+    
+    // Parse photos JSON
+    try { report.photos = JSON.parse(report.photos || '[]') } catch { report.photos = [] }
+    
+    return c.json({ report })
+  } catch (e: any) {
     return c.json({ error: e.message }, 500)
   }
 })

@@ -553,6 +553,8 @@ function renderStudentApp() {
   if (state.currentScreen === 'notifications') return renderNotifications();
   if (state.currentScreen === 'croquet-history') return renderCroquetHistory();
   if (state.currentScreen === 'aha-report') return renderAhaReport();
+  if (state.currentScreen === 'aha-report-list') return renderAhaReportList();
+  if (state.currentScreen === 'aha-report-detail') return renderAhaReportDetail();
   if (state.currentScreen === 'record-assignment') return renderRecordAssignment();
   if (state.currentScreen === 'assignment-plan') return renderAssignmentPlan();
   if (state.currentScreen === 'assignment-list') return renderAssignmentList();
@@ -3632,7 +3634,7 @@ function renderHomeTab() {
 
 // ==================== 아하 리포트 ====================
 
-if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false, analyzing: false, error: null, result: null, editing: {}, croquetGiven: false };
+if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false, analyzing: false, error: null, result: null, editing: {}, croquetGiven: false, savedReportId: null };
 
 function renderAhaReport() {
   const aha = state._ahaReport;
@@ -3731,7 +3733,7 @@ function renderAhaReport() {
     return `
       <div class="full-screen animate-slide">
         <div class="screen-header">
-          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
           <h1>💡 아하 리포트</h1>
         </div>
         <div class="form-body">
@@ -3809,7 +3811,7 @@ function renderAhaReport() {
             `}
           </div>
 
-          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:8px">기록 탭으로 돌아가기</button>
+          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:8px">기록 탭으로 돌아가기</button>
         </div>
       </div>
     `;
@@ -3820,7 +3822,7 @@ function renderAhaReport() {
     return `
       <div class="full-screen animate-slide">
         <div class="screen-header">
-          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
           <h1>💡 아하 리포트</h1>
         </div>
         <div class="form-body">
@@ -3838,7 +3840,7 @@ function renderAhaReport() {
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
         <h1>💡 아하 리포트</h1>
       </div>
       <div class="form-body">
@@ -4090,6 +4092,37 @@ async function ahaSubmit() {
     aha.croquetGiven = false;
     renderScreen();
 
+    // DB에 리포트 저장
+    if (state._authUser?.id) {
+      try {
+        const saveRes = await fetch('/api/aha-report/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: state._authUser.id,
+            subject: aha.subject,
+            unit: aha.unit,
+            photos: aha.photos,
+            sections: data.sections || {},
+            ai_feedback: data.ai_feedback || '',
+            ai_source: data.ai_source || 'gemini',
+            student_name_detected: data.student_name || '',
+            subject_detected: data.subject_detected || '',
+            unit_detected: data.unit_detected || '',
+            croquet_given: 0
+          })
+        });
+        const saveData = await saveRes.json();
+        if (saveData.reportId) {
+          aha.savedReportId = saveData.reportId;
+          // 목록 캐시 무효화
+          state._ahaReportList = null;
+        }
+      } catch (saveErr) {
+        console.error('AHA report save error:', saveErr);
+      }
+    }
+
     // 피드백 표시 후 크로켓 포인트 자동 지급
     if (data.ai_feedback && state._authUser?.id) {
       setTimeout(() => ahaCroquetAutoGive(), 500);
@@ -4169,6 +4202,385 @@ function ahaCroquetCountAnimation() {
       }, 2000);
     }
   }, stepTime);
+}
+
+// ==================== 아하 리포트 옵션 오버레이 / 리스트 / 상세 ====================
+
+function showAhaOptionsOverlay() {
+  // 기존 오버레이 제거
+  const existing = document.getElementById('aha-options-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'aha-options-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.5);animation:fadeIn .2s ease';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="width:100%;max-width:500px;background:var(--bg-card);border-radius:20px 20px 0 0;padding:24px 20px 40px;animation:slideUp .3s ease">
+      <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px"></div>
+      <h3 style="color:var(--text-main);font-size:18px;font-weight:700;margin-bottom:16px;text-align:center">💡 아하 리포트</h3>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button onclick="document.getElementById('aha-options-overlay').remove();state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('aha-report')" 
+          style="display:flex;align-items:center;gap:14px;padding:18px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:14px;cursor:pointer;text-align:left">
+          <span style="font-size:28px">📝</span>
+          <div>
+            <div style="color:var(--text-main);font-weight:600;font-size:15px">새 리포트 작성</div>
+            <div style="color:var(--text-muted);font-size:12px;margin-top:2px">사진 촬영 → AI 분석 → 리포트 생성</div>
+          </div>
+          <span style="margin-left:auto;background:rgba(255,159,67,0.2);color:#ff9f43;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🍩+3</span>
+        </button>
+        <button onclick="document.getElementById('aha-options-overlay').remove();goScreen('aha-report-list')" 
+          style="display:flex;align-items:center;gap:14px;padding:18px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:14px;cursor:pointer;text-align:left">
+          <span style="font-size:28px">📚</span>
+          <div>
+            <div style="color:var(--text-main);font-weight:600;font-size:15px">내 리포트 보기</div>
+            <div style="color:var(--text-muted);font-size:12px;margin-top:2px">과거 리포트 열람 · 인쇄용 양식 · PDF 저장</div>
+          </div>
+          <span style="margin-left:auto;color:var(--primary-light);font-size:16px"><i class="fas fa-chevron-right"></i></span>
+        </button>
+      </div>
+      <button onclick="document.getElementById('aha-options-overlay').remove()" 
+        style="width:100%;margin-top:16px;padding:14px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--text-muted);font-size:14px;cursor:pointer">닫기</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// 아하 리포트 목록 화면
+function renderAhaReportList() {
+  const sid = state._authUser?.id;
+  if (!state._ahaReportList) state._ahaReportList = { reports: [], loaded: false, filter: '' };
+
+  if (sid && !state._ahaReportList.loaded) {
+    state._ahaReportList.loaded = true;
+    const filterQ = state._ahaReportList.filter ? `?subject=${encodeURIComponent(state._ahaReportList.filter)}` : '';
+    fetch(`/api/student/${sid}/aha-reports${filterQ}`)
+      .then(r => r.json())
+      .then(data => {
+        state._ahaReportList.reports = data.reports || [];
+        renderScreen();
+      })
+      .catch(() => {});
+  }
+
+  const reports = state._ahaReportList.reports || [];
+  const filter = state._ahaReportList.filter || '';
+  const subjects = ['', '국어', '영어', '수학', '과학', '사회', '기타'];
+  const subjectColors = { '국어': '#ff6b6b', '영어': '#4ecdc4', '수학': '#6c5ce7', '과학': '#00b894', '사회': '#fdcb6e', '기타': '#a29bfe' };
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state._ahaReportList=null;goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <h1>📚 내 아하 리포트</h1>
+      </div>
+      
+      <!-- 과목 필터 -->
+      <div style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;scrollbar-width:none">
+        ${subjects.map(s => `
+          <button onclick="state._ahaReportList.filter='${s}';state._ahaReportList.loaded=false;renderScreen()" 
+            style="flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid ${filter === s ? 'var(--primary)' : 'var(--border)'};background:${filter === s ? 'var(--primary)' : 'var(--bg-input)'};color:${filter === s ? '#fff' : 'var(--text-muted)'};cursor:pointer;white-space:nowrap">
+            ${s || '전체'}
+          </button>
+        `).join('')}
+      </div>
+      
+      <div style="padding:0 16px 120px">
+        ${reports.length === 0 ? `
+          <div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+            <div style="font-size:48px;margin-bottom:16px">📝</div>
+            <p style="font-size:15px;font-weight:600;margin-bottom:8px">아직 작성한 리포트가 없어요</p>
+            <p style="font-size:13px">아하 리포트를 작성하면 여기에 표시됩니다</p>
+            <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('aha-report')" 
+              class="btn-primary" style="margin-top:20px;padding:12px 28px;font-size:14px">새 리포트 작성하기</button>
+          </div>
+        ` : reports.map(r => {
+          const sc = subjectColors[r.subject] || '#a29bfe';
+          const date = r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR', {year:'numeric',month:'short',day:'numeric'}) : '';
+          const topicPreview = (r.section_topic || '').substring(0, 60) + ((r.section_topic || '').length > 60 ? '...' : '');
+          return `
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer" onclick="openAhaReportDetail(${r.id})">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <span style="background:${sc}22;color:${sc};padding:4px 12px;border-radius:8px;font-size:12px;font-weight:700">${r.subject}</span>
+                <span style="color:var(--text-muted);font-size:11px">${date}</span>
+                <span style="margin-left:auto;background:rgba(255,159,67,0.15);color:#ff9f43;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">🍩+3</span>
+              </div>
+              ${r.unit ? `<div style="color:var(--text-main);font-size:14px;font-weight:600;margin-bottom:6px">${r.unit}</div>` : ''}
+              ${topicPreview ? `<div style="color:var(--text-muted);font-size:12px;line-height:1.5">${topicPreview}</div>` : ''}
+              <div style="display:flex;justify-content:flex-end;margin-top:10px">
+                <span style="color:var(--primary-light);font-size:12px;font-weight:600">[보기] <i class="fas fa-chevron-right" style="font-size:10px"></i></span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function openAhaReportDetail(reportId) {
+  state._ahaDetailId = reportId;
+  state._ahaDetail = null;
+  state._ahaDetailTab = 'report'; // default tab: 리포트 양식
+  goScreen('aha-report-detail');
+}
+
+// 아하 리포트 상세 화면
+function renderAhaReportDetail() {
+  const reportId = state._ahaDetailId;
+  const detail = state._ahaDetail;
+  const tab = state._ahaDetailTab || 'report';
+
+  if (!detail) {
+    // 로딩
+    fetch(`/api/aha-report/${reportId}`)
+      .then(r => r.json())
+      .then(data => {
+        state._ahaDetail = data.report;
+        renderScreen();
+      })
+      .catch(() => {});
+
+    return `
+      <div class="full-screen animate-slide">
+        <div class="screen-header">
+          <button class="back-btn" onclick="goScreen('aha-report-list')"><i class="fas fa-arrow-left"></i></button>
+          <h1>💡 아하 리포트</h1>
+        </div>
+        <div style="text-align:center;padding:80px 20px;color:var(--text-muted)">
+          <div class="loading-spinner" style="width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px"></div>
+          <p>리포트를 불러오는 중...</p>
+        </div>
+      </div>
+    `;
+  }
+
+  const d = detail;
+  const subjectColors = { '국어': '#ff6b6b', '영어': '#4ecdc4', '수학': '#6c5ce7', '과학': '#00b894', '사회': '#fdcb6e', '기타': '#a29bfe' };
+  const sc = subjectColors[d.subject] || '#a29bfe';
+  const date = d.created_at ? new Date(d.created_at).toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'}) : '';
+  const photos = Array.isArray(d.photos) ? d.photos : [];
+
+  const sections = [
+    { key: 'section_problem', title: '1. 문제 상황', icon: '🔍' },
+    { key: 'section_topic', title: '2. 주제 설정', icon: '🎯' },
+    { key: 'section_research', title: '3. 탐구 과정 및 결론 도출', icon: '🔬' },
+    { key: 'section_self_feedback', title: '4. 자가 피드백', icon: '💭' }
+  ];
+
+  // Tab content
+  let tabContent = '';
+
+  if (tab === 'photo') {
+    // 원본 사진 탭
+    tabContent = photos.length > 0 ? `
+      <div style="padding:16px">
+        ${photos.map((p, i) => `
+          <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+            <img src="${p}" style="width:100%;display:block;cursor:pointer" onclick="ahaZoomPhoto('${p.replace(/'/g, "\\'")}')" />
+            <div style="padding:8px 12px;background:var(--bg-input);font-size:11px;color:var(--text-muted)">사진 ${i+1} · 탭하여 확대</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : `<div style="text-align:center;padding:40px;color:var(--text-muted)">저장된 사진이 없습니다</div>`;
+  } else if (tab === 'feedback') {
+    // AI 피드백 탭
+    tabContent = `
+      <div style="padding:16px">
+        <div style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(162,155,254,0.12));border:1px solid rgba(108,92,231,0.2);border-radius:14px;padding:20px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+            <span style="font-size:20px">🤖</span>
+            <span style="color:var(--primary-light);font-weight:700;font-size:15px">AI 피드백</span>
+          </div>
+          <div style="color:var(--text-main);font-size:14px;line-height:1.8;white-space:pre-wrap">${d.ai_feedback || '피드백 정보가 없습니다.'}</div>
+        </div>
+        <div style="margin-top:16px;text-align:center;color:var(--text-muted);font-size:11px">
+          분석 엔진: ${d.ai_source === 'openai' ? 'GPT-4o' : 'Gemini Flash'} · ${date}
+        </div>
+      </div>
+    `;
+  } else {
+    // 리포트 양식 탭 (default) - 인쇄용 클린 레이아웃
+    tabContent = `
+      <div id="aha-report-printable" style="padding:16px">
+        <div style="background:#fffff8;border:2px solid #e0d8c0;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+          <!-- 리포트 헤더 -->
+          <div style="background:linear-gradient(135deg,#2d3436,#636e72);padding:20px;text-align:center">
+            <div style="color:#ffeaa7;font-size:18px;font-weight:800;letter-spacing:2px">AHA-Report</div>
+            <div style="color:rgba(255,255,255,0.7);font-size:11px;margin-top:4px">영역 탐구 보고서</div>
+          </div>
+          
+          <!-- 기본 정보 -->
+          <div style="padding:16px;border-bottom:1px solid #e0d8c0;background:#faf8f0">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tr>
+                <td style="padding:6px 12px;color:#636e72;font-weight:600;width:80px;border-right:1px solid #e0d8c0">과목</td>
+                <td style="padding:6px 12px;color:#2d3436;font-weight:700">${d.subject_detected || d.subject || '-'}</td>
+                <td style="padding:6px 12px;color:#636e72;font-weight:600;width:80px;border-right:1px solid #e0d8c0;border-left:1px solid #e0d8c0">이름</td>
+                <td style="padding:6px 12px;color:#2d3436;font-weight:700">${d.student_name_detected || state._authUser?.name || '-'}</td>
+              </tr>
+              <tr style="border-top:1px solid #e0d8c0">
+                <td style="padding:6px 12px;color:#636e72;font-weight:600;border-right:1px solid #e0d8c0">단원</td>
+                <td colspan="3" style="padding:6px 12px;color:#2d3436">${d.unit_detected || d.unit || '-'}</td>
+              </tr>
+              <tr style="border-top:1px solid #e0d8c0">
+                <td style="padding:6px 12px;color:#636e72;font-weight:600;border-right:1px solid #e0d8c0">날짜</td>
+                <td colspan="3" style="padding:6px 12px;color:#2d3436">${date}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <!-- 4개 섹션 -->
+          ${sections.map(sec => `
+            <div style="border-bottom:1px solid #e0d8c0">
+              <div style="padding:12px 16px;background:#f5f0e0;font-weight:700;font-size:13px;color:#2d3436;display:flex;align-items:center;gap:8px">
+                <span>${sec.icon}</span> ${sec.title}
+              </div>
+              <div style="padding:14px 16px;color:#2d3436;font-size:13px;line-height:1.8;min-height:60px;background:#fffff8;white-space:pre-wrap">${d[sec.key] || '(내용 없음)'}</div>
+            </div>
+          `).join('')}
+        </div>
+        
+        <!-- PDF 저장 / 공유 버튼 -->
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button onclick="ahaExportPDF()" style="flex:1;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+            <i class="fas fa-file-pdf"></i> PDF 저장
+          </button>
+          <button onclick="ahaShareReport()" style="flex:1;padding:14px;background:var(--bg-input);color:var(--text-main);border:1px solid var(--border);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+            <i class="fas fa-share-alt"></i> 공유
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state._ahaDetail=null;goScreen('aha-report-list')"><i class="fas fa-arrow-left"></i></button>
+        <h1>💡 리포트 상세</h1>
+      </div>
+      
+      <!-- 요약 정보 -->
+      <div style="padding:0 16px 12px;display:flex;align-items:center;gap:10px">
+        <span style="background:${sc}22;color:${sc};padding:5px 14px;border-radius:10px;font-size:13px;font-weight:700">${d.subject}</span>
+        <span style="color:var(--text-muted);font-size:12px">${date}</span>
+        <span style="margin-left:auto;background:rgba(255,159,67,0.15);color:#ff9f43;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600">🍩+3</span>
+      </div>
+      
+      <!-- 3탭 -->
+      <div style="display:flex;border-bottom:2px solid var(--border);margin:0 16px;gap:0">
+        ${[{key:'photo',label:'원본 사진',icon:'📷'},{key:'report',label:'리포트 양식',icon:'📄'},{key:'feedback',label:'AI 피드백',icon:'🤖'}].map(t => `
+          <button onclick="state._ahaDetailTab='${t.key}';renderScreen()" 
+            style="flex:1;padding:12px 8px;font-size:13px;font-weight:${tab === t.key ? '700' : '500'};color:${tab === t.key ? 'var(--primary-light)' : 'var(--text-muted)'};background:transparent;border:none;border-bottom:2px solid ${tab === t.key ? 'var(--primary)' : 'transparent'};margin-bottom:-2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px">
+            ${t.icon} ${t.label}
+          </button>
+        `).join('')}
+      </div>
+      
+      <!-- 탭 콘텐츠 -->
+      <div style="padding-bottom:120px">
+        ${tabContent}
+      </div>
+    </div>
+  `;
+}
+
+// 사진 확대 보기
+function ahaZoomPhoto(src) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;cursor:pointer';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `
+    <img src="${src}" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:8px" />
+    <button style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.2);border:none;color:#fff;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer">×</button>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// PDF 저장 (html2canvas 방식)
+async function ahaExportPDF() {
+  const el = document.getElementById('aha-report-printable');
+  if (!el) return;
+
+  try {
+    // html2canvas CDN 동적 로드
+    if (!window.html2canvas) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const reportEl = el.querySelector('[style*="background:#fffff8"]') || el;
+    const canvas = await html2canvas(reportEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#fffff8',
+      logging: false
+    });
+
+    // jsPDF CDN 동적 로드
+    if (!window.jspdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = (canvas.height * pdfW) / canvas.width;
+    pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+    
+    const d = state._ahaDetail;
+    const filename = `AHA리포트_${d?.subject || ''}_${d?.created_at ? new Date(d.created_at).toISOString().slice(0,10) : ''}.pdf`;
+    pdf.save(filename);
+  } catch (e) {
+    console.error('PDF export error:', e);
+    alert('PDF 저장에 실패했습니다. 다시 시도해주세요.');
+  }
+}
+
+// 공유 (Web Share API)
+async function ahaShareReport() {
+  const d = state._ahaDetail;
+  if (!d) return;
+
+  const text = `[AHA-Report] ${d.subject} - ${d.unit_detected || d.unit || ''}\n\n` +
+    `1. 문제 상황: ${d.section_problem || ''}\n` +
+    `2. 주제 설정: ${d.section_topic || ''}\n` +
+    `3. 탐구 과정 및 결론: ${d.section_research || ''}\n` +
+    `4. 자가 피드백: ${d.section_self_feedback || ''}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: `아하 리포트 - ${d.subject}`, text });
+    } catch (e) { /* user cancelled */ }
+  } else {
+    // Fallback: 클립보드 복사
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('리포트 내용이 클립보드에 복사되었습니다!');
+    } catch {
+      // textarea fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      alert('리포트 내용이 클립보드에 복사되었습니다!');
+    }
+  }
 }
 
 // ==================== 크로켓 포인트 히스토리 ====================
@@ -4289,7 +4701,7 @@ function renderRecordTab() {
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
         ${[
-          { screen:'aha-report', icon:'💡', bg:'rgba(255,159,67,0.15)', title:'아하 리포트', desc:'영역 탐구 보고서 작성 · 사진 기록', xp:'🍩+3' },
+          { screen:'__aha-options__', icon:'💡', bg:'rgba(255,159,67,0.15)', title:'아하 리포트', desc:'영역 탐구 보고서 작성 · 사진 기록', xp:'🍩+3' },
           { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
           { screen:'__qa-new__', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 정율 코칭', xp:'+8~30' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
@@ -12900,7 +13312,7 @@ function renderMentorStudentDashboard() {
 
   // 비메인 화면 (학생 상세 화면 진입 시) → 단일 패널로 표시
   if (state.currentScreen !== 'main') {
-    const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine','aha-report'];
+    const writeScreens = ['record-class','record-question','record-teach','record-activity','record-assignment','planner-add','timetable-manage','academy-add','classmate-manage','exam-add','exam-result-input','report-add','activity-add','class-end-popup','academy-record-popup','evening-routine','aha-report','aha-report-list','aha-report-detail'];
     let subContent = '';
     if (writeScreens.includes(state.currentScreen)) {
       subContent = '<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><i class="fas fa-eye" style="font-size:36px;margin-bottom:16px;display:block;opacity:0.3"></i><p style="font-size:16px;font-weight:600;margin-bottom:8px">열람 전용 모드</p><p style="font-size:13px">멘토 열람 모드에서는 기록 작성이 불가합니다.</p><button onclick="state.currentScreen=\'main\';renderScreen()" class="msv-back-sub"><i class="fas fa-arrow-left"></i> 돌아가기</button></div>';
@@ -14184,6 +14596,11 @@ function goScreen(screen) {
   // QA앱 iframe 진입점 인터셉트
   if (screen === '__qa-new__') {
     openMyQaIframe('/new');
+    return;
+  }
+  // 아하 리포트 옵션 선택 인터셉트
+  if (screen === '__aha-options__') {
+    showAhaOptionsOverlay();
     return;
   }
   // 화면 히스토리에 push (뒤로가기 지원)
