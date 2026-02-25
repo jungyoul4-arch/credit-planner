@@ -4249,7 +4249,7 @@ function showAhaOptionsOverlay() {
 // 아하 리포트 목록 화면
 function renderAhaReportList() {
   const sid = state._authUser?.id;
-  if (!state._ahaReportList) state._ahaReportList = { reports: [], loaded: false, filter: '' };
+  if (!state._ahaReportList) state._ahaReportList = { reports: [], loaded: false, filter: '', sort: 'newest' };
 
   if (sid && !state._ahaReportList.loaded) {
     state._ahaReportList.loaded = true;
@@ -4263,10 +4263,25 @@ function renderAhaReportList() {
       .catch(() => {});
   }
 
-  const reports = state._ahaReportList.reports || [];
+  let reports = [...(state._ahaReportList.reports || [])];
   const filter = state._ahaReportList.filter || '';
+  const sort = state._ahaReportList.sort || 'newest';
   const subjects = ['', '국어', '영어', '수학', '과학', '사회', '기타'];
-  const subjectColors = { '국어': '#ff6b6b', '영어': '#4ecdc4', '수학': '#6c5ce7', '과학': '#00b894', '사회': '#fdcb6e', '기타': '#a29bfe' };
+
+  // 과목별 썸네일 배경색
+  const thumbColors = {
+    '국어': { bg: '#EF4444', bgGrad: 'linear-gradient(135deg,#EF4444,#DC2626)' },
+    '영어': { bg: '#3B82F6', bgGrad: 'linear-gradient(135deg,#3B82F6,#2563EB)' },
+    '수학': { bg: '#22C55E', bgGrad: 'linear-gradient(135deg,#22C55E,#16A34A)' },
+    '과학': { bg: '#8B5CF6', bgGrad: 'linear-gradient(135deg,#8B5CF6,#7C3AED)' },
+    '사회': { bg: '#F59E0B', bgGrad: 'linear-gradient(135deg,#F59E0B,#D97706)' },
+    '기타': { bg: '#6B7280', bgGrad: 'linear-gradient(135deg,#6B7280,#4B5563)' }
+  };
+
+  // 정렬
+  if (sort === 'oldest') {
+    reports.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }
 
   return `
     <div class="full-screen animate-slide">
@@ -4275,14 +4290,24 @@ function renderAhaReportList() {
         <h1>📚 내 아하 리포트</h1>
       </div>
       
-      <!-- 과목 필터 -->
-      <div style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;scrollbar-width:none">
-        ${subjects.map(s => `
-          <button onclick="state._ahaReportList.filter='${s}';state._ahaReportList.loaded=false;renderScreen()" 
-            style="flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid ${filter === s ? 'var(--primary)' : 'var(--border)'};background:${filter === s ? 'var(--primary)' : 'var(--bg-input)'};color:${filter === s ? '#fff' : 'var(--text-muted)'};cursor:pointer;white-space:nowrap">
-            ${s || '전체'}
-          </button>
-        `).join('')}
+      <!-- 필터 + 정렬 -->
+      <div style="padding:0 16px 12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="display:flex;gap:6px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+            ${subjects.map(s => `
+              <button onclick="state._ahaReportList.filter='${s}';state._ahaReportList.loaded=false;renderScreen()" 
+                style="flex-shrink:0;padding:7px 14px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${filter === s ? 'var(--primary)' : 'var(--border)'};background:${filter === s ? 'var(--primary)' : 'var(--bg-input)'};color:${filter === s ? '#fff' : 'var(--text-muted)'};cursor:pointer;white-space:nowrap">
+                ${s || '전체'}
+              </button>
+            `).join('')}
+          </div>
+          <select onchange="state._ahaReportList.sort=this.value;renderScreen()" 
+            style="flex-shrink:0;padding:7px 10px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--bg-input);color:var(--text-muted);cursor:pointer;appearance:auto">
+            <option value="newest" ${sort === 'newest' ? 'selected' : ''}>최신순</option>
+            <option value="oldest" ${sort === 'oldest' ? 'selected' : ''}>오래된순</option>
+          </select>
+        </div>
+        <div style="color:var(--text-muted);font-size:11px">${reports.length}개 리포트</div>
       </div>
       
       <div style="padding:0 16px 120px">
@@ -4294,27 +4319,46 @@ function renderAhaReportList() {
             <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false,savedReportId:null};goScreen('aha-report')" 
               class="btn-primary" style="margin-top:20px;padding:12px 28px;font-size:14px">새 리포트 작성하기</button>
           </div>
-        ` : reports.map(r => {
-          const sc = subjectColors[r.subject] || '#a29bfe';
-          const date = r.created_at ? new Date(r.created_at).toLocaleDateString('ko-KR', {year:'numeric',month:'short',day:'numeric'}) : '';
-          const topicPreview = (r.section_topic || '').substring(0, 60) + ((r.section_topic || '').length > 60 ? '...' : '');
-          return `
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer" onclick="openAhaReportDetail(${r.id})">
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-                <span style="background:${sc}22;color:${sc};padding:4px 12px;border-radius:8px;font-size:12px;font-weight:700">${r.subject}</span>
-                <span style="color:var(--text-muted);font-size:11px">${date}</span>
-                <span style="margin-left:auto;background:rgba(255,159,67,0.15);color:#ff9f43;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600">🍩+3</span>
-              </div>
-              ${r.unit ? `<div style="color:var(--text-main);font-size:14px;font-weight:600;margin-bottom:6px">${r.unit}</div>` : ''}
-              ${topicPreview ? `<div style="color:var(--text-muted);font-size:12px;line-height:1.5">${topicPreview}</div>` : ''}
-              <div style="display:flex;justify-content:flex-end;margin-top:10px">
-                <span style="color:var(--primary-light);font-size:12px;font-weight:600">[보기] <i class="fas fa-chevron-right" style="font-size:10px"></i></span>
-              </div>
-            </div>
-          `;
-        }).join('')}
+        ` : `
+          <div class="aha-grid">
+            ${reports.map(r => {
+              const tc = thumbColors[r.subject] || thumbColors['기타'];
+              const unitText = r.unit_detected || r.unit || '';
+              const topicPreview = (r.section_topic || '').substring(0, 50) + ((r.section_topic || '').length > 50 ? '...' : '');
+              const dateObj = r.created_at ? new Date(r.created_at) : null;
+              const dateShort = dateObj ? `${dateObj.getMonth()+1}/${String(dateObj.getDate()).padStart(2,'0')}` : '';
+              return `
+                <div class="aha-card" onclick="openAhaReportDetail(${r.id})">
+                  <!-- 썸네일 -->
+                  <div style="background:${tc.bgGrad};aspect-ratio:4/3;border-radius:12px 12px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 12px;position:relative;overflow:hidden">
+                    <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 200%22><circle cx=%2240%22 cy=%22160%22 r=%2280%22 fill=%22rgba(255,255,255,0.06)%22/><circle cx=%22170%22 cy=%2250%22 r=%2260%22 fill=%22rgba(255,255,255,0.04)%22/></svg>') center/cover"></div>
+                    <div style="color:#fff;font-size:22px;font-weight:800;text-align:center;position:relative;z-index:1;text-shadow:0 1px 4px rgba(0,0,0,0.15)">${r.subject}</div>
+                    ${unitText ? `<div style="color:rgba(255,255,255,0.85);font-size:12px;font-weight:500;text-align:center;margin-top:4px;position:relative;z-index:1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${unitText}</div>` : ''}
+                    <div style="position:absolute;bottom:8px;right:10px;color:rgba(255,255,255,0.4);font-size:9px;font-weight:700;letter-spacing:1px;z-index:1">AHA-Report</div>
+                  </div>
+                  <!-- 정보 영역 -->
+                  <div style="padding:12px">
+                    <div style="color:var(--text-main);font-size:14px;font-weight:700;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${r.subject}${unitText ? ' · ' + unitText : ''}</div>
+                    ${topicPreview ? `<div style="color:var(--text-muted);font-size:12px;line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${topicPreview}</div>` : '<div style="height:8px"></div>'}
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                      <span style="background:rgba(255,159,67,0.15);color:#ff9f43;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700">🍩+3</span>
+                      <span style="color:var(--text-muted);font-size:11px">${dateShort}</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
       </div>
     </div>
+    <style>
+      .aha-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+      .aha-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;cursor:pointer;overflow:hidden;transition:transform .15s,box-shadow .15s}
+      .aha-card:active{transform:scale(0.97);box-shadow:0 0 0 2px var(--primary)}
+      @media(max-width:820px){.aha-grid{grid-template-columns:repeat(2,1fr)}}
+      @media(max-width:480px){.aha-grid{grid-template-columns:repeat(1,1fr)}}
+    </style>
   `;
 }
 
