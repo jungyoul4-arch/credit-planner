@@ -2203,6 +2203,127 @@ app.delete('/api/mentor/feedback/:feedbackId', async (c) => {
   } catch (e: any) { return c.json({ error: e.message }, 500); }
 });
 
+// ==================== 아하 리포트 AI 분석 (Gemini 3.0 Flash) ====================
+app.post('/api/aha-report/analyze', async (c) => {
+  try {
+    const geminiKey = c.env.GEMINI_API_KEY
+    if (!geminiKey) return c.json({ error: 'Gemini API 키가 설정되지 않았습니다.' }, 500)
+
+    const { photos, subject, unit } = await c.req.json<{
+      photos: string[],  // base64 data URLs
+      subject?: string,
+      unit?: string
+    }>()
+
+    if (!photos || photos.length === 0) return c.json({ error: '사진이 필요합니다.' }, 400)
+    if (photos.length > 3) return c.json({ error: '사진은 최대 3장까지 가능합니다.' }, 400)
+
+    const systemPrompt = `당신은 고교학점제 전문가이자 학생들의 학습 멘토입니다.
+학생이 작성한 영역 탐구 보고서(AHA-Report) 사진을 분석합니다.
+
+사진에서 손글씨를 OCR 인식하여 다음 4개 섹션으로 정리해주세요:
+
+1. 문제 상황: 학생이 "1. 문제 상황"에 작성한 내용
+2. 주제 설정: 학생이 "2. 주제 설정"에 작성한 내용
+3. 탐구 과정 및 결론 도출: 학생이 "3. 탐구 과정 및 결론 도출"에 작성한 내용
+4. 자가 피드백: 학생이 "4. 자가 피드백"에 작성한 내용
+
+규칙:
+- 학생의 원문 내용을 최대한 살리되, 읽기 쉽게 문장을 정돈
+- 내용을 임의로 추가하거나 변경하지 말 것
+- 인식이 어려운 부분은 [판독 불가] 표시
+- 영어/한국어 혼합 내용도 그대로 반영
+- 보고서 양식 상단의 "과목", "수업 단원 및 내용", "반명", "이름"도 인식
+
+반드시 아래 JSON 형식으로만 응답:
+{
+  "sections": {
+    "problem": "문제 상황 정리 내용",
+    "topic": "주제 설정 정리 내용",
+    "research": "탐구 과정 및 결론 정리 내용",
+    "self_feedback": "자가 피드백 정리 내용"
+  },
+  "subject_detected": "인식된 과목명",
+  "unit_detected": "인식된 단원명",
+  "student_name": "인식된 학생 이름"
+}`
+
+    // Build parts: text prompt + multiple images
+    const parts: any[] = [
+      { text: `${systemPrompt}\n\n---\n학생 선택 과목: ${subject || '미선택'}\n단원: ${unit || '미입력'}` }
+    ]
+
+    for (const photo of photos) {
+      // Extract base64 data from data URL (e.g., "data:image/jpeg;base64,/9j/...")
+      const match = photo.match(/^data:(image\/\w+);base64,(.+)$/)
+      if (match) {
+        parts.push({
+          inline_data: {
+            mime_type: match[1],
+            data: match[2]
+          }
+        })
+      }
+    }
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        })
+      }
+    )
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text()
+      console.log('Gemini API error:', geminiRes.status, errText)
+      return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.', detail: geminiRes.status }, 502)
+    }
+
+    const data: any = await geminiRes.json()
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+
+    let result: any
+    try {
+      result = JSON.parse(rawText)
+    } catch {
+      return c.json({ error: '분석 결과를 파싱할 수 없습니다. 사진을 다시 확인해주세요.', raw: rawText }, 500)
+    }
+
+    // Validate sections exist
+    const sections = result.sections || {}
+    if (!sections.problem && !sections.topic && !sections.research && !sections.self_feedback) {
+      return c.json({
+        error: '사진이 잘 안 읽혔어요. 밝은 곳에서 다시 찍어보세요.',
+        result
+      }, 422)
+    }
+
+    return c.json({
+      success: true,
+      sections: {
+        problem: sections.problem || '[판독 불가]',
+        topic: sections.topic || '[판독 불가]',
+        research: sections.research || '[판독 불가]',
+        self_feedback: sections.self_feedback || '[판독 불가]'
+      },
+      subject_detected: result.subject_detected || null,
+      unit_detected: result.unit_detected || null,
+      student_name: result.student_name || null
+    })
+  } catch (e: any) {
+    console.log('AHA Report analyze error:', e)
+    return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.' }, 500)
+  }
+})
+
 // ==================== 헬스체크 ====================
 app.get('/api/health', (c) => {
   return c.json({

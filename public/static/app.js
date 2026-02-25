@@ -3632,21 +3632,20 @@ function renderHomeTab() {
 
 // ==================== 아하 리포트 ====================
 
-if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false };
+if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false, analyzing: false, error: null, result: null, editing: {} };
 
 function renderAhaReport() {
   const aha = state._ahaReport;
 
-  // 제출 완료 → 결과 플레이스홀더 화면
-  if (aha.submitted) {
+  // 분석 중 로딩 화면
+  if (aha.analyzing) {
     return `
       <div class="full-screen animate-slide">
         <div class="screen-header">
-          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <button class="back-btn" onclick="state._ahaReport.analyzing=false;state._ahaReport.step=3;renderScreen()"><i class="fas fa-arrow-left"></i></button>
           <h1>💡 아하 리포트</h1>
         </div>
         <div class="form-body">
-          <!-- 제출 정보 요약 -->
           <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(255,159,67,0.1),rgba(253,203,110,0.06))">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
               <span style="font-size:24px">💡</span>
@@ -3656,49 +3655,154 @@ function renderAhaReport() {
               </div>
             </div>
             <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
-              ${aha.photos.map((p, i) => `<img src="${p}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;flex-shrink:0;border:1px solid var(--border)" />`).join('')}
+              ${aha.photos.map(p => `<img src="${p}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;flex-shrink:0;border:1px solid var(--border)" />`).join('')}
             </div>
           </div>
-
-          <!-- 분석 준비 중 배너 -->
-          <div style="text-align:center;padding:16px;margin-bottom:20px">
-            <div style="font-size:32px;margin-bottom:8px">🔬</div>
-            <div style="font-size:15px;font-weight:700;color:var(--text-main)">분석 준비 중...</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">AI가 사진을 분석하여 리포트를 생성합니다</div>
+          <div style="text-align:center;padding:24px;margin-bottom:20px">
+            <div class="aha-loading-spinner" style="width:48px;height:48px;border:4px solid var(--border);border-top:4px solid #FF9F43;border-radius:50%;animation:ahaSpin 1s linear infinite;margin:0 auto 16px"></div>
+            <div style="font-size:15px;font-weight:700;color:var(--text-main)">분석 중...</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">AI가 사진을 분석하고 있습니다 (5~15초)</div>
           </div>
-
-          <!-- 4개 분석 섹션 플레이스홀더 -->
+          <style>@keyframes ahaSpin { 0% { transform:rotate(0deg) } 100% { transform:rotate(360deg) } }</style>
           ${[
             { icon: '📌', title: '문제 상황' },
             { icon: '🎯', title: '주제 설정' },
             { icon: '🔍', title: '탐구 과정 및 결론 도출' },
             { icon: '💡', title: '자가 피드백' },
           ].map(sec => `
-            <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.6">
+            <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.4">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                 <span style="font-size:18px">${sec.icon}</span>
                 <span style="font-size:14px;font-weight:700;color:var(--text-main)">${sec.title}</span>
-                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">분석 예정</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">분석 중...</span>
               </div>
               <div style="height:48px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center">
-                <div style="width:60%;height:10px;background:var(--border);border-radius:5px;opacity:0.5"></div>
+                <div style="width:60%;height:10px;background:var(--border);border-radius:5px;opacity:0.3;animation:ahaPulse 1.5s ease-in-out infinite"></div>
               </div>
             </div>
           `).join('')}
-
-          <!-- AI 피드백 플레이스홀더 -->
-          <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.6;border-left:3px solid var(--primary-light)">
+          <style>@keyframes ahaPulse { 0%,100% { opacity:0.3 } 50% { opacity:0.7 } }</style>
+          <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.4;border-left:3px solid var(--primary-light)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
               <span style="font-size:18px">🤖</span>
               <span style="font-size:14px;font-weight:700;color:var(--text-main)">AHA 리포트 피드백</span>
               <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">분석 예정</span>
             </div>
             <div style="height:64px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center">
+              <div style="width:80%;height:10px;background:var(--border);border-radius:5px;opacity:0.3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 에러 화면
+  if (aha.error) {
+    return `
+      <div class="full-screen animate-slide">
+        <div class="screen-header">
+          <button class="back-btn" onclick="state._ahaReport.error=null;state._ahaReport.step=3;renderScreen()"><i class="fas fa-arrow-left"></i></button>
+          <h1>💡 아하 리포트</h1>
+        </div>
+        <div class="form-body">
+          <div style="text-align:center;padding:40px 20px">
+            <div style="font-size:48px;margin-bottom:16px">😥</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text-main);margin-bottom:8px">${aha.error}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px">사진이 잘 보이는지 확인하고 다시 시도해주세요</div>
+            <button onclick="ahaRetryAnalyze()" class="btn-primary" style="padding:14px 32px;font-size:15px;margin-bottom:12px">🔄 재시도</button>
+            <br/>
+            <button onclick="state._ahaReport.error=null;state._ahaReport.step=2;renderScreen()" class="btn-secondary" style="padding:12px 24px;font-size:13px;margin-top:8px">📸 사진 다시 찍기</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // 분석 결과 표시 화면
+  if (aha.submitted && aha.result) {
+    const r = aha.result;
+    const sectionDefs = [
+      { key: 'problem', icon: '📌', title: '문제 상황' },
+      { key: 'topic', icon: '🎯', title: '주제 설정' },
+      { key: 'research', icon: '🔍', title: '탐구 과정 및 결론 도출' },
+      { key: 'self_feedback', icon: '💡', title: '자가 피드백' },
+    ];
+    return `
+      <div class="full-screen animate-slide">
+        <div class="screen-header">
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <h1>💡 아하 리포트</h1>
+        </div>
+        <div class="form-body">
+          <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(255,159,67,0.1),rgba(253,203,110,0.06))">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+              <span style="font-size:24px">💡</span>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:var(--text-main)">아하 리포트 분석 완료</div>
+                <div style="font-size:12px;color:var(--text-muted)">${r.subject_detected || aha.subject || '과목 미선택'} ${r.unit_detected || aha.unit ? '· ' + (r.unit_detected || aha.unit) : ''} · 사진 ${aha.photos.length}장${r.student_name ? ' · ' + r.student_name : ''}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
+              ${aha.photos.map(p => `<img src="${p}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;flex-shrink:0;border:1px solid var(--border)" />`).join('')}
+            </div>
+          </div>
+
+          ${sectionDefs.map(sec => {
+            const content = r.sections[sec.key] || '[판독 불가]';
+            const isEditing = aha.editing[sec.key];
+            return `
+            <div class="card" style="margin-bottom:10px;padding:16px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-size:18px">${sec.icon}</span>
+                <span style="font-size:14px;font-weight:700;color:var(--text-main)">${sec.title}</span>
+                <span style="margin-left:auto;font-size:11px;color:#00B894;background:rgba(0,184,148,0.1);padding:2px 8px;border-radius:8px">✓ 분석 완료</span>
+              </div>
+              ${isEditing ? `
+                <textarea id="aha-edit-${sec.key}" style="width:100%;min-height:100px;padding:12px;background:var(--bg-input);border:1px solid #FF9F43;border-radius:var(--radius-md);color:var(--text-main);font-size:13px;line-height:1.7;resize:vertical;font-family:inherit">${content}</textarea>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                  <button onclick="ahaSaveEdit('${sec.key}')" style="flex:1;padding:10px;background:#FF9F43;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">저장</button>
+                  <button onclick="state._ahaReport.editing['${sec.key}']=false;renderScreen()" style="flex:1;padding:10px;background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer">취소</button>
+                </div>
+              ` : `
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;white-space:pre-wrap;padding:10px;background:var(--bg-input);border-radius:8px">${content}</div>
+                <button onclick="state._ahaReport.editing['${sec.key}']=true;renderScreen()" style="margin-top:8px;padding:6px 12px;background:transparent;border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-muted);cursor:pointer">원본과 다른가요? 수정하기</button>
+              `}
+            </div>`;
+          }).join('')}
+
+          <!-- AI 피드백 플레이스홀더 (3단계 구현 예정) -->
+          <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.6;border-left:3px solid var(--primary-light)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:18px">🤖</span>
+              <span style="font-size:14px;font-weight:700;color:var(--text-main)">AHA 리포트 피드백</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">3단계에서 제공</span>
+            </div>
+            <div style="height:64px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center">
               <div style="width:80%;height:10px;background:var(--border);border-radius:5px;opacity:0.5"></div>
             </div>
           </div>
 
-          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:16px">기록 탭으로 돌아가기</button>
+          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:16px">기록 탭으로 돌아가기</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // 제출 완료이나 결과 없음 (fallback)
+  if (aha.submitted) {
+    return `
+      <div class="full-screen animate-slide">
+        <div class="screen-header">
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <h1>💡 아하 리포트</h1>
+        </div>
+        <div class="form-body">
+          <div style="text-align:center;padding:40px 20px">
+            <div style="font-size:48px;margin-bottom:16px">😥</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text-main);margin-bottom:8px">분석에 실패했어요. 다시 시도해주세요.</div>
+            <button onclick="ahaRetryAnalyze()" class="btn-primary" style="padding:14px 32px;font-size:15px;margin-bottom:12px">🔄 재시도</button>
+          </div>
         </div>
       </div>
     `;
@@ -3708,7 +3812,7 @@ function renderAhaReport() {
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
         <h1>💡 아하 리포트</h1>
       </div>
       <div class="form-body">
@@ -3924,14 +4028,63 @@ function ahaStep2Next() {
   renderScreen();
 }
 
-function ahaSubmit() {
+async function ahaSubmit() {
   const btn = document.getElementById('aha-submit-btn');
   if (btn) { btn.textContent = '제출 중...'; btn.disabled = true; }
-  // 이 단계에서는 AI 연동 없이 제출 완료만 처리
-  setTimeout(() => {
-    state._ahaReport.submitted = true;
+
+  const aha = state._ahaReport;
+  aha.submitted = true;
+  aha.analyzing = true;
+  aha.error = null;
+  aha.result = null;
+  renderScreen();
+
+  try {
+    const res = await fetch('/api/aha-report/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        photos: aha.photos,
+        subject: aha.subject,
+        unit: aha.unit
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      aha.analyzing = false;
+      aha.error = data.error || '분석에 실패했어요. 다시 시도해주세요.';
+      renderScreen();
+      return;
+    }
+
+    aha.analyzing = false;
+    aha.result = data;
     renderScreen();
-  }, 800);
+  } catch (e) {
+    console.error('AHA report analyze error:', e);
+    aha.analyzing = false;
+    aha.error = '네트워크 오류가 발생했어요. 다시 시도해주세요.';
+    renderScreen();
+  }
+}
+
+function ahaRetryAnalyze() {
+  state._ahaReport.error = null;
+  state._ahaReport.analyzing = false;
+  state._ahaReport.submitted = false;
+  state._ahaReport.result = null;
+  ahaSubmit();
+}
+
+function ahaSaveEdit(sectionKey) {
+  const textarea = document.getElementById('aha-edit-' + sectionKey);
+  if (textarea && state._ahaReport.result?.sections) {
+    state._ahaReport.result.sections[sectionKey] = textarea.value;
+  }
+  state._ahaReport.editing[sectionKey] = false;
+  renderScreen();
 }
 
 // ==================== 크로켓 포인트 히스토리 ====================
