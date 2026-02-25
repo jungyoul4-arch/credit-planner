@@ -1501,7 +1501,7 @@ app.get('/api/mentor/groups/:groupId/summary', async (c) => {
     const expectedSchoolClasses = weekdaysInRange * CLASSES_PER_DAY;
 
     const students = await c.env.DB.prepare(
-      'SELECT id, name, school_name, grade, profile_emoji, xp, level, last_login_at FROM students WHERE group_id = ? AND is_active = 1 ORDER BY name'
+      'SELECT id, name, school_name, grade, profile_emoji, xp, level, last_login_at, croquet_balance FROM students WHERE group_id = ? AND is_active = 1 ORDER BY name'
     ).bind(groupId).all();
 
     const summaries = [];
@@ -1714,6 +1714,7 @@ app.get('/api/student/:studentId/profile', async (c) => {
       },
       lastLoginAt: student.last_login_at,
       createdAt: student.created_at,
+      croquetBalance: student.croquet_balance || 0,
     });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -1805,18 +1806,153 @@ app.get('/api/migrate', async (c) => {
       `CREATE INDEX IF NOT EXISTS idx_mf_mentor ON mentor_feedbacks(mentor_id, created_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_mf_record ON mentor_feedbacks(record_type, record_id)`,
       `CREATE INDEX IF NOT EXISTS idx_mf_unread ON mentor_feedbacks(student_id, is_read)`,
+      // 크로켓 포인트 테이블
+      `CREATE TABLE IF NOT EXISTS croquet_points (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, mentor_id INTEGER NOT NULL, amount INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '기타', reason_detail TEXT DEFAULT '', balance_after INTEGER NOT NULL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE, FOREIGN KEY (mentor_id) REFERENCES mentors(id))`,
+      `CREATE INDEX IF NOT EXISTS idx_cp_student ON croquet_points(student_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_cp_mentor ON croquet_points(mentor_id, created_at DESC)`,
+      // students 테이블에 croquet_balance 컬럼 추가
+      `ALTER TABLE students ADD COLUMN croquet_balance INTEGER NOT NULL DEFAULT 0`,
     ];
     for (const sql of stmts) {
       try { await c.env.DB.prepare(sql).run(); } catch(_) { /* column may already exist */ }
     }
-    return c.json({ success: true, message: 'Migration completed', tables: 16 });
+    return c.json({ success: true, message: 'Migration completed', tables: 17 });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }
 });
 
 
-// ==================== 나만의 질문방 API ====================
+// ==================== 크로켓 포인트 API ====================
+
+// 학생 포인트 잔액 + 최근 이력
+app.get('/api/student/:studentId/croquet-points', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const student: any = await c.env.DB.prepare('SELECT croquet_balance FROM students WHERE id = ?').bind(studentId).first();
+    const balance = student?.croquet_balance || 0;
+    return c.json({ balance });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 학생 포인트 히스토리
+app.get('/api/student/:studentId/croquet-points/history', async (c) => {
+  try {
+    const studentId = c.req.param('studentId');
+    const limit = parseInt(c.req.query('limit') || '50');
+    const offset = parseInt(c.req.query('offset') || '0');
+
+    const [history, total] = await Promise.all([
+      c.env.DB.prepare(
+        'SELECT cp.*, m.name as mentor_name FROM croquet_points cp LEFT JOIN mentors m ON cp.mentor_id = m.id WHERE cp.student_id = ? ORDER BY cp.created_at DESC LIMIT ? OFFSET ?'
+      ).bind(studentId, limit, offset).all(),
+      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM croquet_points WHERE student_id = ?').bind(studentId).first(),
+    ]);
+
+    const student: any = await c.env.DB.prepare('SELECT croquet_balance FROM students WHERE id = ?').bind(studentId).first();
+
+    return c.json({
+      balance: student?.croquet_balance || 0,
+      history: history.results,
+      total: (total as any)?.cnt || 0,
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 멘토 → 학생 포인트 지급 (단일)
+app.post('/api/mentor/croquet-points/give', async (c) => {
+  try {
+    const { mentorId, studentId, amount, reason, reasonDetail } = await c.req.json();
+    if (!mentorId || !studentId || !amount || amount <= 0) {
+      return c.json({ error: '필수 입력값을 확인해주세요' }, 400);
+    }
+    if (amount > 10000) return c.json({ error: '1회 최대 10,000P까지 지급 가능합니다' }, 400);
+
+    // 잔액 업데이트
+    await c.env.DB.prepare('UPDATE students SET croquet_balance = croquet_balance + ? WHERE id = ?').bind(amount, studentId).run();
+    const student: any = await c.env.DB.prepare('SELECT croquet_balance FROM students WHERE id = ?').bind(studentId).first();
+    const newBalance = student?.croquet_balance || 0;
+
+    // 이력 저장
+    await c.env.DB.prepare(
+      'INSERT INTO croquet_points (student_id, mentor_id, amount, reason, reason_detail, balance_after) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, mentorId, amount, reason || '기타', reasonDetail || '', newBalance).run();
+
+    return c.json({ success: true, newBalance, amount });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 멘토 → 학생 일괄 포인트 지급
+app.post('/api/mentor/croquet-points/give-bulk', async (c) => {
+  try {
+    const { mentorId, studentIds, amount, reason, reasonDetail } = await c.req.json();
+    if (!mentorId || !studentIds || !Array.isArray(studentIds) || studentIds.length === 0 || !amount || amount <= 0) {
+      return c.json({ error: '필수 입력값을 확인해주세요' }, 400);
+    }
+    if (amount > 10000) return c.json({ error: '1회 최대 10,000P까지 지급 가능합니다' }, 400);
+
+    const results: any[] = [];
+    for (const sid of studentIds) {
+      await c.env.DB.prepare('UPDATE students SET croquet_balance = croquet_balance + ? WHERE id = ?').bind(amount, sid).run();
+      const student: any = await c.env.DB.prepare('SELECT croquet_balance, name FROM students WHERE id = ?').bind(sid).first();
+      const newBalance = student?.croquet_balance || 0;
+      await c.env.DB.prepare(
+        'INSERT INTO croquet_points (student_id, mentor_id, amount, reason, reason_detail, balance_after) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(sid, mentorId, amount, reason || '기타', reasonDetail || '', newBalance).run();
+      results.push({ studentId: sid, name: student?.name, newBalance, amount });
+    }
+
+    return c.json({ success: true, count: results.length, results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// 멘토 지급 이력 조회
+app.get('/api/mentor/:mentorId/croquet-points/history', async (c) => {
+  try {
+    const mentorId = c.req.param('mentorId');
+    const month = c.req.query('month'); // YYYY-MM 형식
+    const limit = parseInt(c.req.query('limit') || '100');
+
+    let query = 'SELECT cp.*, s.name as student_name, s.profile_emoji FROM croquet_points cp LEFT JOIN students s ON cp.student_id = s.id WHERE cp.mentor_id = ?';
+    const binds: any[] = [mentorId];
+
+    if (month) {
+      query += " AND strftime('%Y-%m', cp.created_at) = ?";
+      binds.push(month);
+    }
+    query += ' ORDER BY cp.created_at DESC LIMIT ?';
+    binds.push(limit);
+
+    const history = await c.env.DB.prepare(query).bind(...binds).all();
+
+    // 이번 달 요약
+    const kstNow = new Date(Date.now() + 9 * 3600000);
+    const currentMonth = kstNow.toISOString().slice(0, 7);
+    const monthlySummary: any = await c.env.DB.prepare(
+      "SELECT COUNT(*) as cnt, COALESCE(SUM(amount),0) as total, COUNT(DISTINCT student_id) as students FROM croquet_points WHERE mentor_id = ? AND strftime('%Y-%m', created_at) = ?"
+    ).bind(mentorId, currentMonth).first();
+
+    return c.json({
+      history: history.results,
+      monthlySummary: {
+        month: currentMonth,
+        totalGiven: monthlySummary?.total || 0,
+        giveCount: monthlySummary?.cnt || 0,
+        studentCount: monthlySummary?.students || 0,
+      }
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
 
 // 질문 등록
 app.post('/api/my-questions', async (c) => {

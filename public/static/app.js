@@ -551,6 +551,7 @@ function renderStudentApp() {
   if (state.currentScreen === 'weekly-report') return renderWeeklyReportStudent();
   if (state.currentScreen === 'record-history') return renderRecordHistory();
   if (state.currentScreen === 'notifications') return renderNotifications();
+  if (state.currentScreen === 'croquet-history') return renderCroquetHistory();
   if (state.currentScreen === 'record-assignment') return renderRecordAssignment();
   if (state.currentScreen === 'assignment-plan') return renderAssignmentPlan();
   if (state.currentScreen === 'assignment-list') return renderAssignmentList();
@@ -3249,6 +3250,36 @@ function renderHomeTab() {
         .catch(() => {});
     }, 200);
   }
+
+  // 크로켓 포인트 잔액 비동기 로드
+  if (state._authUser?.id && !state._croquetLoaded) {
+    state._croquetLoaded = true;
+    fetch(`/api/student/${state._authUser.id}/croquet-points`)
+      .then(r => r.json())
+      .then(data => {
+        const prev = state._croquetBalance || 0;
+        const next = data.balance || 0;
+        state._croquetBalance = next;
+        // 카운팅 애니메이션 (값이 변했을 때만)
+        if (prev !== next) {
+          const el = document.getElementById('croquet-balance-display');
+          if (el) {
+            const duration = 800;
+            const startTime = Date.now();
+            const animate = () => {
+              const elapsed = Date.now() - startTime;
+              const progress = Math.min(elapsed / duration, 1);
+              const eased = 1 - Math.pow(1 - progress, 3);
+              const current = Math.round(prev + (next - prev) * eased);
+              el.textContent = current.toLocaleString() + 'P';
+              if (progress < 1) requestAnimationFrame(animate);
+            };
+            requestAnimationFrame(animate);
+          }
+        }
+      })
+      .catch(() => {});
+  }
   
   return `
     <div class="tab-content animate-in">
@@ -3260,10 +3291,19 @@ function renderHomeTab() {
             <p>오늘도 호기심 사다리를 올라가볼까요? 🪜</p>
           </div>
         </div>
-        <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
-          <span class="date-day">${now.getDate()}</span>
-          <span class="date-month">${now.getMonth()+1}월 (${dayNames[now.getDay()]})</span>
-          ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="croquet-point-card" onclick="goScreen('croquet-history')" style="cursor:pointer;padding:8px 14px;background:linear-gradient(135deg,rgba(255,159,67,0.15),rgba(253,203,110,0.1));border:1px solid rgba(255,159,67,0.3);border-radius:var(--radius-md);display:flex;align-items:center;gap:8px;white-space:nowrap;transition:all 0.2s" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">
+            <span style="font-size:18px">🍩</span>
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);font-weight:600">크로켓 포인트</div>
+              <div style="font-size:16px;font-weight:800;color:#FF9F43" id="croquet-balance-display">${(state._croquetBalance || 0).toLocaleString()}P</div>
+            </div>
+          </div>
+          <div class="home-date" onclick="goScreen('notifications')" style="cursor:pointer;position:relative">
+            <span class="date-day">${now.getDate()}</span>
+            <span class="date-month">${now.getMonth()+1}월 (${dayNames[now.getDay()]})</span>
+            ${state.notifications.filter(n=>n.unread).length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:2px solid var(--bg-dark)"></span>` : ''}
+          </div>
         </div>
       </div>
 
@@ -3584,6 +3624,69 @@ function renderHomeTab() {
           <i class="fas fa-clipboard-list"></i>
           <span>과제 관리</span>
         </button>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== 크로켓 포인트 히스토리 ====================
+
+function renderCroquetHistory() {
+  const sid = state._authUser?.id;
+  // 비동기 로드
+  if (sid && !state._croquetHistoryLoaded) {
+    state._croquetHistoryLoaded = true;
+    fetch(`/api/student/${sid}/croquet-points/history`)
+      .then(r => r.json())
+      .then(data => {
+        state._croquetHistory = data.history || [];
+        state._croquetBalance = data.balance || 0;
+        renderScreen();
+      })
+      .catch(() => {});
+  }
+
+  const history = state._croquetHistory || [];
+  const balance = state._croquetBalance || 0;
+
+  return `
+    <div class="full-screen animate-slide">
+      <div class="screen-header">
+        <button class="back-btn" onclick="state._croquetHistoryLoaded=false;goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>🍩 크로켓 포인트</h1>
+      </div>
+      <div class="form-body">
+        <!-- 잔액 카드 -->
+        <div class="card" style="margin-bottom:20px;padding:24px;text-align:center;background:linear-gradient(135deg,rgba(255,159,67,0.12),rgba(253,203,110,0.08))">
+          <div style="font-size:13px;color:var(--text-muted);font-weight:600;margin-bottom:6px">보유 포인트</div>
+          <div style="font-size:36px;font-weight:900;color:#FF9F43">🍩 ${balance.toLocaleString()}P</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:8px">학원 카페에서 사용할 수 있어요!</div>
+        </div>
+
+        <!-- 히스토리 목록 -->
+        <div style="font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:12px">포인트 내역</div>
+        ${history.length === 0 ? `
+          <div style="text-align:center;padding:40px 0;color:var(--text-muted)">
+            <span style="font-size:48px;display:block;margin-bottom:12px">🍩</span>
+            <p style="font-size:14px;font-weight:600">아직 포인트 내역이 없어요</p>
+            <p style="font-size:12px;margin-top:6px">멘토 선생님이 포인트를 지급하면 여기에 표시됩니다</p>
+          </div>
+        ` : history.map(h => {
+          const date = (h.created_at || '').slice(0, 10);
+          const time = (h.created_at || '').slice(11, 16);
+          return `
+          <div class="card" style="margin-bottom:8px;padding:14px;display:flex;align-items:center;gap:12px">
+            <div style="width:40px;height:40px;border-radius:12px;background:rgba(255,159,67,0.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🍩</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600;color:var(--text-main)">${h.reason || '기타'}${h.reason_detail ? ' · ' + h.reason_detail : ''}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date} ${time} · ${h.mentor_name || '멘토'} 선생님</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:16px;font-weight:800;color:#FF9F43">+${(h.amount || 0).toLocaleString()}P</div>
+              <div style="font-size:10px;color:var(--text-muted)">${(h.balance_after || 0).toLocaleString()}P</div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
     </div>
   `;
@@ -12597,7 +12700,7 @@ function renderMentorDashboard() {
     </div>
     ${_mentor.groups.length > 1 ? `<div class="desk-tabs" style="border-bottom:none;padding-bottom:0">${groupTabs}</div>` : ''}
     <div class="desk-tabs">
-      ${['students:📋 내 학생','alerts:🚨 경보','feedback:💬 피드백','exams:📝 시험','network:🤝 교학상장'].map(t => {
+      ${['students:📋 내 학생','alerts:🚨 경보','feedback:💬 피드백','exams:📝 시험','network:🤝 교학상장','croquet:🍩 포인트'].map(t => {
         const [id, label] = t.split(':');
         return `<button class="desk-tab ${state.mentorTab===id?'active':''}" data-mtab="${id}">${label}</button>`;
       }).join('')}
@@ -12613,6 +12716,7 @@ function renderMentorTabContent() {
     case 'feedback': return renderMentorFeedback();
     case 'exams': return renderMentorExams();
     case 'network': return renderMentorNetwork();
+    case 'croquet': return renderMentorCroquet();
     default: return renderMentorStudents();
   }
 }
@@ -12682,7 +12786,10 @@ function renderMentorStudents() {
 
     <div style="margin:16px 0 12px;display:flex;justify-content:space-between;align-items:center">
       <h3 style="font-size:15px;font-weight:700">👩‍🎓 학생 목록</h3>
-      <span style="font-size:12px;color:var(--primary-light);font-weight:600">👆 학생 카드를 클릭하면 수업기록·질문·사진을 모두 확인할 수 있습니다</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="openCroquetBulkGivePopup()" style="background:linear-gradient(135deg,#FF9F43,#FDCB6E);border:none;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.2s" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">📦 일괄 포인트 지급</button>
+        <span style="font-size:12px;color:var(--primary-light);font-weight:600">👆 학생 카드 클릭 → 상세 보기</span>
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">
@@ -12749,6 +12856,10 @@ function renderMentorStudents() {
             </div>`;
           })()}
           ${total > 0 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(99,179,237,0.08);border-radius:8px;font-size:12px;color:var(--primary-light)">📊 이번 주 총 ${total}건 활동 — 탭하여 상세 보기</div>` : `<div style="margin-top:10px;padding:8px 12px;background:rgba(214,48,49,0.08);border-radius:8px;font-size:12px;color:var(--danger)">⚠️ 이번 주 활동 기록 없음 — 탭하여 확인</div>`}
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+            <div style="font-size:12px;color:#FF9F43;font-weight:600">🍩 ${(s.croquet_balance || 0).toLocaleString()}P</div>
+            <button onclick="event.stopPropagation();openCroquetGivePopup(${s.id},'${(s.name||'').replace(/'/g,"\\'")}','${s.profile_emoji||'🐻'}')" style="background:linear-gradient(135deg,#FF9F43,#FDCB6E);border:none;color:#fff;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">🍩 포인트 지급</button>
+          </div>
         </div>`;
       }).join('')}
     </div>
@@ -12871,6 +12982,265 @@ function renderMentorNetwork() {
       ${teachActive.length > 0 ? `<div class="insight-item"><span>•</span> 최다 활동: ${teachActive[0].name} (${teachActive[0].periodStats.teachRecords}회)</div>` : ''}
       <div class="insight-item"><span>•</span> 교학상장 미활동 학생: ${students.length - teachActive.length}명 → 격려 필요</div>
     </div>
+  `;
+}
+
+// ==================== 크로켓 포인트 (멘토) ====================
+
+const CROQUET_REASONS = ['수업 기록 우수','질문 활동 우수','교학상장 참여','플래너 실행 우수','학원 과제 완료','기타'];
+
+function openCroquetGivePopup(studentId, studentName, studentEmoji) {
+  const overlay = document.createElement('div');
+  overlay.id = 'croquet-give-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card);border-radius:16px;max-width:420px;width:100%;padding:24px" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <span style="font-size:28px">${studentEmoji}</span>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--text-main)">${studentName}</div>
+          <div style="font-size:12px;color:var(--text-muted)">크로켓 포인트 지급</div>
+        </div>
+        <button onclick="this.closest('#croquet-give-overlay').remove()" style="margin-left:auto;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">지급 포인트</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          ${[50,100,200,500].map(v => `<button class="cq-quick-btn" onclick="document.getElementById('cq-amount').value=${v};this.parentElement.querySelectorAll('.cq-quick-btn').forEach(b=>b.style.background='var(--bg-input)');this.style.background='rgba(255,159,67,0.25)'" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#FF9F43;font-weight:700;font-size:13px;cursor:pointer">${v}P</button>`).join('')}
+        </div>
+        <input type="number" id="cq-amount" placeholder="직접 입력 (1~10,000)" min="1" max="10000" style="width:100%;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px" />
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">지급 사유</label>
+        <select id="cq-reason" onchange="document.getElementById('cq-reason-detail').style.display=this.value==='기타'?'block':'none'" style="width:100%;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px">
+          ${CROQUET_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+        <input type="text" id="cq-reason-detail" placeholder="사유를 직접 입력하세요" style="display:none;width:100%;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px;margin-top:8px" />
+      </div>
+
+      <button id="cq-submit-btn" onclick="submitCroquetGive(${studentId})" style="width:100%;padding:12px;background:linear-gradient(135deg,#FF9F43,#FDCB6E);border:none;border-radius:var(--radius-md);color:#fff;font-size:15px;font-weight:700;cursor:pointer">🍩 지급하기</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+async function submitCroquetGive(studentId) {
+  const amount = parseInt(document.getElementById('cq-amount')?.value);
+  let reason = document.getElementById('cq-reason')?.value || '기타';
+  const reasonDetail = document.getElementById('cq-reason-detail')?.value || '';
+  if (reason === '기타' && reasonDetail) reason = reasonDetail;
+
+  if (!amount || amount <= 0 || amount > 10000) {
+    alert('1 ~ 10,000 사이의 포인트를 입력해주세요');
+    return;
+  }
+
+  const btn = document.getElementById('cq-submit-btn');
+  if (btn) { btn.textContent = '지급 중...'; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/mentor/croquet-points/give', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mentorId: _mentor.id, studentId, amount, reason, reasonDetail })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('croquet-give-overlay')?.remove();
+      // 요약 데이터 갱신
+      const s = _mentor.groupSummary.find(s => s.id === studentId);
+      if (s) s.croquet_balance = data.newBalance;
+      renderScreen();
+      // 성공 알림 (토스트)
+      showCroquetToast(`🍩 ${amount}P 지급 완료!`);
+    } else {
+      alert(data.error || '지급 실패');
+    }
+  } catch (e) {
+    alert('네트워크 오류');
+  }
+  if (btn) { btn.textContent = '🍩 지급하기'; btn.disabled = false; }
+}
+
+function showCroquetToast(msg) {
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#FF9F43,#FDCB6E);color:#fff;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:700;z-index:99999;box-shadow:0 4px 20px rgba(255,159,67,0.4);animation:slideUp 0.3s ease';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 2000);
+}
+
+function openCroquetBulkGivePopup() {
+  const students = _mentor.groupSummary || [];
+  if (students.length === 0) { alert('학생이 없습니다'); return; }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'croquet-bulk-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card);border-radius:16px;max-width:500px;width:100%;max-height:85vh;overflow-y:auto;padding:24px" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:700;color:var(--text-main)">📦 일괄 포인트 지급</div>
+        <button onclick="this.closest('#croquet-bulk-overlay').remove()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-size:13px;font-weight:600;color:var(--text-secondary)">학생 선택</label>
+          <button onclick="document.querySelectorAll('.cq-bulk-check').forEach(c=>c.checked=!c.checked)" style="background:none;border:none;color:var(--primary-light);font-size:12px;cursor:pointer;font-weight:600">전체 선택/해제</button>
+        </div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px">
+          ${students.map(s => `
+            <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer;border-radius:8px;transition:background 0.15s" onmouseenter="this.style.background='var(--bg-input)'" onmouseleave="this.style.background='transparent'">
+              <input type="checkbox" class="cq-bulk-check" value="${s.id}" style="width:18px;height:18px;accent-color:#FF9F43">
+              <span style="font-size:16px">${s.profile_emoji || '🐻'}</span>
+              <span style="font-size:14px;font-weight:600;flex:1">${s.name}</span>
+              <span style="font-size:12px;color:#FF9F43">🍩 ${(s.croquet_balance || 0).toLocaleString()}P</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">지급 포인트</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          ${[50,100,200,500].map(v => `<button class="cq-bulk-quick" onclick="document.getElementById('cq-bulk-amount').value=${v};this.parentElement.querySelectorAll('.cq-bulk-quick').forEach(b=>b.style.background='var(--bg-input)');this.style.background='rgba(255,159,67,0.25)'" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:#FF9F43;font-weight:700;font-size:13px;cursor:pointer">${v}P</button>`).join('')}
+        </div>
+        <input type="number" id="cq-bulk-amount" placeholder="직접 입력" min="1" max="10000" style="width:100%;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px" />
+      </div>
+
+      <div style="margin-bottom:16px">
+        <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">지급 사유</label>
+        <select id="cq-bulk-reason" onchange="document.getElementById('cq-bulk-reason-detail').style.display=this.value==='기타'?'block':'none'" style="width:100%;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px">
+          ${CROQUET_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+        <input type="text" id="cq-bulk-reason-detail" placeholder="사유를 직접 입력하세요" style="display:none;width:100%;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-main);font-size:14px;margin-top:8px" />
+      </div>
+
+      <button id="cq-bulk-submit" onclick="submitCroquetBulkGive()" style="width:100%;padding:12px;background:linear-gradient(135deg,#FF9F43,#FDCB6E);border:none;border-radius:var(--radius-md);color:#fff;font-size:15px;font-weight:700;cursor:pointer">📦 일괄 지급하기</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+async function submitCroquetBulkGive() {
+  const checks = document.querySelectorAll('.cq-bulk-check:checked');
+  const studentIds = Array.from(checks).map(c => parseInt(c.value));
+  const amount = parseInt(document.getElementById('cq-bulk-amount')?.value);
+  let reason = document.getElementById('cq-bulk-reason')?.value || '기타';
+  const reasonDetail = document.getElementById('cq-bulk-reason-detail')?.value || '';
+  if (reason === '기타' && reasonDetail) reason = reasonDetail;
+
+  if (studentIds.length === 0) { alert('학생을 1명 이상 선택해주세요'); return; }
+  if (!amount || amount <= 0 || amount > 10000) { alert('1 ~ 10,000 사이의 포인트를 입력해주세요'); return; }
+
+  if (!confirm(`${studentIds.length}명에게 ${amount}P를 지급합니다. 진행할까요?`)) return;
+
+  const btn = document.getElementById('cq-bulk-submit');
+  if (btn) { btn.textContent = '지급 중...'; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/mentor/croquet-points/give-bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mentorId: _mentor.id, studentIds, amount, reason, reasonDetail })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('croquet-bulk-overlay')?.remove();
+      // 잔액 갱신
+      (data.results || []).forEach(r => {
+        const s = _mentor.groupSummary.find(s => s.id === r.studentId);
+        if (s) s.croquet_balance = r.newBalance;
+      });
+      renderScreen();
+      showCroquetToast(`🍩 ${studentIds.length}명에게 ${amount}P 일괄 지급 완료!`);
+    } else {
+      alert(data.error || '일괄 지급 실패');
+    }
+  } catch (e) {
+    alert('네트워크 오류');
+  }
+  if (btn) { btn.textContent = '📦 일괄 지급하기'; btn.disabled = false; }
+}
+
+// 멘토 포인트 이력 탭
+function renderMentorCroquet() {
+  // 비동기 로드
+  if (!_mentor._croquetHistoryLoaded) {
+    _mentor._croquetHistoryLoaded = true;
+    fetch(`/api/mentor/${_mentor.id}/croquet-points/history`)
+      .then(r => r.json())
+      .then(data => {
+        _mentor._croquetHistory = data.history || [];
+        _mentor._croquetSummary = data.monthlySummary || {};
+        renderScreen();
+      })
+      .catch(() => {});
+  }
+
+  const history = _mentor._croquetHistory || [];
+  const summary = _mentor._croquetSummary || {};
+
+  return `
+    <!-- 이번 달 요약 -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">이번 달 총 지급</div>
+        <div class="stat-value" style="color:#FF9F43">🍩 ${(summary.totalGiven || 0).toLocaleString()}P</div>
+        <div class="stat-change" style="color:var(--text-muted)">${summary.month || ''}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">지급 횟수</div>
+        <div class="stat-value" style="color:var(--primary-light)">${summary.giveCount || 0}회</div>
+        <div class="stat-change" style="color:var(--text-muted)">이번 달 합계</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">지급 대상</div>
+        <div class="stat-value" style="color:var(--teach-green)">${summary.studentCount || 0}명</div>
+        <div class="stat-change" style="color:var(--text-muted)">이번 달 유니크</div>
+      </div>
+    </div>
+
+    <!-- 지급 이력 -->
+    <div style="margin:16px 0 12px;display:flex;justify-content:space-between;align-items:center">
+      <h3 style="font-size:15px;font-weight:700">📋 지급 이력</h3>
+      <button onclick="_mentor._croquetHistoryLoaded=false;renderScreen()" style="background:none;border:none;color:var(--primary-light);font-size:12px;cursor:pointer;font-weight:600"><i class="fas fa-refresh"></i> 새로고침</button>
+    </div>
+
+    ${history.length === 0 ? `
+      <div style="text-align:center;padding:40px;color:var(--text-muted)">
+        <span style="font-size:48px;display:block;margin-bottom:12px">🍩</span>
+        <p style="font-size:14px;font-weight:600">아직 포인트 지급 이력이 없습니다</p>
+        <p style="font-size:12px;margin-top:6px">학생 카드에서 포인트를 지급해보세요</p>
+      </div>
+    ` : `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${history.map(h => {
+          const date = (h.created_at || '').slice(0, 10);
+          const time = (h.created_at || '').slice(11, 16);
+          return `
+          <div class="stat-card" style="padding:14px;display:flex;align-items:center;gap:12px">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${h.profile_emoji || '🐻'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600;color:var(--text-main)">${h.student_name || '학생'}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${h.reason || '기타'}${h.reason_detail ? ' · ' + h.reason_detail : ''}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date} ${time}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:16px;font-weight:800;color:#FF9F43">+${(h.amount || 0).toLocaleString()}P</div>
+              <div style="font-size:10px;color:var(--text-muted)">잔액 ${(h.balance_after || 0).toLocaleString()}P</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    `}
   `;
 }
 
