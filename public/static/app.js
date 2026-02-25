@@ -3632,7 +3632,7 @@ function renderHomeTab() {
 
 // ==================== 아하 리포트 ====================
 
-if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false, analyzing: false, error: null, result: null, editing: {} };
+if (!state._ahaReport) state._ahaReport = { step: 1, subject: '', unit: '', photos: [], submitted: false, analyzing: false, error: null, result: null, editing: {}, croquetGiven: false };
 
 function renderAhaReport() {
   const aha = state._ahaReport;
@@ -3731,7 +3731,7 @@ function renderAhaReport() {
     return `
       <div class="full-screen animate-slide">
         <div class="screen-header">
-          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
           <h1>💡 아하 리포트</h1>
         </div>
         <div class="form-body">
@@ -3771,19 +3771,45 @@ function renderAhaReport() {
             </div>`;
           }).join('')}
 
-          <!-- AI 피드백 플레이스홀더 (3단계 구현 예정) -->
+          <!-- AI 피드백 카드 -->
+          ${r.ai_feedback ? `
+          <div class="card" style="margin-bottom:10px;padding:16px;border-left:3px solid var(--primary-light);background:linear-gradient(135deg,rgba(108,92,231,0.06),rgba(0,184,148,0.04))">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span style="font-size:18px">🤖</span>
+              <span style="font-size:14px;font-weight:700;color:var(--text-main)">AHA 리포트 피드백</span>
+              <span style="margin-left:auto;font-size:11px;color:#00B894;background:rgba(0,184,148,0.1);padding:2px 8px;border-radius:8px">✓ 완료</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;white-space:pre-wrap;padding:12px;background:var(--bg-input);border-radius:8px">${r.ai_feedback}</div>
+          </div>
+          ` : `
           <div class="card" style="margin-bottom:10px;padding:16px;opacity:0.6;border-left:3px solid var(--primary-light)">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
               <span style="font-size:18px">🤖</span>
               <span style="font-size:14px;font-weight:700;color:var(--text-main)">AHA 리포트 피드백</span>
-              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">3단계에서 제공</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);background:var(--bg-input);padding:2px 8px;border-radius:8px">피드백 생성 실패</span>
             </div>
             <div style="height:64px;background:var(--bg-input);border-radius:8px;display:flex;align-items:center;justify-content:center">
-              <div style="width:80%;height:10px;background:var(--border);border-radius:5px;opacity:0.5"></div>
+              <div style="font-size:12px;color:var(--text-muted)">피드백을 불러올 수 없었습니다</div>
             </div>
           </div>
+          `}
 
-          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:16px">기록 탭으로 돌아가기</button>
+          <!-- 크로켓 포인트 적립 애니메이션 -->
+          <div id="aha-croquet-anim" style="text-align:center;padding:16px;margin-bottom:8px">
+            ${aha.croquetGiven ? `
+              <div style="font-size:14px;color:#FF9F43;font-weight:700">🍩 +3 크로켓 포인트 적립 완료!</div>
+            ` : `
+              <div class="aha-croquet-badge" style="display:inline-block;padding:10px 20px;background:linear-gradient(135deg,rgba(255,159,67,0.15),rgba(253,203,110,0.1));border:1px solid rgba(255,159,67,0.3);border-radius:12px;animation:ahaCroquetPop 0.6s ease-out">
+                <span style="font-size:20px;font-weight:800;color:#FF9F43" id="aha-croquet-counter">0</span>
+                <span style="font-size:14px;color:#FF9F43;font-weight:600"> 🍩 크로켓 포인트 적립!</span>
+              </div>
+              <style>
+                @keyframes ahaCroquetPop { 0% { transform:scale(0.5);opacity:0 } 50% { transform:scale(1.1) } 100% { transform:scale(1);opacity:1 } }
+              </style>
+            `}
+          </div>
+
+          <button onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'" class="btn-primary" style="width:100%;margin-top:8px">기록 탭으로 돌아가기</button>
         </div>
       </div>
     `;
@@ -3794,7 +3820,7 @@ function renderAhaReport() {
     return `
       <div class="full-screen animate-slide">
         <div class="screen-header">
-          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+          <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
           <h1>💡 아하 리포트</h1>
         </div>
         <div class="form-body">
@@ -3812,7 +3838,7 @@ function renderAhaReport() {
   return `
     <div class="full-screen animate-slide">
       <div class="screen-header">
-        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{}};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
+        <button class="back-btn" onclick="state._ahaReport={step:1,subject:'',unit:'',photos:[],submitted:false,analyzing:false,error:null,result:null,editing:{},croquetGiven:false};goScreen('main');state.studentTab='record'"><i class="fas fa-arrow-left"></i></button>
         <h1>💡 아하 리포트</h1>
       </div>
       <div class="form-body">
@@ -4061,7 +4087,13 @@ async function ahaSubmit() {
 
     aha.analyzing = false;
     aha.result = data;
+    aha.croquetGiven = false;
     renderScreen();
+
+    // 피드백 표시 후 크로켓 포인트 자동 지급
+    if (data.ai_feedback && state._authUser?.id) {
+      setTimeout(() => ahaCroquetAutoGive(), 500);
+    }
   } catch (e) {
     console.error('AHA report analyze error:', e);
     aha.analyzing = false;
@@ -4085,6 +4117,58 @@ function ahaSaveEdit(sectionKey) {
   }
   state._ahaReport.editing[sectionKey] = false;
   renderScreen();
+}
+
+async function ahaCroquetAutoGive() {
+  const aha = state._ahaReport;
+  if (aha.croquetGiven) return;
+
+  try {
+    const res = await fetch('/api/aha-report/give-croquet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentId: state._authUser.id,
+        subject: aha.subject
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      aha.croquetGiven = true;
+      // 홈 화면 크로켓 잔액 업데이트
+      if (state._croquetBalance !== undefined) {
+        state._croquetBalance = data.newBalance;
+      }
+      // 카운팅 애니메이션 시작
+      ahaCroquetCountAnimation();
+    }
+  } catch (e) {
+    console.error('AHA croquet auto give error:', e);
+  }
+}
+
+function ahaCroquetCountAnimation() {
+  const counter = document.getElementById('aha-croquet-counter');
+  if (!counter) return;
+  let current = 0;
+  const target = 3;
+  const duration = 800; // ms
+  const stepTime = duration / target;
+
+  const interval = setInterval(() => {
+    current++;
+    counter.textContent = '+' + current;
+    if (current >= target) {
+      clearInterval(interval);
+      counter.textContent = '+' + target;
+      // 완료 후 잠시 뒤 상태 업데이트
+      setTimeout(() => {
+        state._ahaReport.croquetGiven = true;
+        renderScreen();
+      }, 2000);
+    }
+  }, stepTime);
 }
 
 // ==================== 크로켓 포인트 히스토리 ====================
@@ -4137,7 +4221,7 @@ function renderCroquetHistory() {
             <div style="width:40px;height:40px;border-radius:12px;background:rgba(255,159,67,0.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🍩</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:14px;font-weight:600;color:var(--text-main)">${h.reason || '기타'}${h.reason_detail ? ' · ' + h.reason_detail : ''}</div>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date} ${time} · ${h.mentor_name || '멘토'} 선생님</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${date} ${time} · ${!h.mentor_id ? '🤖 자동 지급' : (h.mentor_name || '멘토') + ' 선생님'}</div>
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div style="font-size:16px;font-weight:800;color:#FF9F43">+${(h.amount || 0).toLocaleString()}P</div>

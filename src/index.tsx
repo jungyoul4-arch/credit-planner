@@ -1807,7 +1807,7 @@ app.get('/api/migrate', async (c) => {
       `CREATE INDEX IF NOT EXISTS idx_mf_record ON mentor_feedbacks(record_type, record_id)`,
       `CREATE INDEX IF NOT EXISTS idx_mf_unread ON mentor_feedbacks(student_id, is_read)`,
       // 크로켓 포인트 테이블
-      `CREATE TABLE IF NOT EXISTS croquet_points (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, mentor_id INTEGER NOT NULL, amount INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '기타', reason_detail TEXT DEFAULT '', balance_after INTEGER NOT NULL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE, FOREIGN KEY (mentor_id) REFERENCES mentors(id))`,
+      `CREATE TABLE IF NOT EXISTS croquet_points (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, mentor_id INTEGER, amount INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT '기타', reason_detail TEXT DEFAULT '', balance_after INTEGER NOT NULL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_cp_student ON croquet_points(student_id, created_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_cp_mentor ON croquet_points(mentor_id, created_at DESC)`,
       // students 테이블에 croquet_balance 컬럼 추가
@@ -1816,6 +1816,22 @@ app.get('/api/migrate', async (c) => {
     for (const sql of stmts) {
       try { await c.env.DB.prepare(sql).run(); } catch(_) { /* column may already exist */ }
     }
+
+    // croquet_points 테이블 마이그레이션: mentor_id를 nullable로 변경 (자동 지급 지원)
+    try {
+      const tableInfo: any = await c.env.DB.prepare("PRAGMA table_info(croquet_points)").all();
+      const mentorCol = tableInfo.results?.find((col: any) => col.name === 'mentor_id');
+      if (mentorCol && mentorCol.notnull === 1) {
+        // NOT NULL 제약이 있으면 테이블 재생성
+        await c.env.DB.prepare('ALTER TABLE croquet_points RENAME TO croquet_points_old').run();
+        await c.env.DB.prepare('CREATE TABLE croquet_points (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, mentor_id INTEGER, amount INTEGER NOT NULL, reason TEXT NOT NULL DEFAULT \'기타\', reason_detail TEXT DEFAULT \'\', balance_after INTEGER NOT NULL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)').run();
+        await c.env.DB.prepare('INSERT INTO croquet_points (id, student_id, mentor_id, amount, reason, reason_detail, balance_after, created_at) SELECT id, student_id, mentor_id, amount, reason, reason_detail, balance_after, created_at FROM croquet_points_old').run();
+        await c.env.DB.prepare('DROP TABLE croquet_points_old').run();
+        await c.env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_cp_student ON croquet_points(student_id, created_at DESC)').run();
+        await c.env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_cp_mentor ON croquet_points(mentor_id, created_at DESC)').run();
+      }
+    } catch(_) { /* migration may have already been applied */ }
+
     return c.json({ success: true, message: 'Migration completed', tables: 17 });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
@@ -2221,19 +2237,40 @@ app.post('/api/aha-report/analyze', async (c) => {
     const systemPrompt = `당신은 고교학점제 전문가이자 학생들의 학습 멘토입니다.
 학생이 작성한 영역 탐구 보고서(AHA-Report) 사진을 분석합니다.
 
-사진에서 손글씨를 OCR 인식하여 다음 4개 섹션으로 정리해주세요:
+[작업 1] 사진에서 손글씨를 OCR 인식하여 다음 4개 섹션으로 정리해주세요:
 
 1. 문제 상황: 학생이 "1. 문제 상황"에 작성한 내용
 2. 주제 설정: 학생이 "2. 주제 설정"에 작성한 내용
 3. 탐구 과정 및 결론 도출: 학생이 "3. 탐구 과정 및 결론 도출"에 작성한 내용
 4. 자가 피드백: 학생이 "4. 자가 피드백"에 작성한 내용
 
-규칙:
+OCR 규칙:
 - 학생의 원문 내용을 최대한 살리되, 읽기 쉽게 문장을 정돈
 - 내용을 임의로 추가하거나 변경하지 말 것
 - 인식이 어려운 부분은 [판독 불가] 표시
 - 영어/한국어 혼합 내용도 그대로 반영
 - 보고서 양식 상단의 "과목", "수업 단원 및 내용", "반명", "이름"도 인식
+
+[작업 2] 위 4개 섹션 분석 결과를 바탕으로 피드백을 작성해주세요.
+
+피드백 규칙:
+- 따뜻하고 격려하는 톤, 반드시 존댓말 사용
+- 부정적이거나 비판적인 표현 절대 금지
+- 150~250자 내외
+
+피드백에 포함할 내용:
+1. 탐구 보고서 진정성 평가:
+   - 탐구 주제가 수업 내용과 연관성이 있는지
+   - 탐구 과정이 논리적으로 전개되었는지
+   - 자가 피드백에서 진솔한 성찰이 담겨 있는지
+   - 개선할 수 있는 부분 1~2가지 구체적 제안
+2. 격려 및 조언:
+   - 학생의 노력을 인정하는 격려 메시지
+   - 고교학점제에서 이 탐구 활동이 어떤 의미를 갖는지
+   - 학교 세부능력특기사항과 연결할 수 있는 팁
+   - 향후 발전 방향 조언
+
+위 두 가지를 자연스럽게 하나의 글로 연결하여 작성해주세요.
 
 반드시 아래 JSON 형식으로만 응답:
 {
@@ -2243,6 +2280,7 @@ app.post('/api/aha-report/analyze', async (c) => {
     "research": "탐구 과정 및 결론 정리 내용",
     "self_feedback": "자가 피드백 정리 내용"
   },
+  "ai_feedback": "피드백 전체 텍스트 (150~250자, 따뜻한 격려 톤, 존댓말)",
   "subject_detected": "인식된 과목명",
   "unit_detected": "인식된 단원명",
   "student_name": "인식된 학생 이름"
@@ -2314,6 +2352,7 @@ app.post('/api/aha-report/analyze', async (c) => {
         research: sections.research || '[판독 불가]',
         self_feedback: sections.self_feedback || '[판독 불가]'
       },
+      ai_feedback: result.ai_feedback || null,
       subject_detected: result.subject_detected || null,
       unit_detected: result.unit_detected || null,
       student_name: result.student_name || null
@@ -2321,6 +2360,33 @@ app.post('/api/aha-report/analyze', async (c) => {
   } catch (e: any) {
     console.log('AHA Report analyze error:', e)
     return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.' }, 500)
+  }
+})
+
+// 아하 리포트 제출 시 크로켓 포인트 자동 지급 (3P 고정)
+app.post('/api/aha-report/give-croquet', async (c) => {
+  try {
+    const { studentId, subject } = await c.req.json<{ studentId: number, subject?: string }>()
+    if (!studentId) return c.json({ error: '학생 ID가 필요합니다.' }, 400)
+
+    const amount = 3
+    const reason = '아하 리포트 제출'
+    const reasonDetail = subject ? `아하 리포트 제출 (${subject})` : '아하 리포트 제출'
+
+    // 잔액 업데이트
+    await c.env.DB.prepare('UPDATE students SET croquet_balance = croquet_balance + ? WHERE id = ?').bind(amount, studentId).run()
+    const student: any = await c.env.DB.prepare('SELECT croquet_balance FROM students WHERE id = ?').bind(studentId).first()
+    const newBalance = student?.croquet_balance || 0
+
+    // 이력 저장 (mentor_id = NULL 은 "자동 지급")
+    await c.env.DB.prepare(
+      'INSERT INTO croquet_points (student_id, mentor_id, amount, reason, reason_detail, balance_after) VALUES (?, NULL, ?, ?, ?, ?)'
+    ).bind(studentId, amount, reason, reasonDetail, newBalance).run()
+
+    return c.json({ success: true, newBalance, amount })
+  } catch (e: any) {
+    console.log('AHA croquet give error:', e)
+    return c.json({ error: e.message }, 500)
   }
 })
 
