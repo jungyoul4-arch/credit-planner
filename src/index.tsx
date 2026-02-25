@@ -2287,46 +2287,88 @@ OCR 규칙:
 }`
 
     // Build parts: text prompt + multiple images
-    const parts: any[] = [
-      { text: `${systemPrompt}\n\n---\n학생 선택 과목: ${subject || '미선택'}\n단원: ${unit || '미입력'}` }
-    ]
+    const promptText = `${systemPrompt}\n\n---\n학생 선택 과목: ${subject || '미선택'}\n단원: ${unit || '미입력'}`
+    const parts: any[] = [{ text: promptText }]
 
+    // Extract image data for both Gemini and OpenAI
+    const imageDataList: { mime_type: string, data: string }[] = []
     for (const photo of photos) {
-      // Extract base64 data from data URL (e.g., "data:image/jpeg;base64,/9j/...")
       const match = photo.match(/^data:(image\/\w+);base64,(.+)$/)
       if (match) {
-        parts.push({
-          inline_data: {
-            mime_type: match[1],
-            data: match[2]
-          }
-        })
+        imageDataList.push({ mime_type: match[1], data: match[2] })
+        parts.push({ inline_data: { mime_type: match[1], data: match[2] } })
       }
     }
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
+    let rawText = '{}'
+    let aiSource = 'gemini'
+
+    // Step 1: Gemini 시도
+    try {
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: 'application/json'
+            }
+          })
+        }
+      )
+
+      if (geminiRes.ok) {
+        const data: any = await geminiRes.json()
+        rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+      } else {
+        const errStatus = geminiRes.status
+        console.log('Gemini API error:', errStatus, '→ OpenAI로 폴백')
+        throw new Error(`Gemini ${errStatus}`)
+      }
+    } catch (geminiErr) {
+      // Step 2: OpenAI GPT-4o 폴백 (이미지 지원)
+      console.log('Gemini 실패, OpenAI GPT-4o로 폴백:', geminiErr)
+      aiSource = 'openai'
+
+      const openaiKey = c.env.OPENAI_API_KEY
+      if (!openaiKey) {
+        return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.', detail: 'no_fallback_key' }, 502)
+      }
+
+      const openaiContent: any[] = [{ type: 'text', text: promptText + '\n\n반드시 위에 지정한 JSON 형식으로만 응답해주세요.' }]
+      for (const img of imageDataList) {
+        openaiContent.push({
+          type: 'image_url',
+          image_url: { url: `data:${img.mime_type};base64,${img.data}`, detail: 'high' }
+        })
+      }
+
+      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json'
-          }
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: openaiContent }],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
         })
+      })
+
+      if (!openaiRes.ok) {
+        const errText = await openaiRes.text()
+        console.log('OpenAI fallback error:', openaiRes.status, errText)
+        return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.', detail: openaiRes.status }, 502)
       }
-    )
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text()
-      console.log('Gemini API error:', geminiRes.status, errText)
-      return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.', detail: geminiRes.status }, 502)
+      const openaiData: any = await openaiRes.json()
+      rawText = openaiData.choices?.[0]?.message?.content || '{}'
     }
-
-    const data: any = await geminiRes.json()
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
 
     let result: any
     try {
@@ -2355,7 +2397,8 @@ OCR 규칙:
       ai_feedback: result.ai_feedback || null,
       subject_detected: result.subject_detected || null,
       unit_detected: result.unit_detected || null,
-      student_name: result.student_name || null
+      student_name: result.student_name || null,
+      ai_source: aiSource
     })
   } catch (e: any) {
     console.log('AHA Report analyze error:', e)
