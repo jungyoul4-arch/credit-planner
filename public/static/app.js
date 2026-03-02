@@ -11204,7 +11204,7 @@ function renderGrowthTab() {
 
 // ==================== 나만의 질문방 (QA앱 iframe) ====================
 
-const QA_APP_URL = 'https://qa-tutoring-app.pages.dev';
+const QA_APP_URL = 'https://qa-tutoring.jung-youl.com';
 
 // 질문 통계 (홈/성장 탭 표시용)
 if (!state.myQaStats) state.myQaStats = { total: 0, unanswered: 0, answered: 0, weeklyQuestions: 0, weeklyAnswered: 0 };
@@ -11230,32 +11230,13 @@ async function openMyQaIframe(targetPath) {
   
   let qaUrl = QA_APP_URL + basePath;
 
-  // 자동 로그인 토큰 발급
+  // user_id, nick_name 파라미터 전달
   if (studentId) {
-    try {
-      const res = await fetch('/api/qa-auth-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        // QA앱에 외부 인증 파라미터 전달
-        const params = new URLSearchParams({
-          ext_auth: '1',
-          user_id: data.userId,
-          nick_name: data.nickName,
-          timestamp: data.timestamp,
-          signature: data.signature,
-          from: 'creditplanner'
-        });
-        // 목록 화면일 때만 내 질문 필터 자동 적용
-        if (!targetPath) params.set('filter', 'my');
-        qaUrl = QA_APP_URL + basePath + '?' + params.toString();
-      }
-    } catch (e) {
-      console.error('QA 토큰 발급 실패:', e);
-    }
+    const params = new URLSearchParams({
+      user_id: String(studentId),
+      nick_name: studentName
+    });
+    qaUrl = QA_APP_URL + basePath + '?' + params.toString();
   }
 
   // 진입 전 현재 탭/화면 저장 (돌아가기용)
