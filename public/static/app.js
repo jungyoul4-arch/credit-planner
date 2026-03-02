@@ -11221,9 +11221,6 @@ async function loadMyQaStats() {
 // QA앱을 iframe으로 전체화면 열기
 // targetPath: 선택적 경로 (예: '/new' → 질문 등록 화면)
 async function openMyQaIframe(targetPath) {
-  // 이미 열려있으면 무시
-  if (document.getElementById('myqa-iframe-overlay')) return;
-
   const studentId = state._authUser?.id;
   const studentName = state._authUser?.name || '학생';
   const basePath = targetPath || '';
@@ -11239,66 +11236,8 @@ async function openMyQaIframe(targetPath) {
     qaUrl = QA_APP_URL + basePath + '?' + params.toString();
   }
 
-  // 진입 전 현재 탭/화면 저장 (돌아가기용)
-  const returnTab = state.studentTab;
-  const returnScreen = state.currentScreen;
-
-  // iframe 오버레이 생성
-  const overlay = document.createElement('div');
-  overlay.id = 'myqa-iframe-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:var(--bg-main,#1a1a2e);display:flex;flex-direction:column';
-
-  // 상단 바
-  const topBar = document.createElement('div');
-  topBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0';
-  
-  const leftGroup = document.createElement('div');
-  leftGroup.style.cssText = 'display:flex;align-items:center;gap:10px';
-
-  const titleLabel = targetPath === '/new' ? '✏️ 질문 등록' : '❓ 나만의 질문방';
-  const title = document.createElement('span');
-  title.innerHTML = titleLabel;
-  title.style.cssText = 'font-size:15px;font-weight:700;color:#fff';
-
-  leftGroup.appendChild(title);
-  topBar.appendChild(leftGroup);
-
-  // 새 탭 열기 버튼
-  const extBtn = document.createElement('button');
-  extBtn.innerHTML = '<i class="fas fa-external-link-alt"></i>';
-  extBtn.title = '새 탭에서 열기';
-  extBtn.style.cssText = 'width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.2s';
-  extBtn.onmouseover = () => { extBtn.style.background = 'rgba(255,255,255,0.15)'; };
-  extBtn.onmouseout = () => { extBtn.style.background = 'rgba(255,255,255,0.05)'; };
-  extBtn.onclick = () => window.open(qaUrl, '_blank');
-  topBar.appendChild(extBtn);
-
-  overlay.appendChild(topBar);
-
-  // iframe
-  const iframe = document.createElement('iframe');
-  iframe.src = qaUrl;
-  iframe.style.cssText = 'flex:1;width:100%;border:none;background:#1a1a2e';
-  iframe.allow = 'camera;microphone';
-  overlay.appendChild(iframe);
-
-  // 하단 고정 돌아가기 버튼 (iframe 헤더와 겹치지 않도록)
-  const backBtn = document.createElement('button');
-  backBtn.innerHTML = '<i class="fas fa-arrow-left" style="margin-right:6px"></i> 플래너로 돌아가기';
-  backBtn.style.cssText = 'position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));left:16px;z-index:10000;padding:10px 20px;background:rgba(108,92,231,0.9);color:#fff;border:none;border-radius:24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(108,92,231,0.4);transition:all 0.2s;backdrop-filter:blur(8px)';
-  backBtn.onmouseover = () => { backBtn.style.background = 'rgba(108,92,231,1)'; backBtn.style.transform = 'scale(1.05)'; };
-  backBtn.onmouseout = () => { backBtn.style.background = 'rgba(108,92,231,0.9)'; backBtn.style.transform = 'scale(1)'; };
-  backBtn.onclick = () => {
-    overlay.remove();
-    backBtn.remove();
-    state.studentTab = returnTab;
-    state.currentScreen = returnScreen;
-    loadMyQaStats(); // 통계 갱신
-    renderScreen();
-  };
-
-  document.body.appendChild(overlay);
-  document.body.appendChild(backBtn);
+  // 새 탭으로 열기
+  window.open(qaUrl, '_blank');
 }
 
 // 시간표에서 질문 등록 시 QA앱 iframe으로 이동
