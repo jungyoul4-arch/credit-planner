@@ -19,6 +19,27 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>()
 
 app.use('/api/*', cors())
+
+// sw.js, app.js, app.css → 캐시 방지 헤더 (항상 최신 버전 로드)
+app.use('/static/sw.js', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  c.header('Pragma', 'no-cache')
+  c.header('Expires', '0')
+})
+app.use('/static/app.js', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+app.use('/static/app.css', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+app.use('/static/app-mentor.js', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+
 app.get('/static/*', serveStatic())
 
 // ==================== KST (한국 표준시) 헬퍼 ====================
@@ -3547,6 +3568,10 @@ app.get('/api/health', (c) => {
 })
 
 app.get('/', (c) => {
+  // HTML은 항상 최신 버전 로드 (서비스워커 캐시 문제 방지)
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  c.header('Pragma', 'no-cache')
+  c.header('Expires', '0')
   return c.html(`<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -3662,17 +3687,20 @@ app.get('/', (c) => {
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js')
+        navigator.serviceWorker.register('/static/sw.js', { updateViaCache: 'none' })
           .then(reg => {
             console.log('SW registered:', reg.scope);
-            // 새 SW가 대기 중이면 즉시 활성화
+            // 주기적 업데이트 체크 (1분마다)
+            setInterval(() => reg.update(), 60000);
+            // 새 SW가 대기 중이면 즉시 활성화 요청
             reg.addEventListener('updatefound', () => {
               const newSW = reg.installing;
               if (newSW) {
                 newSW.addEventListener('statechange', () => {
-                  if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
-                    console.log('[PWA] New version available');
-                    if (typeof window._showPwaUpdateToast === 'function') window._showPwaUpdateToast();
+                  if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                    // 새 버전이 설치됨 → 즉시 활성화 요청
+                    newSW.postMessage('skipWaiting');
+                    console.log('[PWA] New version installed, activating...');
                   }
                 });
               }
@@ -3680,10 +3708,12 @@ app.get('/', (c) => {
           })
           .catch(err => console.log('SW registration failed:', err));
       });
-      // 컨트롤러 변경 시 새로고침 (새 SW 활성화 완료)
+      // 컨트롤러 변경 시 자동 새로고침 (새 SW 활성화 완료 = 새 버전 적용)
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (window._swReloading) return;
         window._swReloading = true;
+        console.log('[PWA] New version activated, reloading...');
+        window.location.reload();
       });
     }
   </script>
