@@ -3644,6 +3644,7 @@ app.get('/', (c) => {
               <div style="font-size:15px;color:#888;font-weight:500">로딩 중...</div>
             </div>
           </div>
+          <div id="mobile-bottom-tab"></div>
         </div>
       </div>
       <div id="desktop-container" style="display:none">
