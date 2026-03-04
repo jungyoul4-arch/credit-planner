@@ -1,38 +1,29 @@
-const CACHE_VERSION = 'cp-20260227-v8';
-const STATIC_ASSETS = [
-  '/',
-  '/static/app.js',
-  '/static/app-mentor.js',
-  '/static/app.css',
+const CACHE_VERSION = 'cp-20260303-v10';
+
+// 오프라인에서만 사용할 기본 리소스
+const OFFLINE_ASSETS = [
   '/static/logo.png',
   '/static/icon-192.png',
   '/static/icon-512.png',
-  '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css',
   'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 
-// 핵심 JS/CSS 파일 → Network First (항상 최신)
-const NETWORK_FIRST_FILES = [
-  '/static/app.js',
-  '/static/app-mentor.js',
-  '/static/app.css',
-];
-
-// 설치 시 정적 파일 캐싱
+// 설치 시 → 즉시 활성화 (대기하지 않음)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      return cache.addAll(OFFLINE_ASSETS);
     }).catch((err) => {
       console.error('SW install cache failed:', err);
     })
   );
+  // 즉시 활성화 - 대기 상태 건너뛰기
   self.skipWaiting();
 });
 
-// 활성화 시 이전 캐시 모두 삭제
+// 활성화 시 → 이전 캐시 모두 삭제 + 즉시 제어
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -40,6 +31,7 @@ self.addEventListener('activate', (event) => {
         keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
       );
     }).then(() => {
+      // 즉시 모든 탭을 제어
       return self.clients.claim();
     })
   );
@@ -62,8 +54,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML 페이지 → Network First
-  if (event.request.mode === 'navigate' || url.pathname === '/') {
+  // ★ HTML, JS, CSS → 항상 Network First (캐시는 오프라인 폴백 전용)
+  // 이렇게 하면 인터넷 사용기록 삭제 없이도 항상 최신 버전 로드
+  if (event.request.mode === 'navigate' ||
+      url.pathname === '/' ||
+      url.pathname.endsWith('.js') ||
+      url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('.html') ||
+      url.searchParams.has('user_id')) {
     event.respondWith(
       fetch(event.request).then((response) => {
         if (response && response.status === 200) {
@@ -73,22 +71,6 @@ self.addEventListener('fetch', (event) => {
         return response;
       }).catch(() => {
         return caches.match(event.request).then((cached) => cached || caches.match('/'));
-      })
-    );
-    return;
-  }
-
-  // 핵심 JS/CSS → Network First (항상 최신 코드)
-  if (NETWORK_FIRST_FILES.some(f => url.pathname === f)) {
-    event.respondWith(
-      fetch(event.request).then((response) => {
-        if (response && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => {
-        return caches.match(event.request);
       })
     );
     return;
@@ -105,7 +87,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => {
-        // 오프라인 + 캐시 미스 시 빈 응답
         return new Response('', { status: 504, statusText: 'Offline' });
       });
     })

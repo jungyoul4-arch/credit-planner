@@ -296,6 +296,7 @@ function _renderScreenImpl(forced) {
       tabletContent.innerHTML = renderStudentApp();
       initStudentEvents(tabletContent);
       initAuthEvents(tabletContent);
+      initMobileBottomTab();
       setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
       setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
       setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
@@ -448,7 +449,7 @@ function renderStudentApp() {
     case 'record': content += renderRecordTab(); break;
     case 'planner': content += renderPlannerTab(); break;
     case 'growth': content += renderGrowthTab(); break;
-    case 'myqa': content += '<div class="tab-content animate-in" style="display:flex;align-items:center;justify-content:center;min-height:60vh"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">❓</div><div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px">나만의 질문방</div><div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">질문방을 여는 중입니다...</div></div></div>'; setTimeout(()=>openMyQaIframe(),100); break;
+    case 'myqa': content += '<div class="tab-content animate-in" style="display:flex;align-items:center;justify-content:center;min-height:60vh"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">❓</div><div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px">질문/답변 사이트 열기</div><div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">새 탭에서 질문/답변 사이트를 엽니다...</div></div></div>'; setTimeout(()=>{ openMyQaIframe(); state.studentTab='home'; renderScreen(); },100); break;
     case 'my': content += renderMyTab(); break;
     case 'community': content += renderCommunityTab(); break;
   }
@@ -527,6 +528,44 @@ function renderSidebar() {
   `;
 }
 
+// ==================== 모바일 하단 탭바 ====================
+function renderMobileBottomTab() {
+  const tabs = [
+    { id:'home', icon:'fa-house', label:'홈' },
+    { id:'record', icon:'fa-pen-to-square', label:'기록' },
+    { id:'planner', icon:'fa-calendar-check', label:'플래너' },
+    { id:'growth', icon:'fa-chart-line', label:'성장' },
+    { id:'myqa', icon:'fa-circle-question', label:'질문' },
+    { id:'my', icon:'fa-user', label:'마이' },
+    { id:'community', icon:'fa-comments', label:'커뮤니티' },
+  ];
+  return `<div class="mobile-bottom-tab-bar">
+    ${tabs.map(t => `<button class="mob-tab-item ${state.studentTab===t.id?'active':''}" data-tab="${t.id}">
+      <i class="fas ${t.icon}"></i><span>${t.label}</span>
+    </button>`).join('')}
+  </div>`;
+}
+
+function initMobileBottomTab() {
+  const el = document.getElementById('mobile-bottom-tab');
+  if (!el) return;
+  // 로그인/온보딩 화면에서는 숨김
+  const isAuthScreen = state.currentScreen === 'login' || state.currentScreen.startsWith('onboarding') || state.currentScreen.startsWith('register') || state.currentScreen === 'login-mentor' || state.currentScreen === 'login-director';
+  if (isAuthScreen) { el.innerHTML = ''; return; }
+  el.innerHTML = renderMobileBottomTab();
+  el.querySelectorAll('.mob-tab-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (tab === 'myqa') { openMyQaIframe(); return; }
+      if (tab === 'community') { openCommunityNewTab(); return; }
+      state._communityOpened = false;
+      state.studentTab = tab;
+      state.currentScreen = 'main';
+      renderScreen();
+    });
+  });
+}
+
 function renderFab() {
   // 플래너 탭에서는 AI FAB가 대신 표시됨, 기록/내질문 탭에서는 이미 메뉴가 있으므로 불필요
   if (state.studentTab === 'planner' || state.studentTab === 'record' || state.studentTab === 'myqa' || state.studentTab === 'community') return '';
@@ -551,7 +590,7 @@ function renderOnboardingWelcome() {
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
         <div class="onboarding-logo">
           <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
-          <h2>고교학점플래너</h2>
+          <h2>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.2</span></h2>
           <p>HS CreditPlanner</p>
         </div>
         <p style="text-align:center;color:var(--text-secondary);font-size:15px;line-height:1.8;margin-bottom:40px">
@@ -559,6 +598,7 @@ function renderOnboardingWelcome() {
           <strong style="color:var(--text-primary)">학교생활의 모든 순간</strong>을 기록하고<br>
           <strong style="color:var(--primary-light)">생기부 경쟁력</strong>으로 만드세요
         </p>
+
       </div>
       <button class="btn-primary btn-glow" onclick="goScreen('onboarding-info')">
         시작하기 <i class="fas fa-arrow-right" style="margin-left:8px"></i>
@@ -721,7 +761,7 @@ function renderLoginScreen() {
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
         <div class="onboarding-logo">
           <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
-          <h2>고교학점플래너</h2>
+          <h2>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.2</span></h2>
           <p>HS CreditPlanner</p>
         </div>
         <p style="text-align:center;color:var(--text-secondary);font-size:15px;line-height:1.8;margin-bottom:32px">
@@ -991,7 +1031,7 @@ function initAuthEvents(container) {
     const gradeBtn = container.querySelector('.reg-grade-btn.active');
     const grade = gradeBtn ? parseInt(gradeBtn.dataset.grade) : 1;
 
-    if (!name || !pw) { state._loginError = '이름과 비밀번호는 필수입니다'; renderScreen(); return; }
+    if (!name || !pw) { state._loginError = '이름, 비밀번호는 필수입니다'; renderScreen(); return; }
     if (pw !== pw2) { state._loginError = '비밀번호가 일치하지 않습니다'; renderScreen(); return; }
     if (pw.length < 4) { state._loginError = '비밀번호는 4자 이상이어야 합니다'; renderScreen(); return; }
 
@@ -1005,7 +1045,7 @@ function initAuthEvents(container) {
       if (!res.ok) throw new Error(data.error || '가입 실패');
 
       state._loginLoading = false;
-      alert(`🎉 ${data.groupName}에 가입되었습니다!\\n\\n담당: ${data.mentorName} 선생님\\n이제 로그인해주세요.`);
+      alert(`🎉 회원가입이 완료되었습니다!\\n\\n이제 로그인해주세요.`);
       state._loginError = '';
       goScreen('login');
     } catch (e) {
@@ -1022,6 +1062,8 @@ function initAuthEvents(container) {
       btn.classList.add('active');
     });
   });
+
+
 
   // 멘토 로그인
   container.querySelector('#btn-mentor-login')?.addEventListener('click', async () => {
@@ -1128,7 +1170,7 @@ function initAuthEvents(container) {
       if (!res.ok) throw new Error(data.error || '가입 실패');
 
       state._loginLoading = false;
-      alert(`🎉 멘토 등록 완료!\\n\\n기본 반 초대코드: ${data.defaultGroupInviteCode}\\n이 코드를 학생들에게 알려주세요.\\n\\n이제 로그인해주세요.`);
+      alert(`🎉 멘토 등록 완료!\\n\\n이제 로그인해주세요.`);
       state._loginError = '';
       goScreen('login-mentor');
     } catch (e) {
@@ -1208,6 +1250,24 @@ function hideAuthUI() {
 
 async function externalLogin(userId, deviceMode) {
   try {
+    // 0. 이전 세션 완전 초기화 (항상 새로운 화면으로 시작)
+    localStorage.removeItem('cp_auth');
+    state._authUser = null;
+    state._authToken = '';
+    state._authRole = '';
+    state._authGroup = null;
+    state._authMentorGroups = [];
+    state._loginError = '';
+    state.currentScreen = 'login';
+    state.studentTab = 'home';
+    state.mode = 'student';
+    if (typeof _mentor !== 'undefined') {
+      _mentor.initialLoading = false;
+      _mentor.loading = false;
+      _mentor.selectedGroupId = null;
+      _mentor.selectedStudentId = null;
+    }
+
     // 1. device_mode 적용
     if (deviceMode) applyDeviceMode(deviceMode);
 
@@ -1228,6 +1288,8 @@ async function externalLogin(userId, deviceMode) {
     state._authUser = data.user;
     state._authToken = data.token;
     state._authRole = data.role;
+    state._externalUserId = data.externalUserId || null; // 원격 DB user_id
+    state._externalUserName = data.user?.name || '';      // 원격 DB name
     state._loginError = '';
     state.currentScreen = 'main';
     state.studentTab = 'home';
@@ -1237,7 +1299,7 @@ async function externalLogin(userId, deviceMode) {
       state._authGroup = data.group;
       state.mode = 'student';
       // localStorage에 저장 (재방문 시 자동 로그인)
-      localStorage.setItem('cp_auth', JSON.stringify({ user: data.user, token: data.token, role: data.role, group: data.group }));
+      localStorage.setItem('cp_auth', JSON.stringify({ user: data.user, token: data.token, role: data.role, group: data.group, externalUserId: data.externalUserId }));
       renderScreen();
       DB.loadAll().then(() => refreshDataWidgets());
       startClassEndChecker();
@@ -1245,7 +1307,7 @@ async function externalLogin(userId, deviceMode) {
     } else if (data.role === 'mentor') {
       state._authMentorGroups = data.groups;
       state.mode = 'mentor';
-      localStorage.setItem('cp_auth', JSON.stringify({ user: data.user, token: data.token, role: data.role, groups: data.groups }));
+      localStorage.setItem('cp_auth', JSON.stringify({ user: data.user, token: data.token, role: data.role, groups: data.groups, externalUserId: data.externalUserId }));
       _mentor.initialLoading = true;
       renderScreen();
       fetch('/api/migrate').catch(() => {});
@@ -1277,6 +1339,8 @@ function autoLogin() {
     state._authUser = auth.user;
     state._authToken = auth.token;
     state._authRole = auth.role;
+    state._externalUserId = auth.externalUserId || null; // 원격 DB user_id 복원
+    state._externalUserName = auth.user?.name || '';
     state._loginError = '';
     if (auth.role === 'student') {
       state._authGroup = auth.group;
@@ -8188,7 +8252,7 @@ function renderClassEndPopup() {
           <p style="font-size:14px;font-weight:600;color:var(--success);margin:0 0 12px">수업 기록 완료!</p>
           <span style="font-size:14px;font-weight:600">💡 오늘 수업에서 궁금했던 것이 있나요?</span>
           <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
-          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe('/new')">✏️ 질문하기 +3 XP</button>
+          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe()">✏️ 질문하기 +3 XP</button>
           <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:13px" onclick="goScreen('main')">다음에 할게요</button>
         </div>
 
@@ -8261,7 +8325,7 @@ function renderAcademyRecordPopup() {
           <p style="font-size:14px;font-weight:600;color:var(--success);margin:0 0 12px">학원 수업 기록 완료!</p>
           <span style="font-size:14px;font-weight:600">💡 학원 수업에서 궁금했던 것이 있나요?</span>
           <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
-          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe('/new')">✏️ 질문하기 +3 XP</button>
+          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe()">✏️ 질문하기 +3 XP</button>
           <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:13px" onclick="goScreen('main')">다음에 할게요</button>
         </div>
 
@@ -8659,7 +8723,7 @@ function renderRecordClass() {
           <p style="font-size:14px;font-weight:600;color:var(--success);margin:0 0 12px">수업 기록 완료!</p>
           <p style="font-size:14px;font-weight:600;margin:0 0 4px">💡 오늘 수업에서 궁금했던 것이 있나요?</p>
           <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;line-height:1.5">질문방에 남겨두면 나중에 스스로 직접 답해볼 수 있어요!</p>
-          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe('/new')">✏️ 질문하기 +3 XP</button>
+          <button class="btn-secondary" style="width:100%;padding:12px;font-size:14px;border-color:rgba(108,92,231,0.4)" onclick="openMyQaIframe()">✏️ 질문하기 +3 XP</button>
           <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:13px" onclick="goScreen('main')">다음에 할게요</button>
         </div>
         <p class="input-timer">⏱️ 입력 시간: 22초</p>
@@ -9628,13 +9692,17 @@ function openJeongyulQA() {
   const axisLabel = axis === 'reflection' ? '성찰질문' : '호기심질문';
   
   // URL 구성 — 쿼리 파라미터로 과목, 질문 내용 전달
+  const userId = state._externalUserId || '';
+  const userName = state._externalUserName || state._authUser?.name || '학생';
   const params = new URLSearchParams();
+  if (userId) params.set('user_id', userId);
+  if (userName) params.set('nick_name', userName);
   if (subject) params.set('subject', subject);
   if (questionText) params.set('question', questionText);
   params.set('type', axisLabel);
   params.set('from', 'creditplanner');
   
-  const url = 'https://qa-tutoring-app.pages.dev/new?' + params.toString();
+  const url = 'https://qa-tutoring.jung-youl.com?' + params.toString();
   
   // 인앱 오버레이 패널로 열기
   openQAPanel(url);
@@ -11958,9 +12026,9 @@ function renderGrowthTab() {
   `;
 }
 
-// ==================== 나만의 질문방 (QA앱 iframe) ====================
+// ==================== 나만의 질문방 (qa-tutoring.jung-youl.com 연결) ====================
 
-const QA_APP_URL = 'https://qa-tutoring-app.pages.dev';
+const QA_APP_URL = 'https://qa-tutoring.jung-youl.com';
 
 // 질문 통계 (홈/성장 탭 표시용)
 if (!state.myQaStats) state.myQaStats = { total: 0, unanswered: 0, answered: 0, weeklyQuestions: 0, weeklyAnswered: 0 };
@@ -11974,106 +12042,25 @@ async function loadMyQaStats() {
   } catch (e) {}
 }
 
-// QA앱을 iframe으로 전체화면 열기
-// targetPath: 선택적 경로 (예: '/new' → 질문 등록 화면)
-async function openMyQaIframe(targetPath) {
-  // 이미 열려있으면 무시
-  if (document.getElementById('myqa-iframe-overlay')) return;
+// QA 웹사이트를 새 탭으로 열기
+// 원격 DB의 user_id와 name을 파라미터로 전달
+function openMyQaIframe(targetPath) {
+  const userId = state._externalUserId || _urlParams?.user_id || '';
+  const userName = state._externalUserName || state._authUser?.name || '학생';
 
-  const studentId = state._authUser?.id;
-  const studentName = state._authUser?.name || '학생';
-  const basePath = targetPath || '';
-  
-  let qaUrl = QA_APP_URL + basePath;
-
-  // 자동 로그인 토큰 발급
-  if (studentId) {
-    try {
-      const res = await fetch('/api/qa-auth-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        // QA앱에 외부 인증 파라미터 전달
-        const params = new URLSearchParams({
-          ext_auth: '1',
-          user_id: data.userId,
-          nick_name: data.nickName,
-          timestamp: data.timestamp,
-          signature: data.signature,
-          from: 'creditplanner'
-        });
-        // 목록 화면일 때만 내 질문 필터 자동 적용
-        if (!targetPath) params.set('filter', 'my');
-        qaUrl = QA_APP_URL + basePath + '?' + params.toString();
-      }
-    } catch (e) {
-      console.error('QA 토큰 발급 실패:', e);
-    }
+  if (!userId) {
+    // 외부 로그인이 아닌 경우 (일반 로그인) → user_id 없이 열기
+    window.open(QA_APP_URL, '_blank');
+    return;
   }
 
-  // 진입 전 현재 탭/화면 저장 (돌아가기용)
-  const returnTab = state.studentTab;
-  const returnScreen = state.currentScreen;
+  const params = new URLSearchParams({
+    user_id: userId,
+    nick_name: userName
+  });
 
-  // iframe 오버레이 생성
-  const overlay = document.createElement('div');
-  overlay.id = 'myqa-iframe-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:var(--bg-main,#1a1a2e);display:flex;flex-direction:column';
-
-  // 상단 바
-  const topBar = document.createElement('div');
-  topBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(0,0,0,0.6);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.1);flex-shrink:0';
-  
-  const leftGroup = document.createElement('div');
-  leftGroup.style.cssText = 'display:flex;align-items:center;gap:10px';
-
-  const titleLabel = targetPath === '/new' ? '✏️ 질문 등록' : '❓ 나만의 질문방';
-  const title = document.createElement('span');
-  title.innerHTML = titleLabel;
-  title.style.cssText = 'font-size:15px;font-weight:700;color:#fff';
-
-  leftGroup.appendChild(title);
-  topBar.appendChild(leftGroup);
-
-  // 새 탭 열기 버튼
-  const extBtn = document.createElement('button');
-  extBtn.innerHTML = '<i class="fas fa-external-link-alt"></i>';
-  extBtn.title = '새 탭에서 열기';
-  extBtn.style.cssText = 'width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.2s';
-  extBtn.onmouseover = () => { extBtn.style.background = 'rgba(255,255,255,0.15)'; };
-  extBtn.onmouseout = () => { extBtn.style.background = 'rgba(255,255,255,0.05)'; };
-  extBtn.onclick = () => window.open(qaUrl, '_blank');
-  topBar.appendChild(extBtn);
-
-  overlay.appendChild(topBar);
-
-  // iframe
-  const iframe = document.createElement('iframe');
-  iframe.src = qaUrl;
-  iframe.style.cssText = 'flex:1;width:100%;border:none;background:#1a1a2e';
-  iframe.allow = 'camera;microphone';
-  overlay.appendChild(iframe);
-
-  // 하단 고정 돌아가기 버튼 (iframe 헤더와 겹치지 않도록)
-  const backBtn = document.createElement('button');
-  backBtn.innerHTML = '<i class="fas fa-arrow-left" style="margin-right:6px"></i> 플래너로 돌아가기';
-  backBtn.style.cssText = 'position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));left:16px;z-index:10000;padding:10px 20px;background:rgba(108,92,231,0.9);color:#fff;border:none;border-radius:24px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 16px rgba(108,92,231,0.4);transition:all 0.2s;backdrop-filter:blur(8px)';
-  backBtn.onmouseover = () => { backBtn.style.background = 'rgba(108,92,231,1)'; backBtn.style.transform = 'scale(1.05)'; };
-  backBtn.onmouseout = () => { backBtn.style.background = 'rgba(108,92,231,0.9)'; backBtn.style.transform = 'scale(1)'; };
-  backBtn.onclick = () => {
-    overlay.remove();
-    backBtn.remove();
-    state.studentTab = returnTab;
-    state.currentScreen = returnScreen;
-    loadMyQaStats(); // 통계 갱신
-    renderScreen();
-  };
-
-  document.body.appendChild(overlay);
-  document.body.appendChild(backBtn);
+  const url = QA_APP_URL + '?' + params.toString();
+  window.open(url, '_blank');
 }
 
 // 시간표에서 질문 등록 시 QA앱 iframe으로 이동
@@ -13214,7 +13201,7 @@ function renderDirectorDashboard() {
       <div style="display:flex;align-items:center;gap:14px">
         <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
         <div>
-          <h1>고교학점플래너 <span style="color:var(--accent)">원장</span></h1>
+          <h1>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.2</span> <span style="color:var(--accent)">원장</span></h1>
           <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">정율고교학점데이터센터 | 498/500명</p>
         </div>
       </div>
@@ -13326,9 +13313,9 @@ const _screenHistory = ['onboarding-welcome'];
 let _isPopState = false;
 
 function goScreen(screen) {
-  // QA앱 iframe 진입점 인터셉트
+  // QA 웹사이트 진입점 인터셉트 → 새 탭으로 열기
   if (screen === '__qa-new__') {
-    openMyQaIframe('/new');
+    openMyQaIframe();
     return;
   }
   // 아하 리포트 옵션 선택 인터셉트
@@ -13820,9 +13807,15 @@ initTodayAcademy(); // 오늘 요일 기준 학원 시간표 동적 생성
 // 외부 앱 파라미터 체크 → 자동 로그인 or 일반 자동 로그인
 const _urlParams = getUrlParams();
 if (_urlParams.user_id) {
-  // 외부 앱에서 호출됨 → URL 파라미터 기반 자동 로그인
-  // 즉시 로딩 UI 표시 (fetch 완료 전)
+  // 외부 앱에서 호출됨 → 이전 세션 완전 제거 후 새로 로그인
+  localStorage.removeItem('cp_auth');
   _externalMode = true;
+  // 서비스워커 업데이트 강제 요청
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if (reg) reg.update();
+    });
+  }
   externalLogin(_urlParams.user_id, _urlParams.device_mode);
 } else {
   // 일반 접속 → localStorage 기반 자동 로그인

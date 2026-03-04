@@ -19,6 +19,27 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>()
 
 app.use('/api/*', cors())
+
+// sw.js, app.js, app.css → 캐시 방지 헤더 (항상 최신 버전 로드)
+app.use('/static/sw.js', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  c.header('Pragma', 'no-cache')
+  c.header('Expires', '0')
+})
+app.use('/static/app.js', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+app.use('/static/app.css', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+app.use('/static/app-mentor.js', async (c, next) => {
+  await next()
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+
 app.get('/static/*', serveStatic())
 
 // ==================== KST (한국 표준시) 헬퍼 ====================
@@ -867,21 +888,21 @@ app.get('/api/auth/external-login', async (c) => {
 app.post('/api/auth/student/register', async (c) => {
   try {
     const { name, password, schoolName, grade } = await c.req.json();
-    if (!name || !password) return c.json({ error: '이름과 비밀번호는 필수입니다' }, 400);
+    if (!name || !password) return c.json({ error: '이름, 비밀번호는 필수입니다' }, 400);
     if (password.length < 4) return c.json({ error: '비밀번호는 4자 이상이어야 합니다' }, 400);
 
-    // 첫 번째 활성 그룹에 자동 배정
+    // 기본 그룹 (첫 번째 활성 그룹) 가져오기
     const group: any = await c.env.DB.prepare(
       'SELECT g.*, m.name as mentor_name, m.academy_name FROM groups g JOIN mentors m ON g.mentor_id = m.id WHERE g.is_active = 1 ORDER BY g.id ASC LIMIT 1'
     ).first();
 
-    if (!group) return c.json({ error: '활성화된 반이 없습니다. 관리자에게 문의하세요.' }, 404);
+    if (!group) return c.json({ error: '등록 가능한 반이 없습니다. 관리자에게 문의하세요.' }, 404);
 
     // 같은 이름 확인
     const existing = await c.env.DB.prepare(
       'SELECT id FROM students WHERE name = ? AND is_active = 1'
     ).bind(name).first();
-    if (existing) return c.json({ error: '이미 같은 이름으로 가입한 학생이 있습니다. 이름 뒤에 번호를 붙여주세요 (예: 홍길동2)' }, 409);
+    if (existing) return c.json({ error: '동일한 이름이 이미 등록되어 있습니다. 이름 뒤에 번호를 붙여주세요 (예: 홍길동2)' }, 409);
 
     // 정원 확인
     const count: any = await c.env.DB.prepare(
@@ -900,7 +921,7 @@ app.post('/api/auth/student/register', async (c) => {
     return c.json({
       success: true,
       studentId: result.meta.last_row_id,
-      message: `가입되었습니다!`,
+      message: '회원가입이 완료되었습니다!',
       groupName: group.name,
       mentorName: group.mentor_name,
       academyName: group.academy_name,
@@ -918,7 +939,7 @@ app.post('/api/auth/student/login', async (c) => {
     const { name, password } = await c.req.json();
     if (!name || !password) return c.json({ error: '이름과 비밀번호를 입력해주세요' }, 400);
 
-    // 이름으로 학생 찾기 (활성 학생만)
+    // 이름으로 학생 찾기
     const student: any = await c.env.DB.prepare(
       'SELECT * FROM students WHERE name = ? AND is_active = 1'
     ).bind(name).first();
@@ -928,7 +949,7 @@ app.post('/api/auth/student/login', async (c) => {
     const valid = await verifyPassword(password, student.password_hash);
     if (!valid) return c.json({ error: '이름 또는 비밀번호가 틀렸습니다' }, 401);
 
-    // 그룹 정보 조회
+    // 그룹 정보 가져오기
     const group: any = await c.env.DB.prepare(
       'SELECT g.*, m.name as mentor_name, m.academy_name FROM groups g JOIN mentors m ON g.mentor_id = m.id WHERE g.id = ?'
     ).bind(student.group_id).first();
@@ -1987,7 +2008,7 @@ app.get('/api/student/:studentId/profile', async (c) => {
   try {
     const studentId = c.req.param('studentId');
     const student: any = await c.env.DB.prepare(
-      'SELECT s.*, g.name as group_name, g.invite_code FROM students s JOIN groups g ON s.group_id = g.id WHERE s.id = ?'
+      'SELECT s.*, g.name as group_name FROM students s JOIN groups g ON s.group_id = g.id WHERE s.id = ?'
     ).bind(studentId).first();
 
     if (!student) return c.json({ error: '학생을 찾을 수 없습니다' }, 404);
@@ -2009,7 +2030,6 @@ app.get('/api/student/:studentId/profile', async (c) => {
       xp: student.xp,
       level: student.level,
       groupName: student.group_name,
-      inviteCode: student.invite_code,
       stats: {
         exams: examCount.cnt,
         assignments: assignmentCount.cnt,
@@ -3557,6 +3577,10 @@ app.get('/api/health', (c) => {
 })
 
 app.get('/', (c) => {
+  // HTML은 항상 최신 버전 로드 (서비스워커 캐시 문제 방지)
+  c.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  c.header('Pragma', 'no-cache')
+  c.header('Expires', '0')
   return c.html(`<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -3654,6 +3678,7 @@ app.get('/', (c) => {
               <div style="font-size:15px;color:#888;font-weight:500">로딩 중...</div>
             </div>
           </div>
+          <div id="mobile-bottom-tab"></div>
         </div>
       </div>
       <div id="desktop-container" style="display:none">
@@ -3671,17 +3696,20 @@ app.get('/', (c) => {
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js')
+        navigator.serviceWorker.register('/static/sw.js', { updateViaCache: 'none' })
           .then(reg => {
             console.log('SW registered:', reg.scope);
-            // 새 SW가 대기 중이면 즉시 활성화
+            // 주기적 업데이트 체크 (1분마다)
+            setInterval(() => reg.update(), 60000);
+            // 새 SW가 대기 중이면 즉시 활성화 요청
             reg.addEventListener('updatefound', () => {
               const newSW = reg.installing;
               if (newSW) {
                 newSW.addEventListener('statechange', () => {
-                  if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
-                    console.log('[PWA] New version available');
-                    if (typeof window._showPwaUpdateToast === 'function') window._showPwaUpdateToast();
+                  if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                    // 새 버전이 설치됨 → 즉시 활성화 요청
+                    newSW.postMessage('skipWaiting');
+                    console.log('[PWA] New version installed, activating...');
                   }
                 });
               }
@@ -3689,10 +3717,12 @@ app.get('/', (c) => {
           })
           .catch(err => console.log('SW registration failed:', err));
       });
-      // 컨트롤러 변경 시 새로고침 (새 SW 활성화 완료)
+      // 컨트롤러 변경 시 자동 새로고침 (새 SW 활성화 완료 = 새 버전 적용)
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (window._swReloading) return;
         window._swReloading = true;
+        console.log('[PWA] New version activated, reloading...');
+        window.location.reload();
       });
     }
   </script>
