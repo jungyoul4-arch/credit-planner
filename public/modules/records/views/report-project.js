@@ -125,7 +125,7 @@ function renderReportProjectList() {
           const totalXp = questions.reduce((sum, q) => sum + (q.xp || 0), 0);
           const color = e.color || 'var(--primary)';
           return `
-          <div class="rpt-project-card" onclick="state.viewingReport='${e.id}';state.reportPhaseTab=${report.currentPhase || 0};_RM.render()">
+          <div class="rpt-project-card" onclick="_RM.state.viewingReport='${e.id}';_RM.state.reportPhaseTab=${report.currentPhase || 0};_RM.render()">
             <div class="rpt-project-top">
               <div class="rpt-project-color" style="background:${color}"></div>
               <div class="rpt-project-info">

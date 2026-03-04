@@ -48,7 +48,7 @@ export function renderClassRecordHistory() {
     <div class="full-screen animate-slide">
       <div class="screen-header">
         <button class="back-btn" onclick="_RM.nav('dashboard')"><i class="fas fa-arrow-left"></i></button>
-        <h1>📚 나의 수업 기록</h1>
+        <h1>📚 나의 수업 다시보기</h1>
       </div>
       <div class="form-body">
         <div class="card" style="margin-bottom:16px;padding:14px;background:linear-gradient(135deg,rgba(108,92,231,0.08),rgba(162,155,254,0.08))">
@@ -95,8 +95,8 @@ export function renderClassRecordHistory() {
               const dayNames = ['일','월','화','수','목','금','토'];
               const dateStr = (r.date || '').slice(5).replace('-', '/') + ' (' + dayNames[d.getDay()] + ')';
               const clickAction = r._source === 'today'
-                ? "state._viewingTodayRecordIdx=" + r._todayIdx + ";_RM.nav('class-record-detail')"
-                : "state._viewingDbRecord='" + String(r.id) + "';_RM.nav('class-record-detail')";
+                ? "_RM.state._viewingTodayRecordIdx=" + r._todayIdx + ";_RM.nav('class-record-detail')"
+                : "_RM.state._viewingDbRecord='" + String(r.id) + "';_RM.nav('class-record-detail')";
               const carouselId = 'rc-carousel-' + cardIdx;
               return `
               <div class="record-gallery-card">
@@ -120,7 +120,8 @@ export function renderClassRecordHistory() {
                 <div class="record-gallery-info" onclick="${clickAction}">
                   <div class="record-gallery-subject">
                     <span class="record-gallery-subject-tag" style="background:${color}18;color:${color};border:1px solid ${color}35">${r.subject}</span>
-                    ${memo.period ? '<span class="record-gallery-period">' + memo.period + '교시</span>' : ''}
+                    ${r.ai_credit_log ? '<span class="pa-ai-badge" style="position:static;font-size:10px;padding:2px 6px;margin-left:4px">AI</span>' : ''}
+                  ${memo.period ? '<span class="record-gallery-period">' + memo.period + '교시</span>' : ''}
                   </div>
                   ${r.topic ? '<div class="record-gallery-topic">' + r.topic + '</div>' : '<div class="record-gallery-topic" style="color:var(--text-muted);font-style:italic">단원 미입력</div>'}
                   <div class="record-gallery-date"><i class="far fa-calendar-alt" style="margin-right:4px"></i>${dateStr}</div>

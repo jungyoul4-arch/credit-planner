@@ -117,12 +117,14 @@ function validateClassRecordForm() {
 function handleClassPhotoUpload(input) {
   if (!input.files || input.files.length === 0) return;
   if (!state._classPhotos) state._classPhotos = [];
+  if (!state._classPhotoTags) state._classPhotoTags = [];
   const files = Array.from(input.files).slice(0, 20 - state._classPhotos.length);
   let loaded = 0;
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = (e) => {
       state._classPhotos.push(e.target.result);
+      state._classPhotoTags.push('note');
       loaded++;
       if (loaded === files.length) {
         navigate(state.currentScreen, { replace: true });
@@ -136,6 +138,7 @@ function handleClassPhotoUpload(input) {
 function removeClassPhoto(idx) {
   if (!state._classPhotos) return;
   state._classPhotos.splice(idx, 1);
+  if (state._classPhotoTags) state._classPhotoTags.splice(idx, 1);
   navigate(state.currentScreen, { replace: true });
 }
 
@@ -227,6 +230,7 @@ function saveClassRecordFromForm() {
   }
 
   // DB 저장
+  const photoTags = state._classPhotoTags || [];
   if (state.studentId) {
     DB.saveClassRecord({
       subject, date,
@@ -235,11 +239,13 @@ function saveClassRecordFromForm() {
       understanding: 3,
       memo: JSON.stringify({ period, pages, teacherNote, photoCount: photos.length }),
       topic, pages, photos, teacher_note: teacherNote,
+      photo_tags: photoTags,
     });
   }
 
   // 사진 리셋
   state._classPhotos = [];
+  state._classPhotoTags = [];
   state._backfillDate = null;
   state._backfillPeriod = null;
   state._backfillSubject = null;

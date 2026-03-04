@@ -83,12 +83,12 @@ export function renderDashboard() {
       </div>
 
       <div class="record-type-grid">
-        <!-- 당일 수업 · 당일 복습하기 (최상단) -->
-        <div class="record-type-card stagger-0 animate-in" style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(0,184,148,0.08));border:1.5px solid rgba(108,92,231,0.3)" onclick="_RM.nav('record-status')">
+        <!-- 오늘의 수업 (교시 선택) -->
+        <div class="record-type-card stagger-0 animate-in" style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(0,184,148,0.08));border:1.5px solid rgba(108,92,231,0.3)" onclick="_RM.nav('period-select')">
           <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📝</div>
           <div class="record-type-info">
-            <h3>당일 수업 · 당일 복습하기</h3>
-            <p>학교 + 학원 수업을 당일에 바로 기록</p>
+            <h3>오늘의 수업</h3>
+            <p>사진 찍고 AI가 수업 탐구 기록 자동 정리</p>
           </div>
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
@@ -97,14 +97,24 @@ export function renderDashboard() {
         <div class="record-type-card stagger-1 animate-in" style="background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.2)" onclick="_RM.nav('class-record-history')">
           <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📚</div>
           <div class="record-type-info">
-            <h3>나의 수업 기록</h3>
-            <p>기록한 수업 내용·사진 열람 ${classRecordCount > 0 ? '<span style="color:var(--primary-light);font-weight:600">' + classRecordCount + '건</span>' : ''}</p>
+            <h3>나의 수업 다시보기</h3>
+            <p>기록한 수업 내용·사진 다시보기 ${classRecordCount > 0 ? '<span style="color:var(--primary-light);font-weight:600">' + classRecordCount + '건</span>' : ''}</p>
+          </div>
+          <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
+        </div>
+
+        <!-- 사진 앨범 -->
+        <div class="record-type-card stagger-1 animate-in" style="background:rgba(0,184,148,0.08);border:1px solid rgba(0,184,148,0.2)" onclick="_RM.nav('photo-album')">
+          <div class="record-type-icon" style="background:rgba(0,184,148,0.2)">📷</div>
+          <div class="record-type-info">
+            <h3>사진 앨범</h3>
+            <p>수업 필기·프린트 사진 모아보기</p>
           </div>
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
 
         ${[
-          { screen: 'record-question', icon: '❓', bg: 'rgba(255,107,107,0.15)', title: '질문 코칭', desc: '2축 9단계 정율 코칭', xp: '+8~30' },
+          { screen: 'record-question', icon: '❓', bg: 'rgba(255,107,107,0.15)', title: '나의 질문함', desc: '궁금한 것을 기록하고 답을 찾아가기', xp: '+3' },
           { screen: 'record-teach', icon: '🤝', bg: 'rgba(0,184,148,0.15)', title: '교학상장', desc: '친구에게 가르친 경험', xp: '+30' },
           { screen: 'exam-list', icon: '📝', bg: 'rgba(224,86,160,0.15)', title: '시험 관리', desc: '시험 일정 + 결과 + 성장분석', xp: '' },
           { screen: 'assignment-list', icon: '📋', bg: 'rgba(255,159,67,0.15)', title: '과제 기록', desc: '과제 등록 + 마감 관리', xp: '+15' },

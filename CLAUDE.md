@@ -167,6 +167,12 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 
 ### API 관련
 <!-- 실수 발생 시 아래에 추가 -->
+- [2026-03-04] SELECT 필드 누락: `class_records` INSERT에 `photos, ai_credit_log, photo_tags`를 저장하지만 GET SELECT에서 해당 필드 누락 → 프론트에서 항상 빈 값. INSERT와 SELECT 필드 목록을 반드시 동기화할 것
+- [2026-03-04] 프론트-백엔드 필드명 불일치: 프론트엔드 `imageData`(base64) → 백엔드 DB 컬럼 `image_key`. api.js에서 반드시 매핑 `payload.imageKey = payload.imageData; delete payload.imageData;` 처리. 필드명 불일치는 데이터가 사라지는 원인
+- [2026-03-04] 응답 필드 체이닝: 백엔드가 `{ questionId: N }` 반환 시 api.js에서 `d.data?.id || d.questionId || d.id`처럼 가능한 모든 형태를 체인으로 처리할 것. 엔드포인트마다 응답 구조가 미묘하게 다를 수 있음
+- [2026-03-04] async 이벤트 핸들러: 필터 변경 → API 호출 → 렌더 순서에서, 핸들러가 sync면 API 응답 전에 render()가 실행되어 빈 화면 표시. `setMyQuestionFilter`처럼 `async/await`로 데이터 로딩 완료 후 렌더해야 함
+- [2026-03-04] subject vs source 분리: `my_questions` 테이블에서 `subject`는 과목(국어/영어 등), `source`는 출처(수업/독서 등)로 분리. 기존 데이터는 `subject`에 출처가 들어있을 수 있으므로 `_getSubjectCategory()` 매핑 필수
+- [2026-03-04] 카테고리 필터링: 세부 과목명(물리학Ⅰ 등)을 대분류(과학)로 매핑 필요 시 클라이언트 사이드 `_getSubjectCategory()` 사용. 백엔드 `?subject=` 파라미터로는 정확 매칭만 가능
 
 
 ### 프론트엔드 관련
@@ -178,9 +184,19 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 - [2026-03-04] 중첩 템플릿 리터럴: `renderDashboard()` 같은 함수 안에서 IIFE로 동적 섹션을 만들 때, 내부 `.map()` 콜백의 템플릿 리터럴이 3단 이상 중첩되면 `\`` 이스케이프 오류 발생. 대신 별도 함수(`_renderUpcomingExams()` 등)로 추출하여 1단 중첩으로 유지할 것
 - [2026-03-04] 동적 state 프로퍼티: `state._examAddMode` 등 `_initialState`에 없는 프로퍼티도 Proxy 덕분에 동작하지만, 명시적으로 초기값을 정의해두는 것이 디버깅에 유리. 시험 추가 화면의 임시 상태(`_eaMidtermType`, `_eaPeriodPicker*` 등)는 현재 동적 프로퍼티로 처리 중
 - [2026-03-04] assignment-list.js 다중 export: 하나의 뷰 파일에서 `renderAssignmentPlan` + `renderAssignmentList` 2개 렌더러를 export하여 SCREEN_MAP에 `assignment-plan`과 `assignment-list` 2개 화면 등록. records.js import 시 `{ renderAssignmentPlan, renderAssignmentList }` 구조분해 필요
+- [2026-03-04] ai-credit-log.js 다중 렌더러 export: `renderAiLoading` + `renderAiResult` 2개 렌더러를 export하여 SCREEN_MAP에 `ai-loading`과 `ai-result` 2개 화면 등록. assignment-list.js와 동일 패턴
+- [2026-03-04] `_classPhotos`와 `_classPhotoTags` 동기화: 사진 추가/삭제 시 두 배열을 반드시 동시에 조작해야 함. `_classPhotos.push()` 시 `_classPhotoTags.push('note')`, `splice(idx,1)` 시 양쪽 모두 실행. class-record.js, class-edit.js, photo-upload-v2.js 모두 해당
+- [2026-03-04] DB record의 `ai_credit_log` 타입 주의: DB에서 TEXT로 저장되어 로드 시 string일 수 있고, api.js의 `loadClassRecords`에서 `tryParseJSON`으로 파싱 후 object가 됨. 그러나 뷰에서 안전하게 `typeof === 'string'` 체크 + `tryParseJSON` 폴백 권장
+- [2026-03-04] Gemini 모델 버전 주의: 기존 `callGeminiWithFallback`은 `gemini-2.0-flash`, 새로 추가한 `callGeminiMultiImage`는 `gemini-2.5-flash` 사용. `gemini-3-flash`는 404 (모델 미존재), `gemini-3-flash-preview`만 존재하나 안정성 위해 `gemini-2.5-flash` 채택
+- [2026-03-04] AI 응답 필드 다형성: `assignment` 필드가 string/object/null 3가지 타입으로 올 수 있음. 백엔드에서 정규화하되, 프론트엔드에서도 `typeof` 분기 필수. `getAssignmentDisplayText()` 같은 공유 헬퍼로 통일 처리 권장
+- [2026-03-04] 공유 로직 추출 시 import 정리: 인라인 로직을 유틸로 추출하면 기존 파일의 import가 불필요해짐. 추출 후 반드시 소비 파일의 미사용 import 확인 및 제거
+- [2026-03-04] AI 프롬프트에서 날짜 기반 계산 지시: AI에게 상대 날짜("다음 주 월요일")를 YYYY-MM-DD로 변환하라고 지시할 때, 반드시 fullPrompt에 오늘 날짜를 함께 전달해야 함. 현재 `날짜: ${date}` 형태로 이미 포함됨
+- [2026-03-04] 인라인 onclick에서 모듈 스코프 변수 접근 불가: `state._viewingDbRecord=...`처럼 모듈 내부 변수를 직접 참조하면 글로벌 스코프에서 undefined. 반드시 `_RM.state._viewingDbRecord=...`로 네임스페이스 경유 접근할 것
 
 ### 배포/설정 관련
 <!-- 실수 발생 시 아래에 추가 -->
+- [2026-03-04] `.dev.vars` 키 범위: 로컬 개발 시 `.dev.vars`에 필요한 API 키가 모두 있는지 확인. `callGeminiMultiImage`는 `GEMINI_API_KEY` + `OPENAI_API_KEY` 둘 다 필요 (Gemini 실패 시 OpenAI 폴백). 프로덕션은 `wrangler pages secret put`으로 별도 설정
+- [2026-03-04] git merge 충돌 해결: `src/index.tsx`와 `public/static/app.js`에서 충돌 발생 시, main의 에러 메시지/UI 문구는 main 채택, feature 브랜치의 신규 API/기능은 feature 채택. stash → merge → stash pop 순서로 안전하게 진행
 
 
 ---
@@ -218,5 +234,5 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 
 ---
 
-*마지막 업데이트: 2026-03-03*
+*마지막 업데이트: 2026-03-04*
 *이 파일은 프로젝트와 함께 계속 성장합니다.*

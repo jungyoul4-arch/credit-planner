@@ -76,3 +76,59 @@ export function tryParseJSON(str, fallback) {
   try { return JSON.parse(str || (Array.isArray(fallback) ? '[]' : '{}')); }
   catch { return fallback !== undefined ? fallback : {}; }
 }
+
+/**
+ * 텍스트에서 keywords 배열에 포함된 단어를 찾아 <span class="cl-mark"> 으로 감싼다.
+ * HTML 태그 내부는 건드리지 않으며, 2글자 이상 키워드만 처리한다.
+ */
+export function markKeywords(text, keywords) {
+  if (!text || !keywords || keywords.length === 0) return text || '';
+  const filtered = keywords.filter(k => k && k.length >= 2);
+  if (filtered.length === 0) return text;
+  const escaped = filtered.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
+  return text.replace(regex, '<span class="cl-mark">$1</span>');
+}
+
+/**
+ * 과제 마감일까지의 단계별 플랜을 자동 생성
+ * @param {string} dueDate - YYYY-MM-DD 마감일
+ * @returns {Array} plan steps [{step, title, date, done}, ...]
+ */
+export function generatePlanSteps(dueDate) {
+  if (!dueDate) return [];
+  const daysUntilDue = getDday(dueDate);
+  if (daysUntilDue <= 0) return [];
+  const stepsCount = Math.max(3, Math.min(6, daysUntilDue));
+  const plan = [];
+  const dueD = new Date(dueDate + 'T00:00:00+09:00');
+  const today = kstNow();
+  const stepLabels = ['자료 조사 및 준비', '초안 작성', '본문 완성', '검토 및 수정', '최종 점검', '제출'];
+  for (let i = 0; i < stepsCount; i++) {
+    const stepDate = new Date(today.getTime() + ((dueD - today) / stepsCount) * (i + 1));
+    plan.push({
+      step: i + 1,
+      title: stepLabels[i] || `${i + 1}단계 진행`,
+      date: `${stepDate.getMonth() + 1}/${stepDate.getDate()}`,
+      done: false,
+    });
+  }
+  return plan;
+}
+
+/**
+ * assignment 필드에서 표시용 텍스트를 추출 (object / string 둘 다 처리)
+ */
+export function getAssignmentDisplayText(assignment) {
+  if (!assignment) return '';
+  if (typeof assignment === 'string') return assignment;
+  if (typeof assignment === 'object') {
+    let text = assignment.title || '';
+    if (assignment.description && assignment.description !== assignment.title) {
+      text += text ? ' - ' + assignment.description : assignment.description;
+    }
+    if (assignment.dueDateRaw) text += ` (기한: ${assignment.dueDateRaw})`;
+    return text;
+  }
+  return '';
+}

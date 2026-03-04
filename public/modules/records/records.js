@@ -32,6 +32,10 @@ import { registerHandlers as examReportHandlers, renderExamReport } from './view
 import { registerHandlers as growthAnalysisHandlers, renderGrowthAnalysis } from './views/growth-analysis.js';
 import { registerHandlers as assignmentRecordHandlers, renderRecordAssignment } from './views/assignment-record.js';
 import { registerHandlers as assignmentListHandlers, renderAssignmentPlan, renderAssignmentList } from './views/assignment-list.js';
+import { registerHandlers as periodSelectHandlers, renderPeriodSelect } from './views/period-select.js';
+import { registerHandlers as photoUploadV2Handlers, renderPhotoUpload } from './views/photo-upload-v2.js';
+import { registerHandlers as aiCreditLogHandlers, renderAiLoading, renderAiResult } from './views/ai-credit-log.js';
+import { registerHandlers as photoAlbumHandlers, renderPhotoAlbum } from './views/photo-album.js';
 
 // ── Components ──
 import { initCarousel, initDetailGalleryScroll } from './components/photo-upload.js';
@@ -62,6 +66,11 @@ const SCREEN_MAP = {
   'record-assignment':     renderRecordAssignment,
   'assignment-plan':       renderAssignmentPlan,
   'assignment-list':       renderAssignmentList,
+  'period-select':         renderPeriodSelect,
+  'photo-upload':          renderPhotoUpload,
+  'ai-loading':            renderAiLoading,
+  'ai-result':             renderAiResult,
+  'photo-album':           renderPhotoAlbum,
 };
 
 // ── _RM 글로벌 네임스페이스 (인라인 onclick 핸들러) ──
@@ -111,6 +120,10 @@ function _registerAllHandlers() {
   growthAnalysisHandlers(RM);
   assignmentRecordHandlers(RM);
   assignmentListHandlers(RM);
+  periodSelectHandlers(RM);
+  photoUploadV2Handlers(RM);
+  aiCreditLogHandlers(RM);
+  photoAlbumHandlers(RM);
 }
 
 // ── Public API ──

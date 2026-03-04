@@ -140,6 +140,144 @@ async function callGeminiWithFallback(opts: {
   return { text, source: 'openai' }
 }
 
+// ==================== Gemini 2.5 Flash 다중 이미지 헬퍼 ====================
+
+async function callGeminiMultiImage(opts: {
+  geminiKey: string,
+  openaiKey: string,
+  prompt: string,
+  images: Array<{ mime_type: string, data: string }>,
+  jsonMode?: boolean,
+  temperature?: number,
+}) {
+  const { geminiKey, openaiKey, prompt, images, jsonMode = true, temperature = 0.3 } = opts
+
+  // Gemini 2.5 Flash 시도
+  try {
+    const parts: any[] = [{ text: prompt }]
+    for (const img of images) {
+      parts.push({ inline_data: img })
+    }
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature,
+            ...(jsonMode ? { responseMimeType: 'application/json' } : { maxOutputTokens: 4096 })
+          }
+        })
+      }
+    )
+
+    if (geminiRes.ok) {
+      const data: any = await geminiRes.json()
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+      return { text, source: 'gemini-2.5-flash' }
+    }
+
+    console.log(`Gemini 2.5 Flash 실패 (${geminiRes.status}), OpenAI로 폴백`)
+  } catch (e) {
+    console.log('Gemini 2.5 Flash 에러, OpenAI로 폴백:', e)
+  }
+
+  // OpenAI 폴백 (이미지 없이 텍스트만)
+  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature,
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
+    })
+  })
+
+  if (!openaiRes.ok) {
+    const err = await openaiRes.text()
+    throw new Error(`OpenAI 폴백도 실패: ${err}`)
+  }
+
+  const openaiData: any = await openaiRes.json()
+  const text = openaiData.choices[0].message.content
+  return { text, source: 'openai' }
+}
+
+// ==================== MY CREDIT LOG 시스템 프롬프트 ====================
+
+const SYSTEM_PROMPT_CREDIT_LOG = `당신은 고등학생의 수업 필기 사진을 분석하여 "나의 수업 탐구 기록(MY CREDIT LOG)" 양식을 작성하는 AI입니다.
+
+## 분석 대상
+학생이 업로드한 사진들: 손글씨 필기 노트, 수업 프린트물, 교과서 페이지 등
+
+## 작성 양식 (MY CREDIT LOG)
+
+1. **단원/주제** (topic): 사진에서 단원명이나 수업 주제를 추출
+2. **교과서 쪽수** (pages): 교과서 페이지 범위 (예: p.84~89)
+3. **선생님 강조 포인트** (highlights): 밑줄, 별표, "중요", "시험 출제" 등 강조된 내용
+4. **핵심 키워드** (keywords): 최대 5개, 사진에서 추출 + AI 보충
+5. **세특 소재 질문** (questions): 3개, 학생의 필기에서 질문이 보이면 추출, 없으면 수업 내용 기반 생성
+6. **과제** (assignment): 사진에서 과제 관련 내용을 구조화하여 추출 (없으면 null)
+
+## 과제 추출 규칙
+- 사진에서 "과제", "숙제", "제출", "~까지", "~해오세요", "~해오기" 등 과제 관련 내용을 찾는다
+- 과제가 발견되면 아래 구조로 반환:
+  - title: 과제의 핵심을 간결하게 요약 (10~30자, 예: "3D 모델링 애니메이션 사례 조사")
+  - description: 과제의 전체 내용을 자연스러운 문장으로 정리
+  - dueDate: 아래에 제공되는 오늘 날짜를 기준으로 YYYY-MM-DD 형식으로 계산
+    - "3/9까지" → 현재 연도 기준으로 YYYY-03-09
+    - "다음 주 월요일" → 오늘 날짜 기준 계산
+    - 날짜를 특정할 수 없는 경우(예: "다음 수업시간") → 빈 문자열
+  - dueDateRaw: 사진에서 읽은 마감일 관련 원문 (날짜 계산의 근거)
+- 과제가 없으면 assignment 필드를 null로 설정
+
+## 세특 소재 질문 고도화 규칙 (가장 중요!)
+
+목적: 학생이 학교 선생님께 직접 여쭤볼 수 있는 수준으로 질문을 다듬는 것.
+어설픈 질문이 아니라, 진짜 호기심이 느껴지고 깊이 있게 고민한 흔적이 보이는 질문으로 완성.
+
+각 질문에 대해:
+- "original": 학생의 필기에서 발견된 질문 원본 (없으면 수업 내용 기반으로 학생이 자연스럽게 가질 만한 질문 생성)
+- "improved": AI가 고도화한 버전
+
+고도화 원칙:
+- 학생의 원본 질문 의도를 존중하되, 더 구체적이고 탐구적인 형태로 개선
+- "선생님, 이 부분이 궁금합니다"라고 바로 말할 수 있는 수준의 질문으로 완성
+- 단순 암기 확인 질문 → 원리/이유/적용을 묻는 질문으로 업그레이드
+- 해당 과목의 교과 맥락에 맞는 용어 사용
+- 질문이 왜 중요한지, 어떤 탐구 방향으로 이어질 수 있는지 느껴지게
+
+예시:
+  원본: "감수분열이 왜 필요해?"
+  개선: "유성생식 과정에서 감수분열 없이 체세포분열만으로 생식세포를 만든다면, 세대를 거듭할수록 염색체 수에 어떤 문제가 발생하나요? 그리고 이것이 종의 유전적 다양성에는 어떤 영향을 미치게 되나요?"
+
+## 필기 인식 규칙
+- 학생 필기 원본 내용을 충실하게 옮겨 적되, 문장을 매끄럽게 다듬기
+- 약어나 줄임말은 원래 단어로 복원
+- 수식이나 화학식은 정확하게 텍스트로 변환
+
+## 응답 형식 (반드시 이 JSON 형식으로만 응답)
+{
+  "topic": "단원/주제",
+  "pages": "p.XX~XX",
+  "highlights": "선생님 강조 포인트 (여러 줄 가능)",
+  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5"],
+  "questions": [
+    { "original": "학생 원본 질문", "improved": "AI 고도화 질문" },
+    { "original": "학생 원본 질문", "improved": "AI 고도화 질문" },
+    { "original": "학생 원본 질문", "improved": "AI 고도화 질문" }
+  ],
+  "assignment": null 또는 { "title": "과제 제목 (간결하게)", "description": "과제 상세 내용", "dueDate": "YYYY-MM-DD 또는 빈 문자열", "dueDateRaw": "원문 마감일 표현" },
+  "rawOcrText": "사진에서 인식한 전체 텍스트 원본"
+}`
+
 // ==================== 2축 9단계 시스템 프롬프트 ====================
 
 const SYSTEM_PROMPT_ANALYZE = `당신은 정율고교학점데이터센터의 "2축 9단계 질문 코칭 시스템 v2.0"에 따라 학생 질문을 분석하는 정율 코치입니다.
@@ -345,6 +483,55 @@ app.post('/api/image-analyze', async (c) => {
     }
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
+  }
+})
+
+
+// ==================== API 라우트: MY CREDIT LOG AI 분석 (Gemini 2.5 Flash) ====================
+
+app.post('/api/ai/credit-log', async (c) => {
+  try {
+    const { images, subject, period, date } = await c.req.json()
+    if (!images || images.length === 0) return c.json({ success: false, error: '사진이 필요합니다' }, 400)
+
+    // base64 prefix 제거 + inline_data 배열 생성
+    const inlineImages = images.map((img: any) => ({
+      mime_type: img.mimeType || 'image/jpeg',
+      data: (img.base64 || '').replace(/^data:image\/\w+;base64,/, '')
+    }))
+
+    const tagInfo = images.map((img: any, i: number) => `사진${i + 1}: ${img.tag || '노트'}`).join(', ')
+    const fullPrompt = SYSTEM_PROMPT_CREDIT_LOG + `\n\n과목: ${subject || '미지정'}\n교시: ${period || '미지정'}교시\n날짜: ${date || '미지정'}\n사진 태그: ${tagInfo}\n\n위 JSON 형식으로만 응답하세요.`
+
+    const { text } = await callGeminiMultiImage({
+      geminiKey: c.env.GEMINI_API_KEY,
+      openaiKey: c.env.OPENAI_API_KEY,
+      prompt: fullPrompt,
+      images: inlineImages,
+      jsonMode: true,
+      temperature: 0.3,
+    })
+
+    try {
+      const result = JSON.parse(text)
+      // assignment 정규화: 문자열 → 구조화된 객체, 빈 값 → null
+      if (typeof result.assignment === 'string' && result.assignment.trim()) {
+        result.assignment = {
+          title: result.assignment.replace(/\s*기한:.*$/, '').substring(0, 50).trim(),
+          description: result.assignment,
+          dueDate: '',
+          dueDateRaw: '',
+        }
+      } else if (!result.assignment || (typeof result.assignment === 'string' && !result.assignment.trim())) {
+        result.assignment = null
+      }
+      return c.json({ success: true, data: result })
+    } catch {
+      return c.json({ success: true, data: { rawOcrText: text, topic: '', pages: '', highlights: '', keywords: [], questions: [], assignment: null } })
+    }
+  } catch (e: any) {
+    console.error('credit-log AI error:', e)
+    return c.json({ success: false, error: e.message }, 500)
   }
 })
 
@@ -1287,7 +1474,7 @@ app.get('/api/student/:studentId/class-records', async (c) => {
     const limit = parseInt(c.req.query('limit') || '200');
     const offset = parseInt(c.req.query('offset') || '0');
     const records = await c.env.DB.prepare(
-      'SELECT id, subject, date, content, keywords, understanding, memo, topic, pages, teacher_note, created_at FROM class_records WHERE student_id = ? ORDER BY date DESC LIMIT ? OFFSET ?'
+      'SELECT id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags, created_at FROM class_records WHERE student_id = ? ORDER BY date DESC LIMIT ? OFFSET ?'
     ).bind(studentId, limit, offset).all();
     return c.json({ records: records.results });
   } catch (e: any) {
@@ -1298,12 +1485,12 @@ app.get('/api/student/:studentId/class-records', async (c) => {
 app.post('/api/student/:studentId/class-records', async (c) => {
   try {
     const studentId = c.req.param('studentId');
-    const { subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note } = await c.req.json();
+    const { subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags } = await c.req.json();
     if (!subject || !date) return c.json({ error: '과목과 날짜는 필수입니다' }, 400);
 
     const result = await c.env.DB.prepare(
-      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '', topic || '', pages || '', JSON.stringify(photos || []), teacher_note || '').run();
+      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '', topic || '', pages || '', JSON.stringify(photos || []), teacher_note || '', ai_credit_log ? JSON.stringify(ai_credit_log) : '', JSON.stringify(photo_tags || [])).run();
 
     return c.json({ success: true, recordId: result.meta.last_row_id });
   } catch (e: any) {
@@ -1329,6 +1516,8 @@ app.put('/api/student/class-records/:recordId', async (c) => {
     if (body.pages !== undefined) { fields.push('pages = ?'); values.push(body.pages); }
     if (body.photos !== undefined) { fields.push('photos = ?'); values.push(JSON.stringify(body.photos)); }
     if (body.teacher_note !== undefined) { fields.push('teacher_note = ?'); values.push(body.teacher_note); }
+    if (body.ai_credit_log !== undefined) { fields.push('ai_credit_log = ?'); values.push(typeof body.ai_credit_log === 'string' ? body.ai_credit_log : JSON.stringify(body.ai_credit_log)); }
+    if (body.photo_tags !== undefined) { fields.push('photo_tags = ?'); values.push(JSON.stringify(body.photo_tags)); }
 
     if (fields.length === 0) return c.json({ success: true });
 
@@ -2785,6 +2974,15 @@ app.get('/api/migrate', async (c) => {
       `CREATE TABLE IF NOT EXISTS class_record_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, class_record_id INTEGER, photo_data TEXT NOT NULL, thumbnail TEXT DEFAULT '', mime_type TEXT DEFAULT 'image/jpeg', file_size INTEGER DEFAULT 0, created_at DATETIME DEFAULT (datetime('now','+9 hours')), FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_crp_student ON class_record_photos(student_id)`,
       `CREATE INDEX IF NOT EXISTS idx_crp_record ON class_record_photos(class_record_id)`,
+      // ===== 수업 기록 AI Credit Log + 사진 태그 =====
+      `ALTER TABLE class_records ADD COLUMN ai_credit_log TEXT DEFAULT ''`,
+      `ALTER TABLE class_records ADD COLUMN photo_tags TEXT DEFAULT '[]'`,
+      `ALTER TABLE class_record_photos ADD COLUMN tag TEXT DEFAULT 'note'`,
+      // ===== 나의 질문함 확장 컬럼 =====
+      `ALTER TABLE my_questions ADD COLUMN ai_improved TEXT DEFAULT NULL`,
+      `ALTER TABLE my_questions ADD COLUMN source TEXT DEFAULT NULL`,
+      `ALTER TABLE my_questions ADD COLUMN period INTEGER DEFAULT NULL`,
+      `ALTER TABLE my_questions ADD COLUMN date TEXT DEFAULT NULL`,
       // ===== 멘토 피드백 테이블 =====
       `CREATE TABLE IF NOT EXISTS mentor_feedbacks (id INTEGER PRIMARY KEY AUTOINCREMENT, mentor_id INTEGER NOT NULL, student_id INTEGER NOT NULL, record_type TEXT NOT NULL DEFAULT 'general', record_id INTEGER DEFAULT NULL, content TEXT NOT NULL, feedback_type TEXT DEFAULT 'note', is_read INTEGER DEFAULT 0, created_at DATETIME DEFAULT (datetime('now','+9 hours')), updated_at DATETIME DEFAULT (datetime('now','+9 hours')), FOREIGN KEY (mentor_id) REFERENCES mentors(id), FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_mf_student ON mentor_feedbacks(student_id, created_at DESC)`,
@@ -2982,24 +3180,32 @@ app.get('/api/mentor/:mentorId/croquet-points/history', async (c) => {
 // 질문 등록
 app.post('/api/my-questions', async (c) => {
   try {
-    const { studentId, subject, classRecordId, title, content, imageKey, thumbnailKey, questionLevel } = await c.req.json()
+    const { studentId, subject, classRecordId, title, content, imageKey, thumbnailKey, questionLevel, aiImproved, source, period, date, skipXp } = await c.req.json()
     if (!studentId || !title || title.trim().length < 2) return c.json({ error: '질문 제목을 2자 이상 입력해주세요' }, 400)
 
-    const result = await c.env.DB.prepare(
-      'INSERT INTO my_questions (student_id, subject, class_record_id, title, content, image_key, thumbnail_key, question_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(studentId, subject || '기타', classRecordId || null, title.trim(), content || '', imageKey || null, thumbnailKey || null, questionLevel || null).run()
-
-    // XP +3 (질문 등록 보상)
-    await c.env.DB.prepare('UPDATE students SET xp = xp + 3, updated_at = ? WHERE id = ?').bind(getKSTString(), studentId).run()
-    await recordXp(c.env.DB, Number(studentId), 3, '질문 등록', `${subject || '기타'} — ${title.trim().slice(0, 40)}`, 'my_questions', result.meta.last_row_id as number)
-    // 레벨 자동 계산
-    const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first()
-    if (student) {
-      const newLevel = Math.max(1, Math.floor(student.xp / 100) + 1)
-      await c.env.DB.prepare('UPDATE students SET level = ? WHERE id = ?').bind(newLevel, studentId).run()
+    // 중복 방지: classRecordId + title 조합
+    if (classRecordId) {
+      const dup: any = await c.env.DB.prepare('SELECT id FROM my_questions WHERE student_id = ? AND class_record_id = ? AND title = ?')
+        .bind(studentId, classRecordId, title.trim()).first()
+      if (dup) return c.json({ success: true, questionId: dup.id, duplicate: true })
     }
 
-    return c.json({ success: true, questionId: result.meta.last_row_id, xpEarned: 3 })
+    const result = await c.env.DB.prepare(
+      'INSERT INTO my_questions (student_id, subject, class_record_id, title, content, image_key, thumbnail_key, question_level, ai_improved, source, period, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject || '기타', classRecordId || null, title.trim(), content || '', imageKey || null, thumbnailKey || null, questionLevel || null, aiImproved || null, source || null, period || null, date || null).run()
+
+    // XP +3 (skipXp=true이면 건너뜀 — 수업 기록 자동 등록 시)
+    if (!skipXp) {
+      await c.env.DB.prepare('UPDATE students SET xp = xp + 3, updated_at = ? WHERE id = ?').bind(getKSTString(), studentId).run()
+      await recordXp(c.env.DB, Number(studentId), 3, '질문 등록', `${subject || '기타'} — ${title.trim().slice(0, 40)}`, 'my_questions', result.meta.last_row_id as number)
+      const student: any = await c.env.DB.prepare('SELECT xp FROM students WHERE id = ?').bind(studentId).first()
+      if (student) {
+        const newLevel = Math.max(1, Math.floor(student.xp / 100) + 1)
+        await c.env.DB.prepare('UPDATE students SET level = ? WHERE id = ?').bind(newLevel, studentId).run()
+      }
+    }
+
+    return c.json({ success: true, questionId: result.meta.last_row_id, xpEarned: skipXp ? 0 : 3 })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
   }
@@ -3110,6 +3316,73 @@ app.post('/api/my-questions/:id/answer', async (c) => {
     }
 
     return c.json({ success: true, answerId: result.meta.last_row_id, resolveHours: Math.round(resolveHours * 10) / 10, resolveDays, xpEarned: totalXp, fastBonus: resolveDays <= 1 })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 질문 상태 토글 (해결완료 ↔ 미답변)
+app.put('/api/my-questions/:id/status', async (c) => {
+  try {
+    const questionId = c.req.param('id')
+    const { studentId, status } = await c.req.json()
+    if (!studentId) return c.json({ error: 'studentId 필수' }, 400)
+    const newStatus = status || '답변완료'
+
+    await c.env.DB.prepare('UPDATE my_questions SET status = ? WHERE id = ? AND student_id = ?')
+      .bind(newStatus, questionId, studentId).run()
+
+    // 해결완료 시 XP +5
+    if (newStatus === '답변완료') {
+      await c.env.DB.prepare('UPDATE students SET xp = xp + 5, updated_at = ? WHERE id = ?')
+        .bind(getKSTString(), studentId).run()
+      await recordXp(c.env.DB, Number(studentId), 5, '질문 해결', `질문 #${questionId} 해결완료`, 'my_questions', Number(questionId))
+    }
+
+    return c.json({ success: true, status: newStatus })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 질문 AI 고도화
+app.post('/api/my-questions/:id/improve', async (c) => {
+  try {
+    const questionId = c.req.param('id')
+    const question: any = await c.env.DB.prepare('SELECT * FROM my_questions WHERE id = ?').bind(questionId).first()
+    if (!question) return c.json({ error: '질문을 찾을 수 없습니다' }, 404)
+
+    // 이미 ai_improved가 있으면 바로 반환
+    if (question.ai_improved) return c.json({ success: true, aiImproved: question.ai_improved })
+
+    const prompt = `당신은 고등학생의 질문을 고도화하는 AI입니다.
+
+## 규칙
+- 학생의 원본 질문 의도를 존중하되, "선생님, 이 부분이 궁금합니다"라고 바로 말할 수 있는 수준으로 완성
+- 단순 암기 질문 → 원리/이유/적용을 묻는 질문으로 업그레이드
+- 해당 과목의 교과 맥락에 맞는 용어 사용
+- 결과는 고도화된 질문 텍스트만 반환 (따옴표, 설명 없이)
+
+## 입력
+과목: ${question.subject || '기타'}
+원본 질문: ${question.title}
+${question.content ? `추가 설명: ${question.content}` : ''}
+
+## 출력
+고도화된 질문 (한 문장~두 문장):`
+
+    const { text } = await callGeminiWithFallback({
+      geminiKey: c.env.GEMINI_API_KEY,
+      openaiKey: c.env.OPENAI_API_KEY,
+      prompt,
+      jsonMode: false,
+      temperature: 0.4,
+    })
+
+    const improved = text.trim().replace(/^["']|["']$/g, '')
+    await c.env.DB.prepare('UPDATE my_questions SET ai_improved = ? WHERE id = ?').bind(improved, questionId).run()
+
+    return c.json({ success: true, aiImproved: improved })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
   }

@@ -21,12 +21,14 @@ function handleEditPhotoUpload(input) {
   const r = state.todayRecords[idx];
   if (!r) return;
   if (!r._photos) r._photos = [];
+  if (!r._photoTags) r._photoTags = [];
   const files = Array.from(input.files).slice(0, 20 - r._photos.length);
   let loaded = 0;
   files.forEach(file => {
     const reader = new FileReader();
     reader.onload = (e) => {
       r._photos.push(e.target.result);
+      r._photoTags.push('note');
       loaded++;
       if (loaded === files.length) navigate('class-record-edit', { replace: true });
     };
@@ -40,6 +42,7 @@ function removeEditPhoto(photoIdx) {
   const r = state.todayRecords[idx];
   if (!r || !r._photos) return;
   r._photos.splice(photoIdx, 1);
+  if (r._photoTags) r._photoTags.splice(photoIdx, 1);
   navigate('class-record-edit', { replace: true });
 }
 

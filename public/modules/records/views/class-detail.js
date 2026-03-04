@@ -4,10 +4,20 @@
    ================================================================ */
 
 import { state } from '../core/state.js';
-import { kstToday, getSubjectColor, tryParseJSON } from '../core/utils.js';
+import { kstToday, getSubjectColor, tryParseJSON, markKeywords, getAssignmentDisplayText } from '../core/utils.js';
+import { generateCreditLogPDF } from '../components/pdf-generator.js';
 
 export function registerHandlers(RM) {
   RM.openPhotoZoom = (idx) => openPhotoZoom(idx);
+  RM.downloadDetailPDF = (recordId) => downloadDetailPDF(recordId);
+}
+
+function downloadDetailPDF(recordId) {
+  const dbRec = (state._dbClassRecords || []).find(r => String(r.id) === String(recordId));
+  if (!dbRec || !dbRec.ai_credit_log) return;
+  const log = typeof dbRec.ai_credit_log === 'string' ? tryParseJSON(dbRec.ai_credit_log, null) : dbRec.ai_credit_log;
+  if (!log) return;
+  generateCreditLogPDF(log, dbRec.subject || '', dbRec.date || '');
 }
 
 function openPhotoZoom(photoIdx) {
@@ -101,6 +111,27 @@ function openPhotoZoom(photoIdx) {
   document.body.appendChild(overlay);
 }
 
+function _renderDetailCreditLog(log, dbId) {
+  const questions = log.questions || [];
+  const keywords = log.keywords || [];
+  return `
+    <div class="cl-card" style="margin-top:16px">
+      <div class="cl-title-section">
+        <div class="cl-title">나의 수업 탐구 기록</div>
+        <div class="cl-subtitle">MY CREDIT LOG</div>
+      </div>
+      ${log.topic ? `<div class="cl-section"><span class="cl-section-label">📖 단원 / 주제</span><div class="cl-section-value cl-handwriting">${log.topic}</div></div>` : ''}
+      ${log.pages ? `<div class="cl-section"><span class="cl-section-label">📚 교과서</span><div class="cl-section-value cl-handwriting">${log.pages}</div></div>` : ''}
+      ${log.highlights ? `<div class="cl-section cl-highlight-section"><span class="cl-section-label">⭐ 선생님 강조 포인트</span><div class="cl-section-value cl-handwriting">${markKeywords(log.highlights.replace(/\n/g, '<br>'), keywords)}</div></div>` : ''}
+      ${keywords.length > 0 ? `<div class="cl-section"><span class="cl-section-label">🔑 핵심 키워드</span><div class="cl-keywords">${keywords.map(k => '<span class="cl-keyword-chip">' + k + '</span>').join('')}</div></div>` : ''}
+      ${questions.length > 0 ? `<div class="cl-section cl-questions-section"><span class="cl-section-label">💡 세특 소재 질문</span>${questions.map((q, i) => '<div class="cl-question-pair"><div class="cl-question-num">Q' + (i + 1) + '</div><div class="cl-question-body"><div class="cl-question-original"><span class="cl-q-label">💬 내가 쓴 질문</span><p>' + (q.original || '') + '</p></div><div class="cl-question-improved"><span class="cl-q-label">✨ 선생님께 이렇게 여쭤보세요</span><p>' + markKeywords(q.improved || '', keywords) + '</p></div></div></div>').join('')}</div>` : ''}
+      ${log.assignment ? `<div class="cl-section cl-assignment-section"><span class="cl-section-label">📌 과제</span><div class="cl-section-value cl-handwriting">${getAssignmentDisplayText(log.assignment)}</div></div>` : ''}
+    </div>
+    <button class="cl-pdf-btn" onclick="_RM.downloadDetailPDF('${dbId}')" style="width:100%;margin-top:12px">
+      <i class="fas fa-file-pdf" style="margin-right:6px"></i>PDF로 저장
+    </button>`;
+}
+
 export function renderClassRecordDetail() {
   let record = null;
   let fromToday = false;
@@ -130,6 +161,9 @@ export function renderClassRecordDetail() {
     const dbRec = (state._dbClassRecords || []).find(r => String(r.id) === String(state._viewingDbRecord));
     if (dbRec) {
       const memo = tryParseJSON(dbRec.memo, {});
+      const aiLog = dbRec.ai_credit_log
+        ? (typeof dbRec.ai_credit_log === 'string' ? tryParseJSON(dbRec.ai_credit_log, null) : dbRec.ai_credit_log)
+        : null;
       record = {
         subject: dbRec.subject, date: dbRec.date,
         topic: dbRec.topic || dbRec.content || '',
@@ -138,6 +172,7 @@ export function renderClassRecordDetail() {
         photos: Array.isArray(dbRec.photos) ? dbRec.photos : [],
         teacher_note: dbRec.teacher_note || memo.teacherNote || '',
         memo: dbRec.memo, period: memo.period || '', color: '#636e72', _dbId: dbRec.id,
+        ai_credit_log: aiLog,
       };
     }
   }
@@ -153,11 +188,11 @@ export function renderClassRecordDetail() {
   const photos = record.photos || [];
 
   const backAction = fromToday
-    ? "state._viewingTodayRecordIdx=null;_RM.nav('dashboard')"
-    : "state._viewingDbRecord=null;_RM.nav('class-record-history')";
+    ? "_RM.state._viewingTodayRecordIdx=null;_RM.nav('dashboard')"
+    : "_RM.state._viewingDbRecord=null;_RM.nav('class-record-history')";
 
   const editAction = fromToday
-    ? `state._viewingTodayRecordIdx=null;_RM.nav('class-record-edit')`
+    ? `_RM.state._viewingTodayRecordIdx=null;_RM.nav('class-record-edit')`
     : "";
 
   return `
@@ -250,6 +285,8 @@ export function renderClassRecordDetail() {
           </div>
           <p style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin:0">"${record.question.text}"</p>
         </div>` : ''}
+
+        ${record.ai_credit_log ? _renderDetailCreditLog(record.ai_credit_log, record._dbId) : ''}
 
         ${fromToday ? `
         <button class="btn-secondary" style="width:100%;margin-top:16px" onclick="${editAction}">

@@ -46,7 +46,7 @@ const _initialState = {
   _classAssignmentText: '',
   _classAssignmentDue: '',
 
-  // 질문 코칭
+  // 질문 코칭 (레거시)
   _questionSubject: '수학',
   _questionText: '',
   _questionImageData: null,
@@ -57,6 +57,18 @@ const _initialState = {
   _isChallengeMode: false,
   _isSocratesMode: false,
 
+  // 나의 질문함
+  _myQuestions: [],
+  _myQuestionStats: null,
+  _myQuestionFilter: '전체',
+  _viewingMyQuestion: null,
+  _myQuestionDetail: null,
+  _pendingQuestionText: null,
+  _pendingQuestionImage: null,
+  _pendingQuestionSource: null,
+  _questionPhotoPreview: null,
+  _aiImproveExpanded: {},
+
   // 교학상장
   _teachSubject: '',
   _teachTopic: '',
@@ -66,6 +78,16 @@ const _initialState = {
   viewingActivity: null,
   viewingReport: null,
   reportPhaseTab: 0,
+
+  // AI 수업 기록 (MY CREDIT LOG)
+  _selectedPeriodIdx: null,
+  _classPhotoTags: [],
+  _aiAnalyzing: false,
+  _aiAnalysisStep: '',
+  _aiCreditLog: null,
+  _aiCreditLogEditing: false,
+  _albumFilter: '전체',
+  _albumTagFilter: '전체',
 
   // 소급 기록
   _backfillDate: null,

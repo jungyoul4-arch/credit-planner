@@ -5,7 +5,7 @@
 
 import { state } from '../core/state.js';
 import { navigate, render } from '../core/router.js';
-import { getDday, kstNow, kstToday, formatDate } from '../core/utils.js';
+import { kstToday, formatDate, generatePlanSteps } from '../core/utils.js';
 
 const subjectColors = {
   '국어':'#FF6B6B','수학':'#6C5CE7','영어':'#00B894','과학':'#FDCB6E',
@@ -50,23 +50,7 @@ export function registerHandlers(RM) {
 
     const assignments = state.assignments || [];
     const newId = assignments.length > 0 ? Math.max(...assignments.map(a => a.id)) + 1 : 1;
-    const daysUntilDue = getDday(dueDate);
-    const stepsCount = Math.max(3, Math.min(6, daysUntilDue));
-
-    // Auto-generate plan steps
-    const plan = [];
-    const dueD = new Date(dueDate);
-    const today = kstNow();
-    for (let i = 0; i < stepsCount; i++) {
-      const stepDate = new Date(today.getTime() + ((dueD - today) / stepsCount) * (i + 1));
-      const stepLabels = ['자료 조사 및 준비','초안 작성','본문 완성','검토 및 수정','최종 점검','제출'];
-      plan.push({
-        step: i + 1,
-        title: stepLabels[i] || `${i+1}단계 진행`,
-        date: `${stepDate.getMonth()+1}/${stepDate.getDate()}`,
-        done: false
-      });
-    }
+    const plan = generatePlanSteps(dueDate);
 
     const newAssignment = {
       id: newId,
@@ -106,6 +90,7 @@ export function registerHandlers(RM) {
       navigate('assignment-plan');
     } else {
       RM.showXpPopup(15, '과제 기록 완료! 📋');
+      navigate('assignment-list');
     }
   };
 }

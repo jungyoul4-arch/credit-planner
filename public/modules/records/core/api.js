@@ -33,6 +33,8 @@ export const DB = {
           pages: r.pages || '',
           photos: tryParseJSON(r.photos, []),
           teacher_note: r.teacher_note || '',
+          ai_credit_log: tryParseJSON(r.ai_credit_log, null),
+          photo_tags: tryParseJSON(r.photo_tags, []),
           created_at: r.created_at || '',
         }));
       }
@@ -45,6 +47,9 @@ export const DB = {
     try {
       const photosRaw = recordData.photos || [];
       const recordToSave = { ...recordData };
+      // ai_credit_log, photo_tags 전달
+      if (recordData.ai_credit_log) recordToSave.ai_credit_log = recordData.ai_credit_log;
+      if (recordData.photo_tags) recordToSave.photo_tags = recordData.photo_tags;
 
       const res = await fetch(`/api/student/${sid}/class-records`, {
         method: 'POST',
@@ -81,6 +86,22 @@ export const DB = {
       });
       try { await this.loadClassRecords(); } catch (_) {}
     } catch (e) { console.error('updateClassRecord:', e); }
+  },
+
+  // === AI Credit Log 분석 ===
+  async analyzePhotos(images, subject, period, date) {
+    try {
+      const res = await fetch('/api/ai/credit-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images, subject, period, date })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.data || data;
+      }
+    } catch (e) { console.error('analyzePhotos:', e); }
+    return null;
   },
 
   // === 질문 코칭 기록 ===
@@ -386,6 +407,119 @@ export const DB = {
     } catch (e) { console.error('updateAssignment:', e); }
   },
 
+  // === 나의 질문함 ===
+  async loadMyQuestions(filter) {
+    const sid = studentId();
+    if (!sid) return;
+    try {
+      let url = `/api/my-questions?studentId=${sid}`;
+      if (filter && filter !== '전체') url += `&subject=${encodeURIComponent(filter)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        state._myQuestions = (data.data || data.questions || []).map(q => ({
+          id: q.id,
+          subject: q.subject || '기타',
+          title: q.title || '',
+          content: q.content || '',
+          status: q.status || '미답변',
+          questionLevel: q.question_level || '',
+          classRecordId: q.class_record_id,
+          imageKey: q.image_key,
+          aiImproved: q.ai_improved || null,
+          source: q.source || null,
+          period: q.period || null,
+          date: q.date || null,
+          answerCount: q.answer_count || 0,
+          createdAt: q.created_at || '',
+        }));
+      }
+    } catch (e) { console.error('loadMyQuestions:', e); }
+  },
+
+  async loadMyQuestionStats() {
+    const sid = studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/my-questions/stats?studentId=${sid}`);
+      if (res.ok) {
+        const data = await res.json();
+        state._myQuestionStats = data.data || data;
+      }
+    } catch (e) { console.error('loadMyQuestionStats:', e); }
+  },
+
+  async saveMyQuestion(data) {
+    try {
+      const payload = { ...data, studentId: studentId() };
+      // imageData(base64) → imageKey로 매핑 (백엔드 필드명에 맞춤)
+      if (payload.imageData) {
+        payload.imageKey = payload.imageData;
+        delete payload.imageData;
+      }
+      const res = await fetch('/api/my-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        return d.data?.id || d.questionId || d.id;
+      }
+    } catch (e) { console.error('saveMyQuestion:', e); }
+    return null;
+  },
+
+  async improveMyQuestion(questionId) {
+    try {
+      const res = await fetch(`/api/my-questions/${questionId}/improve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        return d.aiImproved || null;
+      }
+    } catch (e) { console.error('improveMyQuestion:', e); }
+    return null;
+  },
+
+  async getMyQuestionDetail(id) {
+    try {
+      const res = await fetch(`/api/my-questions/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.data || data;
+      }
+    } catch (e) { console.error('getMyQuestionDetail:', e); }
+    return null;
+  },
+
+  async saveMyAnswer(questionId, data) {
+    try {
+      const res = await fetch(`/api/my-questions/${questionId}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, studentId: studentId() }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        return d.data || d;
+      }
+    } catch (e) { console.error('saveMyAnswer:', e); }
+    return null;
+  },
+
+  async resolveMyQuestion(questionId, resolved) {
+    try {
+      await fetch(`/api/my-questions/${questionId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: studentId(), status: resolved ? '답변완료' : '미답변' }),
+      });
+    } catch (e) { console.error('resolveMyQuestion:', e); }
+  },
+
   // === 전체 로드 ===
   async loadAll() {
     await Promise.all([
@@ -396,6 +530,8 @@ export const DB = {
       this.loadReportRecords(),
       this.loadExams(),
       this.loadAssignments(),
+      this.loadMyQuestions(),
+      this.loadMyQuestionStats(),
     ]);
   },
 };

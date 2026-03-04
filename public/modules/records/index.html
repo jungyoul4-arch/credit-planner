@@ -8,6 +8,9 @@
   <!-- Font Awesome (아이콘) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+  <!-- Pretendard (가독성 높은 고딕 — MY CREDIT LOG용) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+
   <!-- Records Module CSS -->
   <link rel="stylesheet" href="./records.css">
 
@@ -227,9 +230,78 @@
             const ttRes = await fetch(`/api/student/${student.id}/timetable`);
             if (ttRes.ok) {
               const ttData = await ttRes.json();
-              if (ttData.timetable) timetable = ttData.timetable;
+              // API가 최상위에 school, teachers 등을 반환
+              if (ttData.school) timetable = ttData;
+              else if (ttData.timetable) timetable = ttData.timetable;
             }
           } catch (_) {}
+
+          // 시간표 비어있으면 테스트용 샘플 시간표 생성
+          if (!timetable.school || timetable.school.length === 0) {
+            console.log('[TEST] 시간표가 비어있어 샘플 시간표를 설정합니다');
+            timetable = {
+              school: [
+                // 0=월 1=화 2=수 3=목 4=금
+                ['국어','수학','영어','과학','사회','한국사','체육'],
+                ['수학','영어','국어','사회','과학','음악','미술'],
+                ['영어','국어','수학','생명과학','물리학','화학','정보'],
+                ['과학','사회','국어','수학','영어','기술가정','체육'],
+                ['수학','영어','과학','국어','사회','음악','진로'],
+              ],
+              teachers: {
+                '국어': '김태훈', '수학': '박진우', '영어': '이수진',
+                '과학': '최영호', '사회': '정민수', '한국사': '정민수',
+                '체육': '강동원', '음악': '서예진', '미술': '한지원',
+                '생명과학': '최영호', '물리학': '김도현', '화학': '이상민',
+                '정보': '오승환', '기술가정': '박수진', '진로': '유선영',
+              },
+              subjectColors: {
+                '국어': '#FF6B6B', '수학': '#6C5CE7', '영어': '#00B894',
+                '과학': '#FDCB6E', '사회': '#E17055', '한국사': '#D63031',
+                '체육': '#74B9FF', '음악': '#A29BFE', '미술': '#FD79A8',
+                '생명과학': '#00CEC9', '물리학': '#0984E3', '화학': '#E84393',
+                '정보': '#636E72', '기술가정': '#B2BEC3', '진로': '#55EFC4',
+              },
+              periodTimes: [
+                { start: '08:30', end: '09:20' },
+                { start: '09:30', end: '10:20' },
+                { start: '10:30', end: '11:20' },
+                { start: '11:30', end: '12:20' },
+                { start: '13:20', end: '14:10' },
+                { start: '14:20', end: '15:10' },
+                { start: '15:20', end: '16:10' },
+              ],
+            };
+            // DB에도 저장 시도
+            try {
+              await fetch(`/api/student/${student.id}/timetable`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(timetable),
+              });
+              console.log('[TEST] 샘플 시간표 DB 저장 완료');
+            } catch (_) {}
+          }
+
+          // timetable → todayRecords 빌드
+          function buildTodayRecords(tt) {
+            const now = new Date();
+            const kstNow = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+            let dayIdx = kstNow.getDay() - 1; // 0=월 ~ 4=금
+            if (dayIdx < 0 || dayIdx > 4) return []; // 주말
+            const daySchedule = tt.school[dayIdx] || [];
+            return daySchedule.map((subject, i) => ({
+              period: i + 1,
+              subject: subject,
+              teacher: (tt.teachers || {})[subject] || '',
+              color: (tt.subjectColors || {})[subject] || '#636e72',
+              startTime: (tt.periodTimes || [])[i]?.start || '',
+              endTime: (tt.periodTimes || [])[i]?.end || '',
+              done: false,
+              summary: '',
+            }));
+          }
+          const todayRecords = buildTodayRecords(timetable);
 
           // 반 친구 로드
           let classmates = [];
@@ -256,6 +328,9 @@
               console.log('[TEST] Navigate:', screen);
             },
           });
+
+          // todayRecords 주입
+          window._testRM.setState({ todayRecords });
 
           // UI 업데이트
           document.getElementById('test-student-info').innerHTML =
