@@ -2983,6 +2983,9 @@ app.get('/api/migrate', async (c) => {
       `ALTER TABLE my_questions ADD COLUMN source TEXT DEFAULT NULL`,
       `ALTER TABLE my_questions ADD COLUMN period INTEGER DEFAULT NULL`,
       `ALTER TABLE my_questions ADD COLUMN date TEXT DEFAULT NULL`,
+      // ===== 연결 질문 (체이닝) =====
+      `ALTER TABLE my_questions ADD COLUMN parent_id INTEGER DEFAULT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_my_questions_parent ON my_questions(parent_id)`,
       // ===== 멘토 피드백 테이블 =====
       `CREATE TABLE IF NOT EXISTS mentor_feedbacks (id INTEGER PRIMARY KEY AUTOINCREMENT, mentor_id INTEGER NOT NULL, student_id INTEGER NOT NULL, record_type TEXT NOT NULL DEFAULT 'general', record_id INTEGER DEFAULT NULL, content TEXT NOT NULL, feedback_type TEXT DEFAULT 'note', is_read INTEGER DEFAULT 0, created_at DATETIME DEFAULT (datetime('now','+9 hours')), updated_at DATETIME DEFAULT (datetime('now','+9 hours')), FOREIGN KEY (mentor_id) REFERENCES mentors(id), FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_mf_student ON mentor_feedbacks(student_id, created_at DESC)`,
@@ -3180,7 +3183,7 @@ app.get('/api/mentor/:mentorId/croquet-points/history', async (c) => {
 // 질문 등록
 app.post('/api/my-questions', async (c) => {
   try {
-    const { studentId, subject, classRecordId, title, content, imageKey, thumbnailKey, questionLevel, aiImproved, source, period, date, skipXp } = await c.req.json()
+    const { studentId, subject, classRecordId, title, content, imageKey, thumbnailKey, questionLevel, aiImproved, source, period, date, skipXp, parentId } = await c.req.json()
     if (!studentId || !title || title.trim().length < 2) return c.json({ error: '질문 제목을 2자 이상 입력해주세요' }, 400)
 
     // 중복 방지: classRecordId + title 조합
@@ -3191,8 +3194,8 @@ app.post('/api/my-questions', async (c) => {
     }
 
     const result = await c.env.DB.prepare(
-      'INSERT INTO my_questions (student_id, subject, class_record_id, title, content, image_key, thumbnail_key, question_level, ai_improved, source, period, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(studentId, subject || '기타', classRecordId || null, title.trim(), content || '', imageKey || null, thumbnailKey || null, questionLevel || null, aiImproved || null, source || null, period || null, date || null).run()
+      'INSERT INTO my_questions (student_id, subject, class_record_id, title, content, image_key, thumbnail_key, question_level, ai_improved, source, period, date, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject || '기타', classRecordId || null, title.trim(), content || '', imageKey || null, thumbnailKey || null, questionLevel || null, aiImproved || null, source || null, period || null, date || null, parentId || null).run()
 
     // XP +3 (skipXp=true이면 건너뜀 — 수업 기록 자동 등록 시)
     if (!skipXp) {
@@ -3340,6 +3343,47 @@ app.put('/api/my-questions/:id/status', async (c) => {
     }
 
     return c.json({ success: true, status: newStatus })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 답변 수정
+app.put('/api/my-questions/:qid/answer/:aid', async (c) => {
+  try {
+    const { qid, aid } = c.req.param() as { qid: string; aid: string }
+    const { content, studentId } = await c.req.json()
+    if (!studentId || !content || content.trim().length < 2) return c.json({ error: '답변 내용을 2자 이상 입력해주세요' }, 400)
+
+    const answer: any = await c.env.DB.prepare('SELECT id FROM my_answers WHERE id = ? AND question_id = ? AND student_id = ?').bind(aid, qid, studentId).first()
+    if (!answer) return c.json({ error: '답변을 찾을 수 없습니다' }, 404)
+
+    await c.env.DB.prepare('UPDATE my_answers SET content = ? WHERE id = ?').bind(content.trim(), aid).run()
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
+// 답변 삭제
+app.delete('/api/my-questions/:qid/answer/:aid', async (c) => {
+  try {
+    const { qid, aid } = c.req.param() as { qid: string; aid: string }
+    const studentId = c.req.query('studentId')
+    if (!studentId) return c.json({ error: 'studentId 필수' }, 400)
+
+    const answer: any = await c.env.DB.prepare('SELECT id FROM my_answers WHERE id = ? AND question_id = ? AND student_id = ?').bind(aid, qid, studentId).first()
+    if (!answer) return c.json({ error: '답변을 찾을 수 없습니다' }, 404)
+
+    await c.env.DB.prepare('DELETE FROM my_answers WHERE id = ?').bind(aid).run()
+
+    // 남은 답변이 없으면 상태를 '미답변'으로 되돌림
+    const remaining: any = await c.env.DB.prepare('SELECT COUNT(*) as cnt FROM my_answers WHERE question_id = ?').bind(qid).first()
+    if ((remaining?.cnt || 0) === 0) {
+      await c.env.DB.prepare("UPDATE my_questions SET status = '미답변' WHERE id = ?").bind(qid).run()
+    }
+
+    return c.json({ success: true })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
   }

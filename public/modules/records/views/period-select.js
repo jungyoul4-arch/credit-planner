@@ -20,13 +20,28 @@ export function registerHandlers(RM) {
     const records = _getActiveRecords();
     const rec = records[idx];
     if (!rec) return;
-    const dateStr = state._backfillDate || kstToday();
-    const dbRec = (state._dbClassRecords || []).find(r =>
-      r.date === dateStr && r.subject === rec.subject
-    );
+    const dbRec = _getDbRecordForPeriod(rec);
     if (dbRec) {
       state._viewingDbRecord = dbRec.id;
       navigate('class-record-detail');
+    }
+  };
+  RM.editCompletedPeriod = (idx) => {
+    const records = _getActiveRecords();
+    const rec = records[idx];
+    if (!rec) return;
+    const dbRec = _getDbRecordForPeriod(rec);
+    if (dbRec && !dbRec._virtual) {
+      // class-record-edit는 todayRecords[idx] 기반이므로 DB 데이터를 로드
+      rec._dbRecordId = dbRec.id;
+      rec._topic = dbRec.topic || '';
+      rec._pages = dbRec.pages || '';
+      rec._keywords = dbRec.keywords || [];
+      rec._teacherNote = dbRec.teacher_note || '';
+      rec._photos = dbRec.photos || [];
+      rec._photoTags = dbRec.photo_tags || [];
+      state._editingClassRecordIdx = idx;
+      navigate('class-record-edit');
     }
   };
   RM.toggleDatePicker = () => {
@@ -36,13 +51,11 @@ export function registerHandlers(RM) {
   RM.selectBackfillDate = (dateStr) => {
     state._showDatePicker = false;
     if (dateStr === kstToday()) {
-      // 오늘 선택 → 소급 모드 해제
       state._backfillDate = null;
       RM.render();
       return;
     }
     state._backfillDate = dateStr;
-    // 해당 요일의 시간표로 todayRecords 재구성
     _rebuildRecordsForDate(dateStr);
     RM.render();
   };
@@ -78,37 +91,90 @@ function _getActiveDate() {
 }
 
 function _isPeriodRecorded(record) {
-  if (record.done) return true;
+  return !!_getDbRecordForPeriod(record);
+}
+
+function _getDbRecordForPeriod(record) {
+  if (record.done) {
+    const dateStr = _getActiveDate();
+    return (state._dbClassRecords || []).find(r =>
+      r.date === dateStr && r.subject === record.subject
+    ) || { _virtual: true };
+  }
   const dateStr = _getActiveDate();
-  return (state._dbClassRecords || []).some(r => {
+  return (state._dbClassRecords || []).find(r => {
     if (r.date !== dateStr || r.subject !== record.subject) return false;
     const memo = tryParseJSON(r.memo, {});
     return !record.period || memo.period == record.period || !memo.period;
-  });
+  }) || null;
 }
 
 function _renderPeriodItem(record, idx) {
-  const isRecorded = _isPeriodRecorded(record);
+  const dbRec = _getDbRecordForPeriod(record);
+  const isRecorded = !!dbRec;
   const color = record.color || '#636e72';
   const periodTimes = state.timetable?.periodTimes || [];
   const time = periodTimes[record.period - 1];
   const timeStr = time ? `${time.start || time.startTime || ''}~${time.end || time.endTime || ''}` : '';
 
-  const onclick = isRecorded
-    ? `_RM.viewCompletedPeriod(${idx})`
-    : `_RM.selectPeriod(${idx})`;
+  if (isRecorded && !dbRec._virtual) {
+    // 기록 완료 카드
+    const photos = dbRec.photos || [];
+    const photoCount = photos.length;
+    const aiLog = dbRec.ai_credit_log;
+    const hasAi = !!aiLog;
+    const keywords = dbRec.keywords || [];
+    const keywordPreview = keywords.slice(0, 3).join(', ');
 
+    return `
+    <div class="ps-period-item done" onclick="_RM.viewCompletedPeriod(${idx})">
+      <div class="ps-period-badge" style="background:${color}">${record.period}</div>
+      <div class="ps-period-info">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <div class="ps-period-subject">${record.subject}</div>
+          <span class="ps-done-badge">✅ 기록완료</span>
+        </div>
+        <div class="ps-period-meta">${record.teacher ? record.teacher + ' 선생님' : ''}${timeStr ? ' · ' + timeStr : ''}</div>
+        ${(photoCount > 0 || hasAi || keywords.length > 0) ? `
+          <div class="ps-summary-box">
+            ${photoCount > 0 ? `<span class="ps-summary-item">📸 사진 ${photoCount}장</span>` : ''}
+            ${hasAi ? `<span class="ps-summary-item">· AI 분석 완료</span>` : ''}
+            ${keywordPreview ? `<div class="ps-summary-keywords">${keywordPreview}</div>` : ''}
+          </div>
+        ` : ''}
+        <div class="ps-done-actions" onclick="event.stopPropagation()">
+          <button class="ps-action-view" onclick="_RM.viewCompletedPeriod(${idx})">다시보기</button>
+          <button class="ps-action-edit" onclick="_RM.editCompletedPeriod(${idx})">수정하기</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (isRecorded && dbRec._virtual) {
+    // done 플래그만 있고 DB 레코드 없는 경우
+    return `
+    <div class="ps-period-item done" onclick="_RM.selectPeriod(${idx})">
+      <div class="ps-period-badge" style="background:${color}">${record.period}</div>
+      <div class="ps-period-info">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="ps-period-subject">${record.subject}</div>
+          <span class="ps-done-badge">✅ 기록완료</span>
+        </div>
+        <div class="ps-period-meta">${record.teacher ? record.teacher + ' 선생님' : ''}${timeStr ? ' · ' + timeStr : ''}</div>
+      </div>
+    </div>`;
+  }
+
+  // 미기록 카드
   return `
-    <div class="ps-period-item ${isRecorded ? 'done' : ''}" onclick="${onclick}">
+    <div class="ps-period-item" onclick="_RM.selectPeriod(${idx})">
       <div class="ps-period-badge" style="background:${color}">${record.period}</div>
       <div class="ps-period-info">
         <div class="ps-period-subject">${record.subject}</div>
         <div class="ps-period-meta">${record.teacher ? record.teacher + ' 선생님' : ''}${timeStr ? ' · ' + timeStr : ''}</div>
       </div>
       <div class="ps-period-status">
-        ${isRecorded
-          ? '<i class="fas fa-check-circle" style="color:#00B894;font-size:22px"></i>'
-          : '<span class="ps-record-btn">기록하기 <i class="fas fa-camera" style="margin-left:4px"></i></span>'}
+        <span class="ps-record-btn">기록하기 <i class="fas fa-camera" style="margin-left:4px"></i></span>
       </div>
     </div>`;
 }
@@ -171,6 +237,8 @@ export function renderPeriodSelect() {
   const totalCount = records.length;
   const doneCount = records.filter(r => _isPeriodRecorded(r)).length;
   const showDatePicker = state._showDatePicker;
+  const allDone = totalCount > 0 && doneCount === totalCount;
+  const progressPct = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : 0;
 
   return `
     <div class="full-screen animate-slide">
@@ -198,10 +266,15 @@ export function renderPeriodSelect() {
             <p style="font-size:13px">${isBackfill ? '다른 날짜를 선택해보세요' : '시간표를 먼저 설정해주세요'}</p>
           </div>
         ` : `
-          <div class="ps-progress-bar">
-            <div class="ps-progress-fill" style="width:${totalCount > 0 ? Math.round(doneCount / totalCount * 100) : 0}%"></div>
+          <div class="ps-progress-section">
+            <div class="ps-progress-header">
+              <span class="ps-progress-label">${allDone ? '🎉 오늘 수업 기록 완료!' : `${doneCount}/${totalCount} 수업 기록`}</span>
+              <span class="ps-progress-pct">${progressPct}%</span>
+            </div>
+            <div class="ps-progress-bar ${allDone ? 'complete' : ''}">
+              <div class="ps-progress-fill" style="width:${progressPct}%"></div>
+            </div>
           </div>
-          <div class="ps-progress-text">${doneCount}/${totalCount} 수업 기록 완료</div>
 
           <div class="ps-period-list">
             ${records.map((r, i) => _renderPeriodItem(r, i)).join('')}

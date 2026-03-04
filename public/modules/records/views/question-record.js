@@ -1,6 +1,6 @@
 /* ================================================================
    Records Module — views/question-record.js
-   나의 질문함 — 카드 그리드 + 2단계 태그(출처+과목) + AI 토글
+   나의 질문함 — STEP 2: 입력 + 카드 펼침 + 답변 + 해결완료
    ================================================================ */
 
 import { state } from '../core/state.js';
@@ -9,28 +9,30 @@ import { events, EVENTS } from '../core/events.js';
 import { navigate } from '../core/router.js';
 import { showXpPopup } from '../components/xp-popup.js';
 
-let _autoTagTimer = null;
-
 const SOURCE_TAGS = [
   { value: '수업', icon: '📖' },
   { value: '독서', icon: '📚' },
   { value: '수행평가', icon: '📝' },
   { value: '시험', icon: '📊' },
-  { value: '창체', icon: '🎭' },
+  { value: '동아리', icon: '🎭' },
+  { value: '진로', icon: '🧭' },
+  { value: '봉사', icon: '🤝' },
+  { value: '자율자치', icon: '🏛️' },
   { value: '기타', icon: '💭' },
 ];
 
 const SUBJECT_TAGS = [
-  { value: '국어', icon: '📕' },
-  { value: '영어', icon: '📗' },
-  { value: '수학', icon: '📘' },
-  { value: '과학', icon: '📙' },
-  { value: '기타', icon: '📓' },
+  { value: '국어', icon: '📕', color: '#EC4899' },
+  { value: '영어', icon: '📗', color: '#10B981' },
+  { value: '수학', icon: '📘', color: '#3B82F6' },
+  { value: '사회', icon: '📙', color: '#F97316' },
+  { value: '과학', icon: '📓', color: '#8B5CF6' },
+  { value: '기타', icon: '📎', color: '#8b949e' },
 ];
 
 const SUBJECT_COLORS = {
   '국어': '#EC4899', '영어': '#10B981', '수학': '#3B82F6',
-  '과학': '#8B5CF6', '기타': '#F97316',
+  '사회': '#F97316', '과학': '#8B5CF6', '기타': '#8b949e',
 };
 
 /* 세부 과목명 → 대분류 카테고리 */
@@ -39,132 +41,201 @@ function _getSubjectCategory(subject) {
   if (['국어','문학','독서','화법','작문','언어','매체'].some(k => subject.includes(k))) return '국어';
   if (['영어','English'].some(k => subject.includes(k))) return '영어';
   if (['수학','미적분','확률','통계','기하'].some(k => subject.includes(k))) return '수학';
+  if (['사회','한국사','세계사','경제','정치','법','윤리','지리','동아시아'].some(k => subject.includes(k))) return '사회';
   if (['물리','화학','생명','지구','과학'].some(k => subject.includes(k))) return '과학';
   return '기타';
 }
 
+function _getSubjectColor(subject) {
+  return SUBJECT_COLORS[_getSubjectCategory(subject)] || '#8b949e';
+}
+
+/* ── 스크롤 보존 리렌더 ── */
+function _rerender() {
+  const scrollArea = document.querySelector('.qb-scroll-area');
+  const saved = scrollArea ? scrollArea.scrollTop : 0;
+  state._keepScroll = true;
+  window._RM.render();
+  const el = document.querySelector('.qb-scroll-area');
+  if (el) el.scrollTop = saved;
+}
+
+/* ── 핸들러 등록 ── */
 export function registerHandlers(RM) {
-  RM.sendQuestion = () => sendQuestion();
-  RM.sendQuestionOnEnter = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); } };
-  RM.selectQuestionSource = (src) => selectQuestionSource(src);
-  RM.selectQuestionSubject = (subj) => selectQuestionSubject(subj);
-  RM.handleQuestionCamera = (input) => handlePhotoInput(input);
-  RM.handleQuestionGallery = (input) => handlePhotoInput(input);
-  RM.sendPhotoQuestion = () => sendPhotoQuestion();
-  RM.cancelPhotoPreview = () => { state._questionPhotoPreview = null; RM.render(); };
-  RM.viewMyQuestion = (id) => viewMyQuestion(id);
-  RM.backToQuestionList = () => { state._viewingMyQuestion = null; state._myQuestionDetail = null; RM.render(); };
-  RM.submitMyAnswer = (qId) => submitMyAnswer(qId);
-  RM.setMyQuestionFilter = async (f) => {
-    state._myQuestionFilter = f;
-    await DB.loadMyQuestions();
+  RM.toggleQbSidebar = () => {
+    state._qbSidebarOpen = !state._qbSidebarOpen;
     RM.render();
   };
-  RM.toggleQuestionResolved = (id, currentStatus) => toggleResolved(id, currentStatus);
-  RM.toggleAiImprove = (id) => toggleAiImprove(id);
-  RM.selectQuestionTag = (tag) => selectQuestionSource(tag);
-}
-
-/* ── 입력 / 전송 로직 ── */
-
-function sendQuestion() {
-  const el = document.getElementById('mq-chat-input');
-  const text = el?.value?.trim();
-  if (!text) return;
-  el.value = '';
-  state._pendingQuestionText = text;
-  state._pendingQuestionImage = null;
-  state._pendingQuestionSource = null;
-  _startAutoTagTimer();
-  navigate('record-question', { replace: true });
-}
-
-/* 사진 1200px 리사이즈 */
-function _resizeImage(dataUrl, maxWidth) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      let w = img.width, h = img.height;
-      if (w > maxWidth) { h = Math.round((h * maxWidth) / w); w = maxWidth; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
-
-function handlePhotoInput(input) {
-  if (!input.files || input.files.length === 0) return;
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const resized = await _resizeImage(e.target.result, 1200);
-    state._questionPhotoPreview = resized;
-    navigate('record-question', { replace: true });
+  RM.setMyQuestionFilter = async (f) => {
+    state._myQuestionFilter = f;
+    RM.render();
   };
-  reader.readAsDataURL(input.files[0]);
-  input.value = '';
+  RM.setQbSourceFilter = (src) => {
+    state._qbSourceFilter = state._qbSourceFilter === src ? null : src;
+    RM.render();
+  };
+  RM.setQbSortOrder = (order) => {
+    state._qbSortOrder = order;
+    RM.render();
+  };
+
+  // 카드 펼침 토글
+  RM.toggleQuestionExpand = (id) => {
+    if (state._expandedQuestionId === id) {
+      state._expandedQuestionId = null;
+      state._qbAnswerEditing = null;
+      state._qbEditingAnswerId = null;
+    } else {
+      state._expandedQuestionId = id;
+      state._qbAnswerEditing = null;
+      state._qbEditingAnswerId = null;
+      // 상세 로드
+      _loadQuestionDetail(id);
+    }
+    _rerender();
+  };
+
+  // 해결완료 토글
+  RM.toggleQuestionResolved = (id, currentStatus) => toggleResolved(id, currentStatus);
+
+  // AI 고도화 토글
+  RM.toggleAiImprove = (id) => toggleAiImprove(id);
+
+  // 답변 작성
+  RM.showAnswerInput = (qId) => {
+    state._qbAnswerEditing = qId;
+    state._qbEditingAnswerId = null;
+    RM.render();
+    setTimeout(() => {
+      const el = document.getElementById('qb-answer-textarea');
+      if (el) el.focus();
+    }, 100);
+  };
+  RM.cancelAnswer = () => {
+    state._qbAnswerEditing = null;
+    state._qbEditingAnswerId = null;
+    RM.render();
+  };
+  RM.submitAnswer = (qId) => submitAnswer(qId);
+
+  // 답변 수정
+  RM.editAnswer = (qId, aId, content) => {
+    state._qbAnswerEditing = qId;
+    state._qbEditingAnswerId = aId;
+    state._qbEditingAnswerContent = content;
+    RM.render();
+    setTimeout(() => {
+      const el = document.getElementById('qb-answer-textarea');
+      if (el) { el.value = content; el.focus(); }
+    }, 100);
+  };
+  RM.updateAnswer = (qId, aId) => updateAnswer(qId, aId);
+
+  // 답변 삭제
+  RM.deleteAnswer = (qId, aId) => deleteAnswer(qId, aId);
+
+  // 질문 입력 화면
+  RM.openQuestionInput = () => {
+    state._qbInputMode = true;
+    state._qbInputSubject = null;
+    state._qbInputSources = [];
+    state._qbInputPhoto = null;
+    RM.render();
+  };
+  RM.closeQuestionInput = () => {
+    state._qbInputMode = false;
+    RM.render();
+  };
+  RM.toggleQbInputSubject = (v) => {
+    state._qbInputSubject = state._qbInputSubject === v ? null : v;
+    RM.render();
+  };
+  RM.toggleQbInputSource = (v) => {
+    const arr = state._qbInputSources || [];
+    const idx = arr.indexOf(v);
+    if (idx >= 0) arr.splice(idx, 1); else arr.push(v);
+    state._qbInputSources = [...arr];
+    RM.render();
+  };
+  RM.removeQbInputPhoto = () => {
+    state._qbInputPhoto = null;
+    RM.render();
+  };
+  RM.submitQuestion = () => submitQuestion();
+  RM.pickQbPhoto = (mode) => pickPhoto(mode);
+
+  // 사진 풀스크린 뷰어
+  RM.openPhotoViewer = (src) => {
+    const existing = document.getElementById('qb-photo-viewer');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'qb-photo-viewer';
+    overlay.className = 'qb-photo-viewer';
+    overlay.innerHTML = `
+      <button class="qb-photo-viewer__close" onclick="_RM.closePhotoViewer()"><i class="fas fa-times"></i></button>
+      <img src="${src}" alt="질문 사진">
+    `;
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) RM.closePhotoViewer();
+    });
+    document.body.appendChild(overlay);
+  };
+  RM.closePhotoViewer = () => {
+    const el = document.getElementById('qb-photo-viewer');
+    if (el) el.remove();
+  };
+
+  // 연결 질문 (체인)
+  RM.openChainInput = (parentId) => {
+    state._chainInputParentId = parentId;
+    _rerender();
+    setTimeout(() => {
+      const el = document.getElementById('qb-chain-input');
+      if (el) el.focus();
+    }, 100);
+  };
+  RM.cancelChainInput = () => {
+    state._chainInputParentId = null;
+    _rerender();
+  };
+  RM.submitChainQuestion = (parentId) => submitChainQuestion(parentId);
+  RM.expandChain = (rootId) => {
+    if (!state._chainExpandedIds) state._chainExpandedIds = {};
+    state._chainExpandedIds[rootId] = true;
+    _rerender();
+  };
+
+  // 기존 상세뷰 호환 (안전장치)
+  RM.viewMyQuestion = (id) => { RM.toggleQuestionExpand(id); };
+  RM.backToQuestionList = () => {
+    state._expandedQuestionId = null;
+    state._qbAnswerEditing = null;
+    RM.render();
+  };
+  RM.submitMyAnswer = (qId) => submitAnswer(qId);
 }
 
-function sendPhotoQuestion() {
-  const memoEl = document.getElementById('mq-photo-memo');
-  const memo = memoEl?.value?.trim() || '';
-  const imageData = state._questionPhotoPreview;
-  if (!imageData && !memo) return;
-  state._pendingQuestionText = memo || '(사진 질문)';
-  state._pendingQuestionImage = imageData;
-  state._questionPhotoPreview = null;
-  state._pendingQuestionSource = null;
-  _startAutoTagTimer();
-  navigate('record-question', { replace: true });
-}
+/* ── 비즈니스 로직 ── */
 
-function _startAutoTagTimer() {
-  if (_autoTagTimer) clearTimeout(_autoTagTimer);
-  _autoTagTimer = setTimeout(() => {
-    if (state._pendingQuestionText) selectQuestionSubject('기타');
-  }, 3000);
-}
-
-/* 2단계 ① 출처 선택 */
-function selectQuestionSource(src) {
-  if (_autoTagTimer) { clearTimeout(_autoTagTimer); _autoTagTimer = null; }
-  state._pendingQuestionSource = src;
-  _startAutoTagTimer();
-  navigate('record-question', { replace: true });
-}
-
-/* 2단계 ② 과목 선택 → 저장 */
-async function selectQuestionSubject(subj) {
-  if (_autoTagTimer) { clearTimeout(_autoTagTimer); _autoTagTimer = null; }
-  const text = state._pendingQuestionText;
-  const image = state._pendingQuestionImage;
-  const source = state._pendingQuestionSource || '기타';
-  if (!text) return;
-  state._pendingQuestionText = null;
-  state._pendingQuestionImage = null;
-  state._pendingQuestionSource = null;
-
-  const id = await DB.saveMyQuestion({
-    subject: subj,
-    source,
-    title: text,
-    content: '',
-    imageData: image,
-  });
-  if (id) {
-    showXpPopup(3, '질문 등록! +3 XP');
-    events.emit(EVENTS.XP_EARNED, { amount: 3, label: '질문 등록' });
-    await DB.loadMyQuestions();
-    await DB.loadMyQuestionStats();
-    navigate('record-question', { replace: true });
+async function _loadQuestionDetail(id) {
+  const detail = await DB.getMyQuestionDetail(id);
+  if (detail) {
+    // 상세 정보를 캐시에 저장
+    if (!state._qbDetailCache) state._qbDetailCache = {};
+    state._qbDetailCache[id] = detail;
+    // 현재 펼쳐진 카드면 스크롤 보존하며 리렌더
+    if (state._expandedQuestionId === id) {
+      _rerender();
+    }
   }
 }
 
 async function toggleResolved(id, currentStatus) {
   const newResolved = currentStatus !== '답변완료';
+  if (!newResolved) {
+    // 해결 취소 확인
+    if (!confirm('해결을 취소하시겠습니까?')) return;
+  }
   await DB.resolveMyQuestion(id, newResolved);
   if (newResolved) {
     showXpPopup(5, '질문 해결! +5 XP');
@@ -172,26 +243,68 @@ async function toggleResolved(id, currentStatus) {
   }
   await DB.loadMyQuestions();
   await DB.loadMyQuestionStats();
+  // 상세 캐시 갱신
+  if (state._qbDetailCache && state._qbDetailCache[id]) {
+    const detail = await DB.getMyQuestionDetail(id);
+    if (detail) state._qbDetailCache[id] = detail;
+  }
   navigate('record-question', { replace: true });
 }
 
-async function viewMyQuestion(id) {
-  state._viewingMyQuestion = id;
-  const detail = await DB.getMyQuestionDetail(id);
-  state._myQuestionDetail = detail;
-  navigate('record-question', { replace: true });
-}
-
-async function submitMyAnswer(questionId) {
-  const el = document.getElementById('mq-answer-input');
+async function submitAnswer(questionId) {
+  const el = document.getElementById('qb-answer-textarea');
   const content = el?.value?.trim();
-  if (!content) return;
+  if (!content || content.length < 2) {
+    alert('답변을 2자 이상 입력해주세요.');
+    return;
+  }
   const result = await DB.saveMyAnswer(questionId, { content });
   if (result) {
     showXpPopup(5, '답변 작성! +5 XP');
     events.emit(EVENTS.XP_EARNED, { amount: 5, label: '답변 작성' });
+    state._qbAnswerEditing = null;
+    state._qbEditingAnswerId = null;
+    // 캐시 갱신
     const detail = await DB.getMyQuestionDetail(questionId);
-    state._myQuestionDetail = detail;
+    if (detail) {
+      if (!state._qbDetailCache) state._qbDetailCache = {};
+      state._qbDetailCache[questionId] = detail;
+    }
+    await DB.loadMyQuestions();
+    await DB.loadMyQuestionStats();
+    navigate('record-question', { replace: true });
+  }
+}
+
+async function updateAnswer(questionId, answerId) {
+  const el = document.getElementById('qb-answer-textarea');
+  const content = el?.value?.trim();
+  if (!content || content.length < 2) {
+    alert('답변을 2자 이상 입력해주세요.');
+    return;
+  }
+  const ok = await DB.updateMyAnswer(questionId, answerId, content);
+  if (ok) {
+    state._qbAnswerEditing = null;
+    state._qbEditingAnswerId = null;
+    const detail = await DB.getMyQuestionDetail(questionId);
+    if (detail) {
+      if (!state._qbDetailCache) state._qbDetailCache = {};
+      state._qbDetailCache[questionId] = detail;
+    }
+    navigate('record-question', { replace: true });
+  }
+}
+
+async function deleteAnswer(questionId, answerId) {
+  if (!confirm('답변을 삭제하시겠습니까?')) return;
+  const ok = await DB.deleteMyAnswer(questionId, answerId);
+  if (ok) {
+    const detail = await DB.getMyQuestionDetail(questionId);
+    if (detail) {
+      if (!state._qbDetailCache) state._qbDetailCache = {};
+      state._qbDetailCache[questionId] = detail;
+    }
     await DB.loadMyQuestions();
     await DB.loadMyQuestionStats();
     navigate('record-question', { replace: true });
@@ -203,26 +316,140 @@ async function toggleAiImprove(id) {
   if (expanded[id]) {
     delete expanded[id];
     state._aiImproveExpanded = expanded;
+    navigate('record-question', { replace: true });
     return;
   }
   expanded[id] = true;
   state._aiImproveExpanded = expanded;
 
   const q = (state._myQuestions || []).find(x => x.id === id);
-  if (q && q.aiImproved) return;
+  if (q && q.aiImproved) {
+    navigate('record-question', { replace: true });
+    return;
+  }
 
+  navigate('record-question', { replace: true });
   const improved = await DB.improveMyQuestion(id);
   if (improved) {
     const questions = state._myQuestions || [];
     const target = questions.find(x => x.id === id);
     if (target) target.aiImproved = improved;
     state._myQuestions = [...questions];
+    navigate('record-question', { replace: true });
+  }
+}
+
+/* ── 사진 선택 ── */
+function pickPhoto(mode) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  if (mode === 'camera') input.capture = 'environment';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    _resizeImage(file, 1200).then(base64 => {
+      state._qbInputPhoto = base64;
+      navigate('record-question', { replace: true });
+    });
+  };
+  input.click();
+}
+
+function _resizeImage(file, maxWidth) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ── 질문 등록 ── */
+async function submitQuestion() {
+  const textarea = document.getElementById('qb-input-textarea');
+  const text = textarea?.value?.trim();
+  const hasPhoto = !!state._qbInputPhoto;
+  const minLen = hasPhoto ? 10 : 2;
+  if (!text || text.length < minLen) {
+    alert(hasPhoto ? '사진과 함께 질문을 10자 이상 입력해주세요.' : '질문을 2자 이상 입력해주세요.');
+    return;
+  }
+  const sources = state._qbInputSources || [];
+  if (sources.length === 0) {
+    alert('출처 태그를 1개 이상 선택해주세요.');
+    return;
+  }
+
+  const subject = state._qbInputSubject || '기타';
+  const source = sources.join(',');
+  const photo = state._qbInputPhoto || null;
+
+  const questionId = await DB.saveMyQuestion({
+    subject,
+    source,
+    title: text,
+    imageData: photo,
+  });
+
+  if (questionId) {
+    showXpPopup(3, '질문 등록! +3 XP');
+    events.emit(EVENTS.XP_EARNED, { amount: 3, label: '질문 등록' });
+    state._qbInputMode = false;
+    state._qbInputPhoto = null;
+    state._qbInputSubject = null;
+    state._qbInputSources = [];
+    await DB.loadMyQuestions();
+    await DB.loadMyQuestionStats();
+    navigate('record-question', { replace: true });
+  }
+}
+
+/* ── 연결 질문 등록 ── */
+async function submitChainQuestion(parentId) {
+  const el = document.getElementById('qb-chain-input');
+  const text = el?.value?.trim();
+  if (!text || text.length < 2) {
+    alert('질문을 2자 이상 입력해주세요.');
+    return;
+  }
+  // 부모 질문의 태그 상속
+  const parent = (state._myQuestions || []).find(q => q.id === parentId);
+  const subject = parent?.subject || '기타';
+  const source = parent?.source || '기타';
+
+  const questionId = await DB.saveMyQuestion({
+    subject,
+    source,
+    title: text,
+    parentId,
+  });
+
+  if (questionId) {
+    showXpPopup(3, '연결 질문! +3 XP');
+    events.emit(EVENTS.XP_EARNED, { amount: 3, label: '연결 질문' });
+    state._chainInputParentId = null;
+    await DB.loadMyQuestions();
+    await DB.loadMyQuestionStats();
+    _rerender();
   }
 }
 
 /* ── 유틸 ── */
 
-function _formatDate(dateStr) {
+function _formatTimeAgo(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   const now = new Date();
@@ -236,123 +463,352 @@ function _formatDate(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-function _getSubjectColor(subject) {
-  const cat = _getSubjectCategory(subject);
-  return SUBJECT_COLORS[cat] || '#F97316';
+function _getDateKey(dateStr) {
+  if (!dateStr) return 'unknown';
+  const d = new Date(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-/* ── 카드 헤더 정보 ── */
-function _getCardHeaderInfo(q) {
-  const srcTag = SOURCE_TAGS.find(t => t.value === (q.source || q.subject));
-  const srcIcon = srcTag ? srcTag.icon : '💭';
-  const srcName = q.source || q.subject || '기타';
+function _formatDateLabel(dateKey) {
+  if (dateKey === 'unknown') return '날짜 미상';
+  const d = new Date(dateKey + 'T00:00:00+09:00');
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayName = dayNames[d.getDay()];
+  return `${month}월 ${day}일 ${dayName}요일`;
+}
 
-  if (q.source) {
-    let label = srcIcon + ' ' + srcName;
-    if (q.subject && q.subject !== q.source) label += ' · ' + q.subject;
-    if (q.period) label += ' ' + q.period + '교시';
-    return { label, icon: srcIcon };
+function _groupByDate(questions) {
+  const groups = {};
+  for (const q of questions) {
+    const key = _getDateKey(q.createdAt || q.date);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(q);
   }
-  return { label: srcIcon + ' ' + srcName, icon: srcIcon };
+  const sortOrder = state._qbSortOrder || 'newest';
+  return Object.entries(groups).sort((a, b) =>
+    sortOrder === 'newest' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0])
+  );
 }
 
-/* ── 통계 배너 ── */
-function _renderStats() {
-  const stats = state._myQuestionStats;
-  if (!stats) return '';
+/* ── 체인 데이터 구조 빌드 (렌더 사이클 캐싱) ── */
+let _chainMapCache = null;
+let _chainMapCacheKey = null;
+
+function _buildChainMap() {
+  // 간단한 캐싱: _myQuestions 배열 참조가 같으면 캐시 사용
+  const all = state._myQuestions || [];
+  if (_chainMapCache && _chainMapCacheKey === all) return _chainMapCache;
+  _chainMapCacheKey = all;
+
+  const byId = {};        // id → question
+  const childrenMap = {};  // rootId → [children]
+  const rootMap = {};      // id → root question
+  const childToRoot = {};  // childId → rootId
+
+  for (const q of all) byId[q.id] = q;
+
+  // 루트 찾기: parentId 체인을 따라 최상위까지 올라감
+  function findRoot(q) {
+    let current = q;
+    const visited = new Set();
+    while (current.parentId && byId[current.parentId] && !visited.has(current.parentId)) {
+      visited.add(current.id);
+      current = byId[current.parentId];
+    }
+    return current;
+  }
+
+  // 먼저 루트 등록
+  for (const q of all) {
+    if (!q.parentId) {
+      rootMap[q.id] = q;
+      if (!childrenMap[q.id]) childrenMap[q.id] = [];
+    }
+  }
+  // 자식들을 루트에 매핑 (다단계 지원)
+  for (const q of all) {
+    if (q.parentId) {
+      const root = findRoot(q);
+      const rootId = root.id;
+      if (!rootMap[rootId]) { rootMap[rootId] = root; }
+      if (!childrenMap[rootId]) childrenMap[rootId] = [];
+      childrenMap[rootId].push(q);
+      childToRoot[q.id] = rootId;
+    }
+  }
+  // 자식들을 날짜순 정렬
+  for (const rid of Object.keys(childrenMap)) {
+    childrenMap[rid].sort((a, b) =>
+      (a.createdAt || a.date || '').localeCompare(b.createdAt || b.date || '')
+    );
+  }
+  _chainMapCache = { childrenMap, rootMap, childToRoot };
+  return _chainMapCache;
+}
+
+function _getFilteredQuestions() {
+  const all = state._myQuestions || [];
+  const subjectFilter = state._myQuestionFilter || '전체';
+  const sourceFilter = state._qbSourceFilter || null;
+  const sortOrder = state._qbSortOrder || 'newest';
+
+  // 체인 인식 필터링: 체인 내 하나라도 매치하면 전체 체인 표시
+  const { childrenMap, childToRoot } = _buildChainMap();
+
+  function matchesFilter(q) {
+    if (subjectFilter !== '전체' && _getSubjectCategory(q.subject) !== subjectFilter) return false;
+    if (sourceFilter) {
+      const qSources = (q.source || '기타').split(',');
+      if (!qSources.includes(sourceFilter)) return false;
+    }
+    return true;
+  }
+
+  // 루트 질문만 수집 (자식은 체인으로 표시)
+  const roots = all.filter(q => !q.parentId);
+  let filteredRoots = roots.filter(root => {
+    // 루트 자체가 매치
+    if (matchesFilter(root)) return true;
+    // 자식 중 하나라도 매치
+    const children = childrenMap[root.id] || [];
+    return children.some(c => matchesFilter(c));
+  });
+
+  filteredRoots = [...filteredRoots].sort((a, b) => {
+    const da = a.createdAt || a.date || '';
+    const db_ = b.createdAt || b.date || '';
+    return sortOrder === 'newest' ? db_.localeCompare(da) : da.localeCompare(db_);
+  });
+
+  return filteredRoots;
+}
+
+/* ──────────────────────────────────────
+   렌더링 — 질문 입력 화면
+   ────────────────────────────────────── */
+
+function _renderQuestionInput() {
+  const selectedSubject = state._qbInputSubject || null;
+  const selectedSources = state._qbInputSources || [];
+  const photo = state._qbInputPhoto || null;
+
+  const subjectChips = SUBJECT_TAGS.map(t => {
+    const isActive = selectedSubject === t.value;
+    return `<button class="qbi-tag-chip ${isActive ? 'active' : ''}"
+                    style="${isActive ? `background:${t.color};border-color:${t.color};color:#fff` : `border-color:${t.color}40;color:${t.color}`}"
+                    onclick="_RM.toggleQbInputSubject('${t.value}')">${t.icon} ${t.value}</button>`;
+  }).join('');
+
+  const sourceChips = SOURCE_TAGS.map(s => {
+    const isActive = selectedSources.includes(s.value);
+    return `<button class="qbi-tag-chip ${isActive ? 'active' : ''}"
+                    style="${isActive ? 'background:#7c6aef;border-color:#7c6aef;color:#fff' : 'border-color:rgba(255,255,255,0.15);color:#8b949e'}"
+                    onclick="_RM.toggleQbInputSource('${s.value}')">${s.icon} ${s.value}</button>`;
+  }).join('');
+
   return `
-    <div style="display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto">
-      <div style="flex:1;min-width:0;text-align:center;padding:8px 4px;background:rgba(108,92,231,0.08);border-radius:10px">
-        <div style="font-size:18px;font-weight:800;color:var(--primary-light)">${stats.total || 0}</div>
-        <div style="font-size:10px;color:var(--text-muted)">전체</div>
+    <div class="full-screen animate-slide qbi-screen">
+      <div class="screen-header" style="flex-shrink:0">
+        <button class="back-btn" onclick="_RM.closeQuestionInput()"><i class="fas fa-arrow-left"></i></button>
+        <h1>질문 작성</h1>
       </div>
-      <div style="flex:1;min-width:0;text-align:center;padding:8px 4px;background:rgba(255,107,107,0.08);border-radius:10px">
-        <div style="font-size:18px;font-weight:800;color:#FF6B6B">${stats.unanswered || 0}</div>
-        <div style="font-size:10px;color:var(--text-muted)">미해결</div>
-      </div>
-      <div style="flex:1;min-width:0;text-align:center;padding:8px 4px;background:rgba(0,184,148,0.08);border-radius:10px">
-        <div style="font-size:18px;font-weight:800;color:#00B894">${stats.answered || 0}</div>
-        <div style="font-size:10px;color:var(--text-muted)">해결완료</div>
-      </div>
-      <div style="flex:1;min-width:0;text-align:center;padding:8px 4px;background:rgba(255,159,67,0.08);border-radius:10px">
-        <div style="font-size:18px;font-weight:800;color:#FF9F43">${stats.weeklyQuestions || 0}</div>
-        <div style="font-size:10px;color:var(--text-muted)">이번 주</div>
+
+      <div class="qbi-body">
+        ${photo ? `
+          <div class="qbi-photo-preview">
+            <img src="${photo}" alt="첨부 사진">
+            <button class="qbi-photo-remove" onclick="_RM.removeQbInputPhoto()"><i class="fas fa-times"></i></button>
+          </div>
+        ` : ''}
+
+        <textarea id="qb-input-textarea" class="qbi-textarea" placeholder="궁금한 것을 자유롭게 적어보세요..." rows="5"></textarea>
+
+        <div class="qbi-section">
+          <div class="qbi-section-label">과목 <span style="color:#484f58;font-weight:400">(선택)</span></div>
+          <div class="qbi-tag-wrap">${subjectChips}</div>
+        </div>
+
+        <div class="qbi-section">
+          <div class="qbi-section-label">출처 <span style="color:#f59e0b;font-weight:400">* 필수 (중복 가능)</span></div>
+          <div class="qbi-tag-wrap">${sourceChips}</div>
+        </div>
+
+        <div class="qbi-photo-actions">
+          <button class="qbi-photo-btn" onclick="_RM.pickQbPhoto('camera')">
+            <i class="fas fa-camera"></i> 카메라
+          </button>
+          <button class="qbi-photo-btn" onclick="_RM.pickQbPhoto('gallery')">
+            <i class="fas fa-image"></i> 갤러리
+          </button>
+        </div>
+
+        <button class="qbi-submit-btn" onclick="_RM.submitQuestion()">
+          질문 등록하기  +3 XP
+        </button>
       </div>
     </div>
   `;
 }
 
-/* ── AI 토글 영역 ── */
-function _renderAiToggle(q) {
-  const isExpanded = !!(state._aiImproveExpanded || {})[q.id];
-  let html = `
-    <div style="padding:0 12px 6px">
-      <button onclick="event.stopPropagation();_RM.toggleAiImprove(${q.id})" style="
-        width:100%;background:rgba(124,106,239,0.08);border:1px solid rgba(124,106,239,0.15);
-        border-radius:8px;padding:6px 10px;font-size:11px;color:#a78bfa;cursor:pointer;
-        display:flex;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;
-      ">✨ AI 추천 질문 ${isExpanded ? '▲' : '▼'}</button>
-    </div>`;
+/* ──────────────────────────────────────
+   렌더링 — 사이드바
+   ────────────────────────────────────── */
 
-  if (!isExpanded) return html;
+function _renderSidebar() {
+  const all = state._myQuestions || [];
+  const totalCount = all.length;
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const todayCount = all.filter(q => _getDateKey(q.createdAt || q.date) === todayStr).length;
+  const activeSource = state._qbSourceFilter || null;
 
-  if (q.aiImproved) {
-    html += `
-      <div style="padding:0 12px 8px;font-size:12px;line-height:1.6">
-        <div style="color:#8b949e;margin-bottom:4px">💬 내가 쓴 질문:</div>
-        <div style="color:#c9d1d9;margin-bottom:8px;padding:6px 8px;background:rgba(255,255,255,0.03);border-radius:6px">${q.title}</div>
-        <div style="color:#a78bfa;margin-bottom:4px">✨ 선생님께 이렇게 여쭤보세요:</div>
-        <div style="color:#f0f6fc;font-weight:600;padding:6px 8px;background:rgba(124,106,239,0.08);border-radius:6px;border-left:3px solid #7c6aef">${q.aiImproved}</div>
-      </div>`;
-  } else {
-    html += `
-      <div style="padding:8px 12px;text-align:center">
-        <div class="rpt-btn-spinner" style="width:20px;height:20px;margin:0 auto 6px"></div>
-        <div style="font-size:11px;color:#8b949e">AI가 질문을 고도화하고 있어요...</div>
-      </div>`;
-  }
-  return html;
+  return `
+    <div class="qb-sidebar-stats">
+      <div class="qb-sidebar-stat">
+        <div class="qb-sidebar-stat-num">${totalCount}</div>
+        <div class="qb-sidebar-stat-label">전체질문</div>
+      </div>
+      <div class="qb-sidebar-stat">
+        <div class="qb-sidebar-stat-num">${todayCount}</div>
+        <div class="qb-sidebar-stat-label">오늘질문</div>
+      </div>
+    </div>
+    <div class="qb-sidebar-divider"></div>
+    <div class="qb-sidebar-sources">
+      ${SOURCE_TAGS.map(s => `
+        <button class="qb-sidebar-source ${activeSource === s.value ? 'active' : ''}"
+                onclick="_RM.setQbSourceFilter('${s.value}')">
+          <span class="qb-sidebar-source-icon">${s.icon}</span>
+          <span class="qb-sidebar-source-label">${s.value}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
 }
 
-/* ── 카드 렌더링 ── */
-function _renderCard(q, idx) {
-  const hdr = _getCardHeaderInfo(q);
+/* ── 상단 헤더 ── */
+function _renderHeader() {
+  return `
+    <div class="qb-header">
+      <button class="qb-hamburger" onclick="_RM.toggleQbSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <h1 class="qb-header-title">나의 질문함</h1>
+      <button class="qb-add-btn" onclick="_RM.openQuestionInput()">
+        <i class="fas fa-plus" style="margin-right:4px"></i>질문하기
+      </button>
+    </div>
+  `;
+}
+
+/* ── 과목 필터 칩 ── */
+function _renderSubjectFilter() {
+  const activeFilter = state._myQuestionFilter || '전체';
+  const sortOrder = state._qbSortOrder || 'newest';
+
+  const chips = ['전체', ...SUBJECT_TAGS.map(t => t.value)].map(f => {
+    const tag = SUBJECT_TAGS.find(t => t.value === f);
+    const color = tag ? tag.color : '#7c6aef';
+    const isActive = f === activeFilter;
+    return `<button class="qb-filter-chip ${isActive ? 'active' : ''}"
+                    style="${isActive ? `background:${color};border-color:${color};color:#fff` : `border-color:${color}40;color:${color}`}"
+                    onclick="_RM.setMyQuestionFilter('${f}')">${f}</button>`;
+  }).join('');
+
+  return `
+    <div class="qb-filter-bar">
+      <div class="qb-filter-chips">${chips}</div>
+      <select class="qb-sort-select" onchange="_RM.setQbSortOrder(this.value)">
+        <option value="newest" ${sortOrder === 'newest' ? 'selected' : ''}>최신순</option>
+        <option value="oldest" ${sortOrder === 'oldest' ? 'selected' : ''}>오래된순</option>
+      </select>
+    </div>
+  `;
+}
+
+/* ──────────────────────────────────────
+   렌더링 — 카드 (축소/펼침)
+   ────────────────────────────────────── */
+
+function _renderCard(q, showChainBtn = false) {
+  const isExpanded = state._expandedQuestionId === q.id;
   const isResolved = q.status === '답변완료';
+  const subjectCat = _getSubjectCategory(q.subject);
   const color = _getSubjectColor(q.subject);
   const hasImage = !!q.imageKey;
 
-  return `
-    <div class="qb-card ${isResolved ? 'qb-card--resolved' : ''}" style="animation-delay:${idx * 0.05}s" role="article">
-      <div class="qb-card__header">
-        <span class="qb-card__source">${hdr.label}</span>
-        <span class="qb-card__date">${q.date || _formatDate(q.createdAt)}</span>
-        <span class="qb-card__status ${isResolved ? 'qb-card__status--resolved' : 'qb-card__status--open'}">
-          ${isResolved ? '✅ 해결완료' : '미해결'}
-        </span>
-      </div>
+  // 태그 칩: 과목 + 출처(복수)
+  const subjectChip = `<span class="qb-tag-chip" style="background:${color}20;color:${color};border:1px solid ${color}40">#${subjectCat}</span>`;
+  const sources = (q.source || '').split(',').filter(Boolean);
+  const sourceChips = sources.map(s =>
+    `<span class="qb-tag-chip" style="background:rgba(139,148,158,0.15);color:#8b949e;border:1px solid rgba(139,148,158,0.2)">#${s}</span>`
+  ).join('');
 
-      <div class="qb-card__img-wrap" onclick="_RM.viewMyQuestion(${q.id})">
+  if (!isExpanded) {
+    // 축소 상태
+    return `
+      <div class="qb-card ${isResolved ? 'qb-card--resolved' : ''}"
+           data-qid="${q.id}"
+           style="border-color:${isResolved ? '#f59e0b' : color}40"
+           onclick="_RM.toggleQuestionExpand(${q.id})">
+        <div class="qb-card-top">
+          <div class="qb-card-tags">${subjectChip}${sourceChips}</div>
+          <span class="qb-card-time">${_formatTimeAgo(q.createdAt || q.date)}</span>
+        </div>
         ${hasImage ? `
-          <img class="qb-card__img" src="${q.imageKey}" alt="질문 사진" loading="lazy">
-        ` : `
-          <div class="qb-card__ph" style="background:linear-gradient(135deg, ${color}15, ${color}08)">
-            ${hdr.icon}
+          <div class="qb-card-img-wrap" onclick="event.stopPropagation();_RM.openPhotoViewer('${q.imageKey}')">
+            <img class="qb-card-img" src="${q.imageKey}" alt="질문 사진" loading="lazy">
           </div>
-        `}
-        <div class="qb-card__subject-bar" style="background:linear-gradient(transparent, ${color}cc)">
-          ${hdr.label}
+        ` : ''}
+        <div class="qb-card-text">${q.title || ''}</div>
+        <div class="qb-card-bottom">
+          ${showChainBtn ? `<button class="qb-chain-btn" onclick="event.stopPropagation();_RM.openChainInput(${q.id})" title="연결 질문">▶</button>` : ''}
+          <button class="qb-resolve-btn ${isResolved ? 'resolved' : ''}"
+                  onclick="event.stopPropagation();_RM.toggleQuestionResolved(${q.id},'${q.status}')">
+            ${isResolved ? '✅ 해결완료' : '☐ 해결완료'}
+          </button>
         </div>
       </div>
+    `;
+  }
 
-      <div class="qb-card__body" onclick="_RM.viewMyQuestion(${q.id})">
-        <div class="qb-card__text">${q.title}</div>
+  // 펼침 상태
+  const detail = (state._qbDetailCache || {})[q.id];
+  const answers = detail?.answers || [];
+  const aiImproved = q.aiImproved || detail?.question?.ai_improved || null;
+  const aiExpanded = (state._aiImproveExpanded || {})[q.id];
+
+  return `
+    <div class="qb-card qb-card--expanded ${isResolved ? 'qb-card--resolved' : ''}"
+         data-qid="${q.id}"
+         style="border-color:${isResolved ? '#f59e0b' : color}40">
+      <div class="qb-card-top" onclick="_RM.toggleQuestionExpand(${q.id})" style="cursor:pointer">
+        <div class="qb-card-tags">${subjectChip}${sourceChips}</div>
+        <span class="qb-card-time">${_formatTimeAgo(q.createdAt || q.date)}</span>
       </div>
 
-      ${_renderAiToggle(q)}
+      ${hasImage ? `
+        <div class="qb-card-img-wrap qb-card-img-wrap--full">
+          <img class="qb-card-img" src="${q.imageKey}" alt="질문 사진">
+          <button class="qb-photo-zoom-btn" onclick="event.stopPropagation();_RM.openPhotoViewer('${q.imageKey}')">🔍 확대</button>
+        </div>
+      ` : ''}
 
-      <div class="qb-card__actions">
-        ${q.answerCount > 0 ? `<span style="font-size:10px;color:#2dd4a8;margin-right:auto"><i class="fas fa-comment-dots"></i> 답변 ${q.answerCount}</span>` : '<span style="margin-right:auto"></span>'}
-        <button class="qb-card__action-btn ${isResolved ? 'qb-card__action-btn--resolved' : 'qb-card__action-btn--resolve'}" onclick="event.stopPropagation();_RM.toggleQuestionResolved(${q.id},'${q.status}')">
+      <div class="qb-card-text-full">${q.title || ''}</div>
+
+      ${_renderAnswerSection(q.id, answers, isResolved)}
+
+      ${_renderAiSection(q, aiImproved, aiExpanded)}
+
+      <div class="qb-card-bottom" style="margin-top:12px">
+        ${showChainBtn ? `<button class="qb-chain-btn" onclick="event.stopPropagation();_RM.openChainInput(${q.id})" title="연결 질문">▶</button>` : ''}
+        <button class="qb-resolve-btn ${isResolved ? 'resolved' : ''}"
+                onclick="event.stopPropagation();_RM.toggleQuestionResolved(${q.id},'${q.status}')">
           ${isResolved ? '✅ 해결완료' : '☐ 해결완료'}
         </button>
       </div>
@@ -360,259 +816,209 @@ function _renderCard(q, idx) {
   `;
 }
 
-/* ── 펜딩 카드 + 2단계 태그 선택 ── */
-function _renderPendingCard() {
-  const text = state._pendingQuestionText;
-  if (!text) return '';
-  const image = state._pendingQuestionImage;
-  const source = state._pendingQuestionSource;
-  const isStep2 = !!source;
-  const tags = isStep2 ? SUBJECT_TAGS : SOURCE_TAGS;
-  const handler = isStep2 ? 'selectQuestionSubject' : 'selectQuestionSource';
-  const srcTag = isStep2 ? SOURCE_TAGS.find(t => t.value === source) : null;
-  const stepLabel = isStep2
-    ? (srcTag ? srcTag.icon : '💭') + ' ' + source + ' 선택됨 → 과목을 선택하세요'
-    : '출처를 선택하세요';
+/* ── 답변 영역 ── */
+function _renderAnswerSection(qId, answers, isResolved) {
+  const isEditing = state._qbAnswerEditing === qId;
+  const editingAnswerId = state._qbEditingAnswerId;
 
-  return `
-    <div style="grid-column:1/-1;margin-bottom:4px">
-      <div class="qb-card" style="border:2px dashed rgba(108,92,231,0.4);opacity:0.85">
-        ${image ? `
-          <div class="qb-card__img-wrap">
-            <img class="qb-card__img" src="${image}" alt="첨부 사진">
+  let html = `<div class="qb-answer-section">`;
+  html += `<div class="qb-answer-divider"><span>나의 답변</span></div>`;
+
+  if (answers.length === 0 && !isEditing) {
+    html += `
+      <div class="qb-answer-empty">아직 답변이 없습니다</div>
+      <button class="qb-answer-write-btn" onclick="event.stopPropagation();_RM.showAnswerInput(${qId})">
+        <i class="fas fa-pen" style="margin-right:6px"></i>답변 작성하기
+      </button>
+    `;
+  } else {
+    // 기존 답변 표시
+    for (const a of answers) {
+      if (editingAnswerId === a.id && isEditing) {
+        // 수정 모드
+        html += `
+          <div class="qb-answer-card qb-answer-card--editing">
+            <textarea id="qb-answer-textarea" class="qb-answer-textarea" rows="3">${a.content || ''}</textarea>
+            <div class="qb-answer-actions">
+              <button class="qb-answer-cancel" onclick="event.stopPropagation();_RM.cancelAnswer()">취소</button>
+              <button class="qb-answer-save" onclick="event.stopPropagation();_RM.updateAnswer(${qId},${a.id})">수정 저장</button>
+            </div>
           </div>
-        ` : ''}
-        <div class="qb-card__body">
-          <div class="qb-card__text">${text !== '(사진 질문)' ? text : ''}</div>
+        `;
+      } else {
+        // content를 안전하게 HTML attribute에 넣기 위해 인코딩
+        const safeContent = (a.content || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+        html += `
+          <div class="qb-answer-card">
+            <div class="qb-answer-content">${(a.content || '').replace(/\n/g, '<br>')}</div>
+            <div class="qb-answer-meta">
+              <span>${_formatTimeAgo(a.created_at)}</span>
+              <div class="qb-answer-btns">
+                <button data-content="${safeContent}" onclick="event.stopPropagation();_RM.editAnswer(${qId},${a.id},this.dataset.content)" class="qb-answer-edit-btn">수정</button>
+                <button onclick="event.stopPropagation();_RM.deleteAnswer(${qId},${a.id})" class="qb-answer-delete-btn">삭제</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // 새 답변 입력
+    if (isEditing && !editingAnswerId) {
+      html += `
+        <div class="qb-answer-card qb-answer-card--editing">
+          <textarea id="qb-answer-textarea" class="qb-answer-textarea" placeholder="답변을 적어보세요..." rows="3"></textarea>
+          <div class="qb-answer-actions">
+            <button class="qb-answer-cancel" onclick="event.stopPropagation();_RM.cancelAnswer()">취소</button>
+            <button class="qb-answer-save" onclick="event.stopPropagation();_RM.submitAnswer(${qId})">답변 저장</button>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;justify-content:center">
-        ${tags.map(t => `
-          <button onclick="_RM.${handler}('${t.value}')" style="
-            padding:5px 12px;border-radius:20px;border:1px solid var(--border);
-            background:var(--card-bg);color:var(--text-primary);
-            font-size:12px;cursor:pointer;white-space:nowrap;transition:all 0.15s;
-          ">${t.icon}${t.value}</button>
-        `).join('')}
-      </div>
-      <div style="text-align:center;font-size:10px;color:var(--text-muted);margin-top:6px">
-        ${stepLabel} (3초 후 자동 '기타')
-      </div>
-    </div>
-  `;
+      `;
+    } else if (!isEditing && answers.length > 0) {
+      html += `
+        <button class="qb-answer-write-btn qb-answer-write-btn--small" onclick="event.stopPropagation();_RM.showAnswerInput(${qId})">
+          <i class="fas fa-plus" style="margin-right:4px"></i>답변 추가
+        </button>
+      `;
+    }
+  }
+
+  html += `</div>`;
+  return html;
 }
 
-/* ── 사진 프리뷰 오버레이 ── */
-function _renderPhotoPreview() {
-  const src = state._questionPhotoPreview;
-  if (!src) return '';
+/* ── AI 추천 질문 영역 ── */
+function _renderAiSection(q, aiImproved, aiExpanded) {
   return `
-    <div style="
-      position:absolute;bottom:60px;left:0;right:0;
-      background:var(--card-bg);border-top:1px solid var(--border);
-      padding:12px 16px;z-index:50;
-    ">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="position:relative;flex-shrink:0">
-          <img src="${src}" style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid var(--border)">
-          <button onclick="_RM.cancelPhotoPreview()" style="
-            position:absolute;top:-6px;right:-6px;width:20px;height:20px;
-            border-radius:50%;background:rgba(0,0,0,0.7);color:#fff;border:none;
-            font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-          ">&times;</button>
+    <div class="qb-ai-section">
+      <button class="qb-ai-toggle" onclick="event.stopPropagation();_RM.toggleAiImprove(${q.id})">
+        ✨ AI 추천 질문 보기 ${aiExpanded ? '▲' : '▼'}
+      </button>
+      ${aiExpanded ? `
+        <div class="qb-ai-content">
+          ${aiImproved
+            ? `<div class="qb-ai-improved">${aiImproved}</div>`
+            : `<div class="qb-ai-loading"><div class="rpt-btn-spinner" style="width:20px;height:20px;margin-right:8px"></div>AI가 질문을 고도화하고 있어요...</div>`
+          }
         </div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-          <input type="text" id="mq-photo-memo" placeholder="사진에 대한 질문을 적어보세요..." style="
-            width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);
-            background:var(--bg);color:var(--text-primary);font-size:13px;box-sizing:border-box;
-          ">
-          <button onclick="_RM.sendPhotoQuestion()" style="
-            align-self:flex-end;padding:6px 16px;border-radius:8px;border:none;
-            background:var(--primary);color:#fff;font-size:12px;font-weight:700;cursor:pointer;
-          ">보내기</button>
-        </div>
-      </div>
+      ` : ''}
     </div>
   `;
 }
 
-/* ── 하단 입력바 ── */
-function _renderInputBar() {
-  return `
-    <div style="
-      position:sticky;bottom:0;left:0;right:0;
-      background:var(--card-bg);border-top:1px solid var(--border);
-      padding:8px 10px;display:flex;align-items:center;gap:6px;
-      z-index:40;
-    ">
-      <label style="flex-shrink:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;background:rgba(108,92,231,0.1);color:var(--primary-light);font-size:14px">
-        📷
-        <input type="file" accept="image/*" capture="camera" style="display:none" onchange="_RM.handleQuestionCamera(this)">
-      </label>
-      <label style="flex-shrink:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;background:rgba(0,184,148,0.1);color:#00B894;font-size:14px">
-        🖼️
-        <input type="file" accept="image/*" style="display:none" onchange="_RM.handleQuestionGallery(this)">
-      </label>
-      <input type="text" id="mq-chat-input" placeholder="질문을 적어보세요..." onkeydown="_RM.sendQuestionOnEnter(event)" style="
-        flex:1;padding:8px 12px;border-radius:20px;border:1px solid var(--border);
-        background:var(--bg);color:var(--text-primary);font-size:13px;
-        outline:none;min-width:0;
-      ">
-      <button onclick="_RM.sendQuestion()" style="
-        flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;
-        background:var(--primary);color:#fff;font-size:13px;cursor:pointer;
-        display:flex;align-items:center;justify-content:center;
-      "><i class="fas fa-arrow-up"></i></button>
-    </div>
-  `;
-}
+/* ── 체인 렌더링 ── */
+function _renderChain(root) {
+  const { childrenMap } = _buildChainMap();
+  const children = childrenMap[root.id] || [];
 
-/* ── 질문 상세 (답변 스레드) ── */
-function _renderQuestionDetail() {
-  const detail = state._myQuestionDetail;
-  if (!detail) {
-    return `
-      <div style="text-align:center;padding:40px 0">
-        <div class="rpt-btn-spinner" style="width:28px;height:28px;margin:0 auto 10px"></div>
-        <p style="color:var(--text-muted);font-size:13px">로딩 중...</p>
+  if (children.length === 0 && state._chainInputParentId !== root.id) {
+    // 단독 질문 (입력 중 아님) — 기존 카드 + [▶] 버튼
+    return _renderCard(root, true);
+  }
+
+  // 체인 존재
+  const allInChain = [root, ...children];
+  const allResolved = allInChain.every(q => q.status === '답변완료');
+  const isExpanded = (state._chainExpandedIds || {})[root.id];
+  const showCount = isExpanded ? children.length : Math.min(children.length, 2);
+  const visibleChildren = children.slice(0, showCount);
+  const hiddenCount = children.length - showCount;
+
+  let html = `<div class="qb-chain ${allResolved ? 'qb-chain--all-resolved' : ''}">`;
+
+  // 루트 카드
+  html += _renderCard(root, true);
+
+  // 자식 카드들 (화살표 + 카드)
+  for (const child of visibleChildren) {
+    html += `<div class="qb-chain__arrow">▶</div>`;
+    html += _renderCard(child, true);
+  }
+
+  // 더보기 카드
+  if (hiddenCount > 0) {
+    html += `<div class="qb-chain__arrow">▶</div>`;
+    html += `
+      <button class="qb-chain__more" onclick="event.stopPropagation();_RM.expandChain(${root.id})">
+        <span class="qb-chain__more-num">+${hiddenCount}</span>
+        <span class="qb-chain__more-label">더보기</span>
+      </button>
+    `;
+  }
+
+  // 체인 입력 (이 체인 내 아무 카드에서 [▶] 클릭 시)
+  const chainIds = [root.id, ...children.map(c => c.id)];
+  if (chainIds.includes(state._chainInputParentId)) {
+    html += `<div class="qb-chain__arrow">▶</div>`;
+    html += `
+      <div class="qb-chain__input-card">
+        <textarea id="qb-chain-input" class="qb-chain__textarea" placeholder="연결 질문을 적어보세요..." rows="2"></textarea>
+        <div class="qb-chain__input-actions">
+          <button class="qb-chain__input-cancel" onclick="event.stopPropagation();_RM.cancelChainInput()">취소</button>
+          <button class="qb-chain__input-submit" onclick="event.stopPropagation();_RM.submitChainQuestion(${state._chainInputParentId})">등록</button>
+        </div>
       </div>
     `;
   }
 
-  const q = detail.question || detail;
-  const answers = detail.answers || [];
-  const isResolved = q.status === '답변완료';
-
-  const srcTag = SOURCE_TAGS.find(t => t.value === (q.source || q.subject));
-  const srcIcon = srcTag ? srcTag.icon : '💭';
-  const srcName = q.source || q.subject || '기타';
-  let headerLabel = srcIcon + ' ' + srcName;
-  if (q.source && q.subject && q.subject !== q.source) headerLabel += ' · ' + q.subject;
-  if (q.period) headerLabel += ' ' + q.period + '교시';
-
-  return `
-    <div style="flex:1;overflow-y:auto;padding:16px">
-      <div style="background:#1c2333;border-radius:14px;padding:16px;margin-bottom:16px;border:${isResolved ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)'}">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:11px">
-          <span style="font-weight:700;color:#8b949e">${headerLabel}</span>
-          <span style="color:#484f58">${q.date || _formatDate(q.created_at)}</span>
-          <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;${isResolved ? 'background:rgba(45,212,168,0.15);color:#2dd4a8' : 'background:rgba(255,107,107,0.15);color:#FF6B6B'}">
-            ${isResolved ? '✅ 해결완료' : '미해결'}
-          </span>
-        </div>
-        ${q.image_key ? `<img src="${q.image_key}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;margin-bottom:10px">` : ''}
-        <div style="font-size:15px;font-weight:700;color:#f0f6fc;line-height:1.6;word-break:break-word">${q.title || ''}</div>
-        ${q.content ? `<div style="margin-top:6px;font-size:13px;color:#8b949e;line-height:1.6;white-space:pre-wrap">${q.content}</div>` : ''}
-        ${q.ai_improved ? `
-          <div style="margin-top:10px;padding:10px;background:rgba(124,106,239,0.08);border-radius:8px;border-left:3px solid #7c6aef">
-            <div style="font-size:11px;color:#a78bfa;margin-bottom:4px">✨ 선생님께 이렇게 여쭤보세요:</div>
-            <div style="font-size:13px;color:#f0f6fc;line-height:1.6;font-weight:600">${q.ai_improved}</div>
-          </div>
-        ` : ''}
-      </div>
-
-      ${_renderDetailAnswers(answers)}
-    </div>
-
-    ${_renderAnswerInput(q.id)}
-  `;
-}
-
-function _renderDetailAnswers(answers) {
-  if (answers.length === 0) {
-    return '<div style="text-align:center;padding:24px 0;color:#484f58;font-size:13px">아직 답변이 없습니다</div>';
-  }
-  let html = `<div style="font-size:12px;font-weight:700;color:#8b949e;margin-bottom:8px">답변 ${answers.length}개</div>`;
-  for (const a of answers) {
-    html += `
-      <div style="background:#242d3d;border-radius:12px;padding:14px;margin-bottom:8px;border-left:3px solid #2dd4a8">
-        <div style="font-size:13px;color:#f0f6fc;line-height:1.6;white-space:pre-wrap">${a.content || ''}</div>
-        <div style="font-size:10px;color:#484f58;margin-top:8px">${_formatDate(a.created_at)}</div>
-      </div>`;
-  }
+  html += `</div>`;
   return html;
 }
 
-function _renderAnswerInput(questionId) {
-  return `
-    <div style="
-      border-top:1px solid rgba(255,255,255,0.08);padding:8px 12px;
-      display:flex;align-items:center;gap:8px;background:#1c2333;
-    ">
-      <input type="text" id="mq-answer-input" placeholder="답변이나 찾은 해답을 적어보세요..." onkeydown="if(event.key==='Enter'){event.preventDefault();_RM.submitMyAnswer(${questionId})}" style="
-        flex:1;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.08);
-        background:#0d1117;color:#f0f6fc;font-size:13px;outline:none;
-      ">
-      <button onclick="_RM.submitMyAnswer(${questionId})" style="
-        flex-shrink:0;padding:6px 14px;border-radius:20px;border:none;
-        background:#2dd4a8;color:#fff;font-size:12px;font-weight:700;cursor:pointer;
-      ">답변 +5</button>
+/* ── 날짜별 그룹 렌더링 ── */
+function _renderCardList(questions) {
+  if (questions.length === 0) {
+    const sourceFilter = state._qbSourceFilter;
+    const subjectFilter = state._myQuestionFilter || '전체';
+    const hasFilter = subjectFilter !== '전체' || !!sourceFilter;
+
+    return `
+      <div class="qb-empty">
+        <div class="qb-empty-icon">💬</div>
+        <p class="qb-empty-title">${hasFilter ? '조건에 맞는 질문이 없습니다' : '아직 질문이 없습니다'}</p>
+        <p class="qb-empty-desc">${hasFilter ? '다른 필터를 선택해보세요' : '+ 질문하기 버튼으로 첫 질문을 등록해보세요'}</p>
+      </div>
+    `;
+  }
+
+  const groups = _groupByDate(questions);
+
+  return groups.map(([dateKey, items]) => `
+    <div class="qb-date-group">
+      <div class="qb-date-divider">
+        <span class="qb-date-label">${_formatDateLabel(dateKey)}</span>
+        <span class="qb-date-line"></span>
+      </div>
+      <div class="qb-card-list">
+        ${items.map(q => _renderChain(q)).join('')}
+      </div>
     </div>
-  `;
+  `).join('');
 }
 
 /* ── 메인 렌더 ── */
 export function renderRecordQuestion() {
-  if (state._viewingMyQuestion) {
-    return `
-      <div class="full-screen animate-slide" style="display:flex;flex-direction:column">
-        <div class="screen-header" style="flex-shrink:0">
-          <button class="back-btn" onclick="_RM.backToQuestionList()"><i class="fas fa-arrow-left"></i></button>
-          <h1>❓ 질문 상세</h1>
-        </div>
-        ${_renderQuestionDetail()}
-      </div>
-    `;
+  // 질문 입력 화면
+  if (state._qbInputMode) {
+    return _renderQuestionInput();
   }
 
-  const allQuestions = state._myQuestions || [];
-  const filter = state._myQuestionFilter || '전체';
-  const questions = filter === '전체'
-    ? allQuestions
-    : allQuestions.filter(q => _getSubjectCategory(q.subject) === filter);
-  const filterTags = ['전체', ...SUBJECT_TAGS.map(t => t.value)];
+  // 목록 뷰 (카드 펼침 포함)
+  const sidebarOpen = !!state._qbSidebarOpen;
+  const questions = _getFilteredQuestions();
 
   return `
-    <div class="full-screen animate-slide" style="display:flex;flex-direction:column;position:relative">
-      <div class="screen-header" style="flex-shrink:0">
-        <button class="back-btn" onclick="_RM.nav('dashboard')"><i class="fas fa-arrow-left"></i></button>
-        <h1>❓ 나의 질문함</h1>
-        <span class="header-badge">${questions.length}개</span>
+    <div class="full-screen animate-slide qb-layout">
+      <div class="qb-sidebar ${sidebarOpen ? 'open' : ''}">
+        ${_renderSidebar()}
       </div>
-
-      ${_renderStats()}
-
-      <div style="padding:0 16px 8px;flex-shrink:0">
-        <div class="chip-row">
-          ${_renderFilterChips(filterTags, filter)}
+      <div class="qb-main">
+        ${_renderHeader()}
+        ${_renderSubjectFilter()}
+        <div class="qb-scroll-area">
+          ${_renderCardList(questions)}
         </div>
       </div>
-
-      <div style="flex:1;overflow-y:auto;padding:0 16px 16px">
-        ${questions.length === 0 && !state._pendingQuestionText ? `
-          <div style="text-align:center;padding:40px 20px;color:#484f58">
-            <div style="font-size:44px;margin-bottom:10px">💬</div>
-            <p style="font-size:14px;font-weight:600;color:#8b949e;margin-bottom:4px">궁금한 게 있으면 바로 적어보세요</p>
-            <p style="font-size:12px">아래 입력창에 질문을 입력하면 됩니다</p>
-          </div>
-        ` : `
-          <div class="qb-grid">
-            ${_renderPendingCard()}
-            ${questions.map((q, i) => _renderCard(q, i)).join('')}
-          </div>
-        `}
-      </div>
-
-      ${_renderPhotoPreview()}
-      ${_renderInputBar()}
     </div>
   `;
-}
-
-function _renderFilterChips(filterTags, activeFilter) {
-  return filterTags.map(f => {
-    const tag = SUBJECT_TAGS.find(t => t.value === f);
-    const label = tag ? tag.icon + f : f;
-    return `<button class="chip ${f === activeFilter ? 'active' : ''}" onclick="_RM.setMyQuestionFilter('${f}')">${label}</button>`;
-  }).join('');
 }

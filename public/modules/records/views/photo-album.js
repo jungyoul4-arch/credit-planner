@@ -1,11 +1,26 @@
 /* ================================================================
    Records Module — views/photo-album.js
    사진 앨범 — 인스타 스타일 그리드, 과목/태그 필터, 풀스크린 뷰어
+   태그: '필기' (AI 분석 대상) / '참고' (참고 사진)
    ================================================================ */
 
 import { state } from '../core/state.js';
 import { navigate } from '../core/router.js';
 import { tryParseJSON } from '../core/utils.js';
+
+// 기존 태그 → 필기/참고 매핑 (하위호환)
+function _normalizeTag(tag) {
+  if (tag === '필기') return '필기';
+  if (tag === '참고') return '참고';
+  // 레거시 태그 매핑
+  if (tag === 'note') return '필기';
+  return '참고'; // print, textbook, other → 참고
+}
+
+const TAG_LABELS = {
+  '필기': '📝 필기',
+  '참고': '📷 참고',
+};
 
 export function registerHandlers(RM) {
   RM.setAlbumFilter = (subject) => {
@@ -43,7 +58,8 @@ function _buildPhotoList() {
 
     photos.forEach((photo, i) => {
       const photoUrl = typeof photo === 'string' ? photo : (photo.dataUrl || photo);
-      const tag = tags[i] || 'note';
+      const rawTag = tags[i] || 'note';
+      const tag = _normalizeTag(rawTag);
 
       if (tagFilter !== '전체' && tag !== tagFilter) return;
 
@@ -118,13 +134,12 @@ function _renderViewerContent() {
 
   const total = _viewerState.allPhotos.length;
   const current = _viewerState.currentIdx + 1;
-  const tagLabels = { note: '📝 노트', print: '📄 프린트', textbook: '📚 교과서', other: '📎 기타' };
 
   container.innerHTML = `
     <img src="${photo.photoUrl}" style="max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px">
     <div class="pa-viewer-info">
       <span>${photo.subject} · ${photo.date}</span>
-      <span>${tagLabels[photo.tag] || photo.tag}</span>
+      <span>${TAG_LABELS[photo.tag] || photo.tag}</span>
       <span>${current}/${total}</span>
     </div>
     ${photo.topic ? `<div class="pa-viewer-topic">${photo.topic}</div>` : ''}
@@ -156,10 +171,8 @@ export function renderPhotoAlbum() {
 
   const tagTabs = [
     { value: '전체', label: '전체' },
-    { value: 'note', label: '📝 노트' },
-    { value: 'print', label: '📄 프린트' },
-    { value: 'textbook', label: '📚 교과서' },
-    { value: 'other', label: '📎 기타' },
+    { value: '필기', label: '📝 필기' },
+    { value: '참고', label: '📷 참고' },
   ].map(t => `
     <button class="pa-filter-tab pa-tag-tab ${tagFilter === t.value ? 'active' : ''}" onclick="_RM.setAlbumTagFilter('${t.value}')">${t.label}</button>
   `).join('');
@@ -191,6 +204,7 @@ export function renderPhotoAlbum() {
                 <div class="pa-grid-item" onclick="_RM.openAlbumPhoto(${p.recordId}, ${p.photoIdx})">
                   <img src="${p.photoUrl}" alt="${p.subject}" loading="lazy">
                   ${p.hasAiLog ? '<span class="pa-ai-badge">AI</span>' : ''}
+                  <span class="pa-tag-badge pa-tag-${p.tag === '필기' ? 'note' : 'ref'}">${TAG_LABELS[p.tag] || p.tag}</span>
                 </div>
               `).join('')}
             </div>

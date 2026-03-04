@@ -430,6 +430,7 @@ export const DB = {
           source: q.source || null,
           period: q.period || null,
           date: q.date || null,
+          parentId: q.parent_id || null,
           answerCount: q.answer_count || 0,
           createdAt: q.created_at || '',
         }));
@@ -508,6 +509,28 @@ export const DB = {
       }
     } catch (e) { console.error('saveMyAnswer:', e); }
     return null;
+  },
+
+  async updateMyAnswer(questionId, answerId, content) {
+    try {
+      const res = await fetch(`/api/my-questions/${questionId}/answer/${answerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, studentId: studentId() }),
+      });
+      if (res.ok) return true;
+    } catch (e) { console.error('updateMyAnswer:', e); }
+    return false;
+  },
+
+  async deleteMyAnswer(questionId, answerId) {
+    try {
+      const res = await fetch(`/api/my-questions/${questionId}/answer/${answerId}?studentId=${studentId()}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) return true;
+    } catch (e) { console.error('deleteMyAnswer:', e); }
+    return false;
   },
 
   async resolveMyQuestion(questionId, resolved) {

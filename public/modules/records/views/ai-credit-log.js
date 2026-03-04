@@ -33,10 +33,19 @@ async function runAnalysis() {
   const photos = state._classPhotos || [];
   const tags = state._classPhotoTags || [];
 
-  const images = photos.map((p, i) => ({
+  // 필기 노트(태그='필기')만 AI에 전송, 참고 사진은 제외
+  const notePhotos = photos.filter((_, i) => tags[i] === '필기');
+  if (notePhotos.length === 0) {
+    state._aiAnalyzing = false;
+    state._aiAnalysisStep = 'error';
+    navigate(state.currentScreen, { replace: true });
+    return;
+  }
+
+  const images = notePhotos.map(p => ({
     base64: p,
     mimeType: 'image/jpeg',
-    tag: tags[i] || 'note'
+    tag: '필기'
   }));
 
   try {
@@ -115,6 +124,9 @@ async function saveCreditLog() {
   const photos = state._classPhotos || [];
   const tags = state._classPhotoTags || [];
 
+  // 태그 정규화: 기존 값도 필기/참고로 매핑
+  const normalizedTags = tags.map(t => t === '필기' ? '필기' : '참고');
+
   const recordId = await DB.saveClassRecord({
     subject,
     date,
@@ -127,7 +139,7 @@ async function saveCreditLog() {
     photos,
     teacher_note: log.highlights || '',
     ai_credit_log: log,
-    photo_tags: tags,
+    photo_tags: normalizedTags,
   });
 
   // 과제 자동 등록

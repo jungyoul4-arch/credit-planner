@@ -1,25 +1,17 @@
 /* ================================================================
    Records Module — views/photo-upload-v2.js
-   사진 업로드 강화 — 태그, 순서 변경, 리사이즈
+   사진 업로드 — 필기 노트(1장) + 참고 사진(14장) 2영역 분리
    ================================================================ */
 
 import { state } from '../core/state.js';
 import { navigate } from '../core/router.js';
 import { getSubjectColor } from '../core/utils.js';
 
-const TAG_OPTIONS = [
-  { value: 'note', label: '노트', icon: '📝' },
-  { value: 'print', label: '프린트', icon: '📄' },
-  { value: 'textbook', label: '교과서', icon: '📚' },
-  { value: 'other', label: '기타', icon: '📎' },
-];
-
 export function registerHandlers(RM) {
-  RM.handlePhotoUploadV2 = (input) => handlePhotoUpload(input);
-  RM.removePhotoV2 = (idx) => removePhoto(idx);
-  RM.setPhotoTag = (idx, tag) => setPhotoTag(idx, tag);
-  RM.movePhotoUp = (idx) => movePhoto(idx, -1);
-  RM.movePhotoDown = (idx) => movePhoto(idx, 1);
+  RM.handleNoteUpload = (input) => handleNoteUpload(input);
+  RM.removeNote = () => removeNote();
+  RM.handleRefUpload = (input) => handleRefUpload(input);
+  RM.removeRefPhoto = (idx) => removeRefPhoto(idx);
   RM.startAiAnalysis = () => startAiAnalysis();
   RM.skipToManualEntry = () => skipToManual();
 }
@@ -48,49 +40,87 @@ function resizeImage(file, maxWidth = 1200) {
   });
 }
 
-async function handlePhotoUpload(input) {
+// === 필기 노트 (1장만) ===
+async function handleNoteUpload(input) {
   if (!input.files || input.files.length === 0) return;
   if (!state._classPhotos) state._classPhotos = [];
   if (!state._classPhotoTags) state._classPhotoTags = [];
 
-  const remaining = 15 - state._classPhotos.length;
-  const files = Array.from(input.files).slice(0, remaining);
+  const file = input.files[0];
+  const dataUrl = await resizeImage(file);
 
-  for (const file of files) {
-    const dataUrl = await resizeImage(file);
-    state._classPhotos.push(dataUrl);
-    state._classPhotoTags.push('note');
+  // 기존 필기 노트가 있으면 교체
+  if (_hasNote()) {
+    state._classPhotos[0] = dataUrl;
+    state._classPhotoTags[0] = '필기';
+  } else {
+    // 맨 앞에 삽입
+    state._classPhotos.unshift(dataUrl);
+    state._classPhotoTags.unshift('필기');
   }
 
   input.value = '';
   navigate(state.currentScreen, { replace: true });
 }
 
-function removePhoto(idx) {
-  if (!state._classPhotos) return;
-  state._classPhotos.splice(idx, 1);
-  (state._classPhotoTags || []).splice(idx, 1);
+function removeNote() {
+  if (!_hasNote()) return;
+  state._classPhotos.splice(0, 1);
+  state._classPhotoTags.splice(0, 1);
   navigate(state.currentScreen, { replace: true });
 }
 
-function setPhotoTag(idx, tag) {
+// === 참고 사진 (여러 장) ===
+async function handleRefUpload(input) {
+  if (!input.files || input.files.length === 0) return;
+  if (!state._classPhotos) state._classPhotos = [];
   if (!state._classPhotoTags) state._classPhotoTags = [];
-  state._classPhotoTags[idx] = tag;
+
+  const maxRef = 14;
+  const currentRefCount = _getRefPhotos().length;
+  const remaining = maxRef - currentRefCount;
+  if (remaining <= 0) { input.value = ''; return; }
+
+  const files = Array.from(input.files).slice(0, remaining);
+
+  for (const file of files) {
+    const dataUrl = await resizeImage(file);
+    state._classPhotos.push(dataUrl);
+    state._classPhotoTags.push('참고');
+  }
+
+  input.value = '';
   navigate(state.currentScreen, { replace: true });
 }
 
-function movePhoto(idx, direction) {
+function removeRefPhoto(idx) {
+  // idx는 참고 사진 배열 내 인덱스. 실제 배열 인덱스 = offset + idx
+  const offset = _hasNote() ? 1 : 0;
+  const realIdx = offset + idx;
+  if (realIdx >= state._classPhotos.length) return;
+  state._classPhotos.splice(realIdx, 1);
+  state._classPhotoTags.splice(realIdx, 1);
+  navigate(state.currentScreen, { replace: true });
+}
+
+// === 헬퍼 ===
+function _hasNote() {
+  return (state._classPhotoTags || [])[0] === '필기';
+}
+
+function _getNotePhoto() {
+  return _hasNote() ? state._classPhotos[0] : null;
+}
+
+function _getRefPhotos() {
   const photos = state._classPhotos || [];
   const tags = state._classPhotoTags || [];
-  const newIdx = idx + direction;
-  if (newIdx < 0 || newIdx >= photos.length) return;
-
-  [photos[idx], photos[newIdx]] = [photos[newIdx], photos[idx]];
-  [tags[idx], tags[newIdx]] = [tags[newIdx], tags[idx]];
-  navigate(state.currentScreen, { replace: true });
+  const offset = _hasNote() ? 1 : 0;
+  return photos.slice(offset).map((p, i) => ({ dataUrl: p, tag: tags[offset + i] || '참고' }));
 }
 
 function startAiAnalysis() {
+  if (!_hasNote()) return;
   state._aiAnalyzing = true;
   state._aiAnalysisStep = 'analyzing';
   navigate('ai-loading');
@@ -107,27 +137,7 @@ function skipToManual() {
   navigate('record-class');
 }
 
-function _renderPhotoTile(photo, idx, tag) {
-  const tagObj = TAG_OPTIONS.find(t => t.value === tag) || TAG_OPTIONS[0];
-  const photos = state._classPhotos || [];
-
-  return `
-    <div class="pu-tile">
-      <img class="pu-tile-img" src="${photo}" alt="사진 ${idx + 1}">
-      <button class="pu-tile-delete" onclick="_RM.removePhotoV2(${idx})">&times;</button>
-      <div class="pu-tile-order">
-        ${idx > 0 ? `<button class="pu-order-btn" onclick="_RM.movePhotoUp(${idx})"><i class="fas fa-chevron-up"></i></button>` : ''}
-        ${idx < photos.length - 1 ? `<button class="pu-order-btn" onclick="_RM.movePhotoDown(${idx})"><i class="fas fa-chevron-down"></i></button>` : ''}
-      </div>
-      <div class="pu-tile-tag">
-        <select class="pu-tag-select" onchange="_RM.setPhotoTag(${idx}, this.value)">
-          ${TAG_OPTIONS.map(t => `<option value="${t.value}" ${t.value === tag ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('')}
-        </select>
-      </div>
-      <div class="pu-tile-num">${idx + 1}</div>
-    </div>`;
-}
-
+// === 렌더러 ===
 export function renderPhotoUpload() {
   const record = state.todayRecords[state._selectedPeriodIdx];
   const subject = record ? record.subject : '수업';
@@ -135,10 +145,10 @@ export function renderPhotoUpload() {
   const color = record ? record.color : getSubjectColor(subject);
   const teacher = record ? record.teacher : '';
 
-  const photos = state._classPhotos || [];
-  const tags = state._classPhotoTags || [];
-  const photoCount = photos.length;
-  const canStartAi = photoCount > 0;
+  const notePhoto = _getNotePhoto();
+  const refPhotos = _getRefPhotos();
+  const refCount = refPhotos.length;
+  const hasNote = !!notePhoto;
 
   return `
     <div class="full-screen animate-slide">
@@ -154,31 +164,71 @@ export function renderPhotoUpload() {
           <span class="period-badge">${period}교시</span>
         </div>
 
-        <div class="pu-instruction">
-          <div class="pu-instruction-icon">📸</div>
-          <div class="pu-instruction-text">
-            <strong>필기 노트, 프린트, 교과서</strong>를 촬영해주세요
-            <br><span style="color:var(--text-muted);font-size:12px">AI가 사진을 분석하여 수업 탐구 기록을 자동 정리합니다</span>
+        <!-- 필기 노트 영역 -->
+        <div class="pu-note-section">
+          <div class="pu-note-header">
+            <span class="pu-note-title">📝 필기 노트 촬영</span>
+            <span class="pu-note-subtitle">MY CREDIT LOG 양식</span>
           </div>
+          <div class="pu-note-desc">AI가 분석하여 수업 기록을 자동 정리합니다</div>
+
+          ${hasNote ? `
+            <div class="pu-note-preview">
+              <img class="pu-note-img" src="${notePhoto}" alt="필기 노트">
+              <div class="pu-note-done-badge">✅ 촬영 완료</div>
+              <div class="pu-note-actions">
+                <label class="pu-note-retake">
+                  다시 촬영
+                  <input type="file" accept="image/*" capture="environment" style="display:none" onchange="_RM.handleNoteUpload(this)">
+                </label>
+                <button class="pu-note-delete" onclick="_RM.removeNote()">✕ 삭제</button>
+              </div>
+            </div>
+          ` : `
+            <label class="pu-note-upload">
+              <i class="fas fa-camera" style="font-size:28px;margin-bottom:8px;color:#7c6aef"></i>
+              <span style="font-weight:600;color:#7c6aef">필기 노트 촬영하기</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-top:4px">1장만 촬영</span>
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="_RM.handleNoteUpload(this)">
+            </label>
+          `}
+          <div class="pu-note-hint">※ MY CREDIT LOG 양식에 손으로 작성한 필기만 촬영해주세요</div>
         </div>
 
-        <div class="pu-grid">
-          ${photos.map((p, i) => _renderPhotoTile(p, i, tags[i] || 'note')).join('')}
-          ${photoCount < 15 ? `
-          <label class="pu-add-tile">
-            <i class="fas fa-plus" style="font-size:24px;margin-bottom:4px"></i>
-            <span>${photoCount > 0 ? '추가' : '사진 추가'}</span>
-            <input type="file" accept="image/*" multiple style="display:none" onchange="_RM.handlePhotoUploadV2(this)">
-          </label>
-          ` : ''}
+        <!-- 구분선 -->
+        <div class="pu-divider"></div>
+
+        <!-- 참고 사진 영역 -->
+        <div class="pu-ref-section">
+          <div class="pu-ref-header">
+            <span class="pu-ref-title">📷 참고 사진</span>
+            <span class="pu-ref-optional">(선택)</span>
+          </div>
+          <div class="pu-ref-desc">교과서, 프린트, 칠판 등 참고 자료를 남겨보세요</div>
+
+          <div class="pu-ref-grid">
+            ${refPhotos.map((p, i) => `
+              <div class="pu-ref-tile">
+                <img class="pu-ref-tile-img" src="${p.dataUrl}" alt="참고 ${i + 1}">
+                <button class="pu-ref-tile-delete" onclick="_RM.removeRefPhoto(${i})">&times;</button>
+              </div>
+            `).join('')}
+            ${refCount < 14 ? `
+              <label class="pu-ref-add-tile">
+                <i class="fas fa-plus" style="font-size:20px;margin-bottom:4px"></i>
+                <span>${refCount > 0 ? '추가' : '사진 추가'}</span>
+                <input type="file" accept="image/*" multiple style="display:none" onchange="_RM.handleRefUpload(this)">
+              </label>
+            ` : ''}
+          </div>
+          <div class="pu-ref-count">${refCount}/14장</div>
         </div>
 
-        <div class="pu-photo-count">${photoCount}/15장</div>
-
+        <!-- 액션 버튼 -->
         <div class="pu-actions">
-          <button class="btn-primary pu-ai-btn ${canStartAi ? '' : 'disabled'}"
-                  onclick="${canStartAi ? '_RM.startAiAnalysis()' : ''}"
-                  ${canStartAi ? '' : 'disabled'}>
+          <button class="btn-primary pu-ai-btn ${hasNote ? '' : 'disabled'}"
+                  onclick="${hasNote ? '_RM.startAiAnalysis()' : ''}"
+                  ${hasNote ? '' : 'disabled'}>
             <i class="fas fa-magic" style="margin-right:8px"></i>AI 정리 시작
           </button>
           <button class="pu-skip-btn" onclick="_RM.skipToManualEntry()">

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기록 모듈 — Dev</title>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="records.css">
+  <style>
+    :root {
+      --bg: #0f1923;
+      --card-bg: #1a2634;
+      --border: rgba(255,255,255,0.08);
+      --text-primary: #e8eaed;
+      --text-secondary: #9aa0a6;
+      --text-muted: #5f6368;
+      --primary: #6C5CE7;
+      --primary-light: rgba(108,92,231,0.15);
+      --success: #00b894;
+      --warning: #fdcb6e;
+      --danger: #e17055;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: #111;
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px;
+    }
+    .ipad-frame {
+      width: 1194px;
+      height: 834px;
+      background: var(--bg);
+      border-radius: 24px;
+      border: 3px solid #333;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+    #records-root {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+    .dev-banner {
+      background: rgba(108,92,231,0.2);
+      border-bottom: 1px solid rgba(108,92,231,0.3);
+      padding: 6px 16px;
+      font-size: 11px;
+      color: #a29bfe;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .dev-banner button {
+      background: rgba(108,92,231,0.3);
+      border: 1px solid rgba(108,92,231,0.4);
+      color: #a29bfe;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="ipad-frame">
+    <div class="dev-banner">
+      <span>DEV MODE — iPad Pro 11" (1194×834)</span>
+      <button onclick="location.reload()">Reload</button>
+    </div>
+    <div id="records-root"></div>
+  </div>
+
+  <script type="module">
+    import RecordsModule from './records.js';
+
+    // 테스트용 시간표 데이터
+    const testTimetable = {
+      school: [
+        ['국어', '수학', '영어', '과학', '사회', '체육', '음악'],  // 월
+        ['영어', '국어', '수학', '과학', '체육', '사회'],          // 화
+        ['수학', '영어', '국어', '사회', '과학', '미술', '체육'],  // 수
+        ['국어', '수학', '영어', '과학', '사회'],                  // 목
+        ['영어', '수학', '국어', '체육', '과학', '사회'],          // 금
+      ],
+      teachers: {
+        '국어': '김선생', '수학': '이선생', '영어': '박선생',
+        '과학': '최선생', '사회': '정선생', '체육': '한선생',
+        '음악': '윤선생', '미술': '조선생',
+      },
+      subjectColors: {
+        '국어': '#e17055', '수학': '#0984e3', '영어': '#00b894',
+        '과학': '#6c5ce7', '사회': '#fdcb6e', '체육': '#00cec9',
+        '음악': '#fd79a8', '미술': '#fab1a0',
+      },
+      periodTimes: [
+        { start: '08:10', end: '09:00' },
+        { start: '09:10', end: '10:00' },
+        { start: '10:10', end: '11:00' },
+        { start: '11:10', end: '12:00' },
+        { start: '13:00', end: '13:50' },
+        { start: '14:00', end: '14:50' },
+        { start: '15:00', end: '15:50' },
+      ],
+    };
+
+    // 학생 ID 1(곽정율)로 초기화
+    RecordsModule.init({
+      container: '#records-root',
+      studentId: 1,
+      studentName: '곽정율',
+      timetable: testTimetable,
+      classmates: [],
+      standalone: true,
+      onXpEarned: (data) => console.log('[DEV] XP earned:', data),
+      onNavigate: (screen) => console.log('[DEV] Navigate:', screen),
+    });
+  </script>
+</body>
+</html>

@@ -163,6 +163,7 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 
 ### D1/SQLite 관련
 <!-- 실수 발생 시 아래에 추가 -->
+- [2026-03-05] ALTER TABLE 마이그레이션 후 SELECT * 확인: 컬럼 추가(parent_id 등) 후 `SELECT *`는 자동 포함되지만, 명시적 SELECT 필드 목록을 쓰는 쿼리가 있으면 새 컬럼 누락됨. 마이그레이션 후 관련 SELECT 쿼리 전수 점검
 
 
 ### API 관련
@@ -177,6 +178,7 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 
 ### 프론트엔드 관련
 <!-- 실수 발생 시 아래에 추가 -->
+- [2026-03-05] class-record-edit vs class-record-detail 상태 키 차이: `class-record-detail`은 `state._viewingDbRecord` (DB id) 사용, `class-record-edit`는 `state._editingClassRecordIdx` (todayRecords 인덱스) + `todayRecords[idx]._dbRecordId` 사용. 수정 화면으로 이동 시 반드시 todayRecords에 DB 데이터를 로드하고 `_editingClassRecordIdx`를 설정해야 함
 - [2026-03-03] 프로젝트 경로: `/jungyoul/` ≠ `/jungyoul-planapp/` → 작업 전 반드시 `jungyoul-planapp` 경로인지 확인. 비슷한 이름의 다른 폴더에서 작업하면 시간 낭비
 - [2026-03-03] 모듈 분리 시 CSS 스코핑: 독립 모듈 CSS는 반드시 `.records-module` 같은 래퍼 클래스로 스코핑. `@keyframes`도 접두사(`rm-`) 부여하여 호스트 앱과 충돌 방지
 - [2026-03-03] 인라인 onclick 네임스페이스: 독립 모듈의 인라인 핸들러는 `_RM.xxx()` 같은 전용 네임스페이스 사용. 글로벌 함수명(`saveClassRecordFromForm` 등)과 충돌 방지
@@ -192,6 +194,14 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 - [2026-03-04] 공유 로직 추출 시 import 정리: 인라인 로직을 유틸로 추출하면 기존 파일의 import가 불필요해짐. 추출 후 반드시 소비 파일의 미사용 import 확인 및 제거
 - [2026-03-04] AI 프롬프트에서 날짜 기반 계산 지시: AI에게 상대 날짜("다음 주 월요일")를 YYYY-MM-DD로 변환하라고 지시할 때, 반드시 fullPrompt에 오늘 날짜를 함께 전달해야 함. 현재 `날짜: ${date}` 형태로 이미 포함됨
 - [2026-03-04] 인라인 onclick에서 모듈 스코프 변수 접근 불가: `state._viewingDbRecord=...`처럼 모듈 내부 변수를 직접 참조하면 글로벌 스코프에서 undefined. 반드시 `_RM.state._viewingDbRecord=...`로 네임스페이스 경유 접근할 것
+- [2026-03-05] 인라인 onclick에 문자열 전달 시 XSS/파싱 위험: `onclick="_RM.fn(${JSON.stringify(content)})"` 패턴은 content에 `"` 등이 포함되면 HTML attribute가 깨짐. 대신 `data-content="${htmlEncode(content)}"` + `this.dataset.content`로 안전하게 전달할 것
+- [2026-03-05] 변수 중복 선언: 함수 앞부분에 검증 로직을 추가할 때, 아래쪽에 동일 이름의 `const` 변수가 있으면 SyntaxError 발생. 추가 전 함수 전체에서 같은 변수명이 있는지 확인할 것 (예: `const photo` 중복)
+- [2026-03-05] 렌더 함수 내 조건 분기 누락: `_renderChain`에서 자식이 0개면 바로 카드만 반환하면서 체인 입력 폼을 렌더링하지 않는 버그. 상태(`_chainInputParentId`)에 따라 입력 폼이 필요한 경우를 조건에 포함해야 함
+
+### 개발 서버 관련
+<!-- 실수 발생 시 아래에 추가 -->
+- [2026-03-05] 개발 서버 실행: `wrangler pages dev public`이 아니라 `npm run dev` (Vite)가 올바른 로컬 개발 서버. Vite가 src/index.tsx를 Functions로 처리함. `wrangler pages dev public`은 Functions shimming 없이 정적 파일만 서빙하므로 API 404 발생
+- [2026-03-05] 기록 모듈 테스트: 메인 앱(`/`)이 아니라 `/modules/records/dev.html`에서 기록 모듈 독립 테스트. 로그인 없이 바로 모듈 확인 가능. 경로를 `/dev.html`로 착각하지 말 것
 
 ### 배포/설정 관련
 <!-- 실수 발생 시 아래에 추가 -->
