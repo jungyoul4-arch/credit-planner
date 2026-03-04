@@ -590,7 +590,7 @@ function renderOnboardingWelcome() {
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
         <div class="onboarding-logo">
           <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
-          <h2>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.1</span></h2>
+          <h2>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.2</span></h2>
           <p>HS CreditPlanner</p>
         </div>
         <p style="text-align:center;color:var(--text-secondary);font-size:15px;line-height:1.8;margin-bottom:40px">
@@ -761,7 +761,7 @@ function renderLoginScreen() {
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center">
         <div class="onboarding-logo">
           <img src="/static/logo.png" alt="정율사관학원" class="onboarding-logo-img">
-          <h2>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.1</span></h2>
+          <h2>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.2</span></h2>
           <p>HS CreditPlanner</p>
         </div>
         <p style="text-align:center;color:var(--text-secondary);font-size:15px;line-height:1.8;margin-bottom:32px">
@@ -13201,7 +13201,7 @@ function renderDirectorDashboard() {
       <div style="display:flex;align-items:center;gap:14px">
         <img src="/static/logo.png" alt="정율사관학원" class="desk-header-logo">
         <div>
-          <h1>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.1</span> <span style="color:var(--accent)">원장</span></h1>
+          <h1>고교학점플래너 <span style="font-size:12px;color:var(--text-muted);font-weight:400">V 0.0.2</span> <span style="color:var(--accent)">원장</span></h1>
           <p style="font-size:13px;color:var(--text-secondary);margin-top:4px">정율고교학점데이터센터 | 498/500명</p>
         </div>
       </div>
