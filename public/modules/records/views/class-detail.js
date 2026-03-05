@@ -4,8 +4,10 @@
    ================================================================ */
 
 import { state } from '../core/state.js';
+import { DB } from '../core/api.js';
 import { kstToday, getSubjectColor, tryParseJSON, markKeywords, getAssignmentDisplayText } from '../core/utils.js';
 import { generateCreditLogPDF } from '../components/pdf-generator.js';
+import { render } from '../core/router.js';
 
 export function registerHandlers(RM) {
   RM.openPhotoZoom = (idx) => openPhotoZoom(idx);
@@ -111,9 +113,23 @@ function openPhotoZoom(photoIdx) {
   document.body.appendChild(overlay);
 }
 
+async function _resolvePhotosAsync(recordId, rawPhotos, cacheKey) {
+  try {
+    const resolved = await DB.resolvePhotos(rawPhotos);
+    state[cacheKey] = resolved;
+    render(); // 사진 로드 후 화면 재렌더
+  } catch (e) {
+    console.error('_resolvePhotosAsync:', e);
+  }
+}
+
 function _renderDetailCreditLog(log, dbId) {
   const questions = log.questions || [];
   const keywords = log.keywords || [];
+  const examConn = log.exam_connection || [];
+  const activeRecall = log.active_recall || [];
+  function nl2br(t) { return (t || '').replace(/\n/g, '<br>'); }
+
   return `
     <div class="cl-card" style="margin-top:16px">
       <div class="cl-title-section">
@@ -122,9 +138,14 @@ function _renderDetailCreditLog(log, dbId) {
       </div>
       ${log.topic ? `<div class="cl-section"><span class="cl-section-label">📖 단원 / 주제</span><div class="cl-section-value cl-handwriting">${log.topic}</div></div>` : ''}
       ${log.pages ? `<div class="cl-section"><span class="cl-section-label">📚 교과서</span><div class="cl-section-value cl-handwriting">${log.pages}</div></div>` : ''}
+      ${log.summary ? `<div class="cl-section cl-summary-section"><span class="cl-section-label">📋 수업 맥락 요약</span><div class="cl-section-value cl-handwriting">${nl2br(log.summary)}</div></div>` : ''}
+      ${examConn.length > 0 ? `<div class="cl-section cl-exam-section"><span class="cl-section-label">🎯 시험 연결 포인트</span><div class="cl-exam-list">${examConn.map((item, i) => '<div class="cl-exam-item"><span class="cl-exam-num">' + (i + 1) + '</span><span class="cl-exam-text">' + item + '</span></div>').join('')}</div></div>` : ''}
       ${log.highlights ? `<div class="cl-section cl-highlight-section"><span class="cl-section-label">⭐ 선생님 강조 포인트</span><div class="cl-section-value cl-handwriting">${markKeywords(log.highlights.replace(/\n/g, '<br>'), keywords)}</div></div>` : ''}
+      ${log.deep_dive ? `<div class="cl-section cl-deepdive-section"><span class="cl-section-label">🔬 핵심 논리 분석</span><div class="cl-section-value cl-handwriting">${nl2br(log.deep_dive)}</div></div>` : ''}
       ${keywords.length > 0 ? `<div class="cl-section"><span class="cl-section-label">🔑 핵심 키워드</span><div class="cl-keywords">${keywords.map(k => '<span class="cl-keyword-chip">' + k + '</span>').join('')}</div></div>` : ''}
       ${questions.length > 0 ? `<div class="cl-section cl-questions-section"><span class="cl-section-label">💡 세특 소재 질문</span>${questions.map((q, i) => '<div class="cl-question-pair"><div class="cl-question-num">Q' + (i + 1) + '</div><div class="cl-question-body"><div class="cl-question-original"><span class="cl-q-label">💬 내가 쓴 질문</span><p>' + (q.original || '') + '</p></div><div class="cl-question-improved"><span class="cl-q-label">✨ 선생님께 이렇게 여쭤보세요</span><p>' + markKeywords(q.improved || '', keywords) + '</p></div></div></div>').join('')}</div>` : ''}
+      ${activeRecall.length > 0 ? `<div class="cl-section cl-recall-section"><span class="cl-section-label">🧠 메타인지 자극 질문</span><div class="cl-recall-list">${activeRecall.map((item, i) => '<div class="cl-recall-item"><div class="cl-recall-q" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'flex\':\'none\'"><span class="cl-recall-icon">Q</span><span class="cl-recall-text">' + item.question + '</span><i class="fas fa-chevron-down cl-recall-toggle"></i></div><div class="cl-recall-a" style="display:none"><span class="cl-recall-a-icon">A</span><span>' + item.answer + '</span></div></div>').join('')}</div><div class="cl-recall-hint">질문을 탭하면 답을 확인할 수 있어요</div></div>` : ''}
+      ${log.teacher_insight ? `<div class="cl-section cl-insight-section"><span class="cl-section-label">📝 세특 관찰 코멘트</span><div class="cl-insight-box">${nl2br(log.teacher_insight)}</div></div>` : ''}
       ${log.assignment ? `<div class="cl-section cl-assignment-section"><span class="cl-section-label">📌 과제</span><div class="cl-section-value cl-handwriting">${getAssignmentDisplayText(log.assignment)}</div></div>` : ''}
     </div>
     <button class="cl-pdf-btn" onclick="_RM.downloadDetailPDF('${dbId}')" style="width:100%;margin-top:12px">
@@ -140,20 +161,26 @@ export function renderClassRecordDetail() {
     const idx = state._viewingTodayRecordIdx;
     const r = state.todayRecords[idx];
     if (r && r.done) {
-      record = {
-        subject: r.subject, date: kstToday(),
-        topic: r._topic || '', pages: r._pages || '',
-        keywords: r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []),
-        photos: r._photos || [], teacher_note: r._teacherNote || '',
-        memo: JSON.stringify({ period: r.period }),
-        teacher: r.teacher || '', color: r.color || '#636e72',
-        period: r.period, startTime: r.startTime, endTime: r.endTime,
-        question: r.question,
-        _assignmentText: r._assignmentText || '',
-        _assignmentDue: r._assignmentDue || '',
-        _todayIdx: idx,
-      };
-      fromToday = true;
+      // DB에 저장된 기록이 있으면 DB 데이터 우선 사용
+      if (r._dbRecordId) {
+        state._viewingDbRecord = r._dbRecordId;
+        fromToday = true; // 편집 버튼 등 today UI 유지
+      } else {
+        record = {
+          subject: r.subject, date: kstToday(),
+          topic: r._topic || '', pages: r._pages || '',
+          keywords: r._keywords || (r.summary ? r.summary.split(', ').filter(k => k) : []),
+          photos: r._photos || [], teacher_note: r._teacherNote || '',
+          memo: JSON.stringify({ period: r.period }),
+          teacher: r.teacher || '', color: r.color || '#636e72',
+          period: r.period, startTime: r.startTime, endTime: r.endTime,
+          question: r.question,
+          _assignmentText: r._assignmentText || '',
+          _assignmentDue: r._assignmentDue || '',
+          _todayIdx: idx,
+        };
+        fromToday = true;
+      }
     }
   }
 
@@ -164,12 +191,24 @@ export function renderClassRecordDetail() {
       const aiLog = dbRec.ai_credit_log
         ? (typeof dbRec.ai_credit_log === 'string' ? tryParseJSON(dbRec.ai_credit_log, null) : dbRec.ai_credit_log)
         : null;
+      const rawPhotos = Array.isArray(dbRec.photos) ? dbRec.photos : [];
+      // ref:ID 사진이면 캐시된 해석 결과 사용, 없으면 비동기 로드 트리거
+      const hasRefs = rawPhotos.some(p => typeof p === 'string' && p.startsWith('ref:'));
+      const cacheKey = `_resolvedPhotos_${dbRec.id}`;
+      let photos = rawPhotos;
+      if (hasRefs && state[cacheKey]) {
+        photos = state[cacheKey];
+      } else if (hasRefs) {
+        photos = []; // 아직 로딩 중 — 빈 상태로 렌더 후 비동기 로드
+        _resolvePhotosAsync(dbRec.id, rawPhotos, cacheKey);
+      }
       record = {
         subject: dbRec.subject, date: dbRec.date,
         topic: dbRec.topic || dbRec.content || '',
         pages: dbRec.pages || memo.pages || '',
         keywords: Array.isArray(dbRec.keywords) ? dbRec.keywords : [],
-        photos: Array.isArray(dbRec.photos) ? dbRec.photos : [],
+        photos,
+        photo_count: dbRec.photo_count || rawPhotos.length,
         teacher_note: dbRec.teacher_note || memo.teacherNote || '',
         memo: dbRec.memo, period: memo.period || '', color: '#636e72', _dbId: dbRec.id,
         ai_credit_log: aiLog,
@@ -237,11 +276,11 @@ export function renderClassRecordDetail() {
           </div>
         </div>` : ''}
 
-        ${photos.length > 0 ? `
+        ${(photos.length > 0 || (record.photo_count && record.photo_count > 0)) ? `
         <div class="detail-photo-section">
           <div class="detail-photo-header">
             <span class="detail-photo-label">📸 필기 사진</span>
-            <span class="detail-photo-count">${photos.length}장</span>
+            <span class="detail-photo-count">${photos.length > 0 ? photos.length : record.photo_count}장${photos.length === 0 && record.photo_count > 0 ? ' (로딩 중...)' : ''}</span>
           </div>
           <div class="detail-gallery-wrap">
             <div class="detail-gallery-scroll" id="detailGalleryScroll">

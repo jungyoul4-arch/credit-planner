@@ -21,22 +21,26 @@ export const DB = {
       const res = await fetch(`/api/student/${sid}/class-records`);
       if (res.ok) {
         const data = await res.json();
-        state._dbClassRecords = (data.records || []).map(r => ({
-          id: r.id,
-          subject: r.subject,
-          date: r.date,
-          content: r.content,
-          keywords: tryParseJSON(r.keywords, []),
-          understanding: r.understanding,
-          memo: r.memo,
-          topic: r.topic || '',
-          pages: r.pages || '',
-          photos: tryParseJSON(r.photos, []),
-          teacher_note: r.teacher_note || '',
-          ai_credit_log: tryParseJSON(r.ai_credit_log, null),
-          photo_tags: tryParseJSON(r.photo_tags, []),
-          created_at: r.created_at || '',
-        }));
+        state._dbClassRecords = (data.records || []).map(r => {
+          const photos = tryParseJSON(r.photos, []);
+          return {
+            id: r.id,
+            subject: r.subject,
+            date: r.date,
+            content: r.content,
+            keywords: tryParseJSON(r.keywords, []),
+            understanding: r.understanding,
+            memo: r.memo,
+            topic: r.topic || '',
+            pages: r.pages || '',
+            photos,
+            photo_count: r.photo_count || photos.length || 0,
+            teacher_note: r.teacher_note || '',
+            ai_credit_log: tryParseJSON(r.ai_credit_log, null),
+            photo_tags: tryParseJSON(r.photo_tags, []),
+            created_at: r.created_at || '',
+          };
+        });
       }
     } catch (e) { console.error('loadClassRecords:', e); }
   },
@@ -50,6 +54,10 @@ export const DB = {
       // ai_credit_log, photo_tags 전달
       if (recordData.ai_credit_log) recordToSave.ai_credit_log = recordData.ai_credit_log;
       if (recordData.photo_tags) recordToSave.photo_tags = recordData.photo_tags;
+      // 메인 레코드에는 base64 사진을 저장하지 않음 (별도 업로드)
+      // photo_count만 저장하여 응답 크기 축소
+      recordToSave.photos = [];
+      recordToSave.photo_count = photosRaw.length;
 
       const res = await fetch(`/api/student/${sid}/class-records`, {
         method: 'POST',
@@ -60,14 +68,31 @@ export const DB = {
         const data = await res.json();
         const recordId = data.recordId;
 
+        // 사진은 별도 엔드포인트로 업로드 (R2 저장)
+        let uploadedPhotoIds = [];
         if (photosRaw.length > 0) {
           try {
-            await fetch(`/api/student/${sid}/class-record-photos`, {
+            const photoRes = await fetch(`/api/student/${sid}/class-record-photos`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ photos: photosRaw, classRecordId: recordId })
             });
+            if (photoRes.ok) {
+              const photoData = await photoRes.json();
+              uploadedPhotoIds = photoData.photoIds || [];
+            }
           } catch (pe) { console.error('saveClassRecordPhotos:', pe); }
+
+          // 메인 레코드에 사진 ID 참조 저장 (base64 대신)
+          if (uploadedPhotoIds.length > 0) {
+            try {
+              await fetch(`/api/student/class-records/${recordId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ photos: uploadedPhotoIds.map(id => `ref:${id}`) })
+              });
+            } catch (_) {}
+          }
         }
 
         try { await this.loadClassRecords(); } catch (_) {}
@@ -88,13 +113,50 @@ export const DB = {
     } catch (e) { console.error('updateClassRecord:', e); }
   },
 
+  // 사진 참조(ref:ID) → 실제 base64로 해석
+  async resolvePhotos(photos) {
+    if (!photos || !Array.isArray(photos) || photos.length === 0) return [];
+    const resolved = [];
+    for (const p of photos) {
+      if (typeof p === 'string' && p.startsWith('ref:')) {
+        const photoId = p.slice(4);
+        try {
+          const res = await fetch(`/api/photos/${photoId}`);
+          if (res.ok) {
+            const data = await res.json();
+            resolved.push(data.photoData || p);
+          } else {
+            resolved.push(p);
+          }
+        } catch (_) { resolved.push(p); }
+      } else if (typeof p === 'string' && p.startsWith('data:')) {
+        resolved.push(p); // 기존 base64 (레거시 호환)
+      } else {
+        resolved.push(p);
+      }
+    }
+    return resolved;
+  },
+
+  // 특정 수업 기록의 사진 목록 로드
+  async loadClassRecordPhotos(recordId) {
+    try {
+      const res = await fetch(`/api/class-records/${recordId}/photos`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.photos || [];
+      }
+    } catch (e) { console.error('loadClassRecordPhotos:', e); }
+    return [];
+  },
+
   // === AI Credit Log 분석 ===
-  async analyzePhotos(images, subject, period, date) {
+  async analyzePhotos(images, subject, period, date, studentComment) {
     try {
       const res = await fetch('/api/ai/credit-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images, subject, period, date })
+        body: JSON.stringify({ images, subject, period, date, studentComment: studentComment || '' })
       });
       if (res.ok) {
         const data = await res.json();
@@ -511,12 +573,12 @@ export const DB = {
     return null;
   },
 
-  async updateMyAnswer(questionId, answerId, content) {
+  async updateMyAnswer(questionId, answerId, content, imageKey) {
     try {
       const res = await fetch(`/api/my-questions/${questionId}/answer/${answerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, studentId: studentId() }),
+        body: JSON.stringify({ content, imageKey: imageKey || null, studentId: studentId() }),
       });
       if (res.ok) return true;
     } catch (e) { console.error('updateMyAnswer:', e); }
@@ -543,6 +605,81 @@ export const DB = {
     } catch (e) { console.error('resolveMyQuestion:', e); }
   },
 
+  // === 아하 리포트 ===
+  async analyzeAhaReport(photos, subject, source, date) {
+    try {
+      const res = await fetch('/api/aha-report/analyze-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photos, subject, source, date })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (e) { console.error('analyzeAhaReport:', e); }
+    return null;
+  },
+
+  async getAhaFeedback(sections) {
+    try {
+      const res = await fetch('/api/aha-report/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sections)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.feedback || '';
+      }
+    } catch (e) { console.error('getAhaFeedback:', e); }
+    return '';
+  },
+
+  async saveAhaReport(data) {
+    const sid = studentId();
+    if (!sid) return null;
+    try {
+      const res = await fetch('/api/aha-report/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: sid, ...data })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        try { await this.loadAhaReports(); } catch (_) {}
+        return d.reportId || d.id;
+      }
+    } catch (e) { console.error('saveAhaReport:', e); }
+    return null;
+  },
+
+  async loadAhaReports() {
+    const sid = studentId();
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/student/${sid}/aha-reports`);
+      if (res.ok) {
+        const data = await res.json();
+        state._dbAhaReports = (data.reports || []).map(r => ({
+          ...r,
+          section_pa: r.section_pa || '[]',
+        }));
+      }
+    } catch (e) { console.error('loadAhaReports:', e); }
+  },
+
+  async getAhaReportDetail(id) {
+    try {
+      const res = await fetch(`/api/aha-report/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.report || data;
+      }
+    } catch (e) { console.error('getAhaReportDetail:', e); }
+    return null;
+  },
+
   // === 전체 로드 ===
   async loadAll() {
     await Promise.all([
@@ -555,6 +692,7 @@ export const DB = {
       this.loadAssignments(),
       this.loadMyQuestions(),
       this.loadMyQuestionStats(),
+      this.loadAhaReports(),
     ]);
   },
 };

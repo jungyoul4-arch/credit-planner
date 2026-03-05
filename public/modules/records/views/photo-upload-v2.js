@@ -14,6 +14,7 @@ export function registerHandlers(RM) {
   RM.removeRefPhoto = (idx) => removeRefPhoto(idx);
   RM.startAiAnalysis = () => startAiAnalysis();
   RM.skipToManualEntry = () => skipToManual();
+  RM.updateStudentComment = (value) => { state._studentComment = value; };
 }
 
 function resizeImage(file, maxWidth = 1200) {
@@ -120,7 +121,8 @@ function _getRefPhotos() {
 }
 
 function startAiAnalysis() {
-  if (!_hasNote()) return;
+  const photos = state._classPhotos || [];
+  if (photos.length === 0) return; // 사진이 최소 1장 필요 (필기 or 참고)
   state._aiAnalyzing = true;
   state._aiAnalysisStep = 'analyzing';
   navigate('ai-loading');
@@ -149,6 +151,7 @@ export function renderPhotoUpload() {
   const refPhotos = _getRefPhotos();
   const refCount = refPhotos.length;
   const hasNote = !!notePhoto;
+  const hasAnyPhoto = hasNote || refCount > 0;
 
   return `
     <div class="full-screen animate-slide">
@@ -224,11 +227,24 @@ export function renderPhotoUpload() {
           <div class="pu-ref-count">${refCount}/14장</div>
         </div>
 
+        <!-- 소감/궁금한 점 -->
+        <div class="pu-comment-section">
+          <div class="pu-comment-header">
+            <span class="pu-comment-title">💬 오늘 수업 소감</span>
+            <span class="pu-ref-optional">(선택)</span>
+          </div>
+          <div class="pu-comment-desc">수업 후 느낀 점이나 궁금한 점을 적어주세요. AI가 맞춤 피드백을 드려요!</div>
+          <textarea class="pu-comment-textarea"
+                    placeholder="예) 오늘 배운 개념이 어렵게 느껴졌어요 / 이 부분이 시험에 나올까요?"
+                    rows="3"
+                    oninput="_RM.updateStudentComment(this.value)">${state._studentComment || ''}</textarea>
+        </div>
+
         <!-- 액션 버튼 -->
         <div class="pu-actions">
-          <button class="btn-primary pu-ai-btn ${hasNote ? '' : 'disabled'}"
-                  onclick="${hasNote ? '_RM.startAiAnalysis()' : ''}"
-                  ${hasNote ? '' : 'disabled'}>
+          <button class="btn-primary pu-ai-btn ${hasAnyPhoto ? '' : 'disabled'}"
+                  onclick="${hasAnyPhoto ? '_RM.startAiAnalysis()' : ''}"
+                  ${hasAnyPhoto ? '' : 'disabled'}>
             <i class="fas fa-magic" style="margin-right:8px"></i>AI 정리 시작
           </button>
           <button class="pu-skip-btn" onclick="_RM.skipToManualEntry()">

@@ -52,15 +52,28 @@ function _buildAllRecords() {
     });
   });
 
-  // 탐구보고서
-  (state._dbReportRecords || []).forEach(r => {
+  // 아하리포트
+  (state._dbAhaReports || []).forEach(r => {
     items.push({
-      id: r.id, type: '탐구보고서', color: '#FF9F43',
+      id: r.id, type: '아하리포트', color: '#FF9F43',
       date: r.date || r.created_at?.slice(0, 10) || '',
       meta: r.subject || '',
-      text: r.title || r.topic || '',
+      text: r.section_sa || r.section_topic || '',
+      xp: '+15',
+      onclick: `_RM.viewAhaDetail(${r.id})`,
+    });
+  });
+
+  // 나의 질문
+  (state._myQuestions || []).forEach(q => {
+    const resolved = q.status === '답변완료';
+    items.push({
+      id: q.id, type: '나의질문', color: '#E056A0',
+      date: q.date || q.createdAt?.slice(0, 10) || '',
+      meta: `${q.subject || '기타'}${resolved ? ' · 해결완료' : ''}`,
+      text: q.title || '',
       xp: '+3',
-      onclick: `_RM.state.viewingReport='${r.id}';_RM.nav('report-project')`,
+      onclick: `_RM.goToQuestion(${q.id})`,
     });
   });
 
@@ -86,7 +99,7 @@ export function renderRecordHistory() {
   });
   const historyData = Object.values(grouped).slice(0, 10);
 
-  const tabs = ['전체', '수업', '교학상장', '창체', '탐구보고서'];
+  const tabs = ['전체', '수업', '교학상장', '창체', '아하리포트', '나의질문'];
 
   return `
     <div class="full-screen animate-slide">

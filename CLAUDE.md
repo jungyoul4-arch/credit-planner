@@ -164,6 +164,8 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 ### D1/SQLite 관련
 <!-- 실수 발생 시 아래에 추가 -->
 - [2026-03-05] ALTER TABLE 마이그레이션 후 SELECT * 확인: 컬럼 추가(parent_id 등) 후 `SELECT *`는 자동 포함되지만, 명시적 SELECT 필드 목록을 쓰는 쿼리가 있으면 새 컬럼 누락됨. 마이그레이션 후 관련 SELECT 쿼리 전수 점검
+- [2026-03-06] 새 컬럼 추가 후 INSERT/SELECT 동기화 + 마이그레이션 실행 필수: `photo_count` 컬럼을 INSERT에 추가했지만, 로컬 D1에 마이그레이션(`/api/migrate`)을 실행하지 않아 INSERT 자체가 실패. 새 컬럼 추가 시 반드시: ① ALTER TABLE 마이그레이션 코드 추가 → ② INSERT/SELECT 쿼리에 새 컬럼 반영 → ③ `/api/migrate` 호출하여 로컬 DB 스키마 적용 → ④ 동작 확인. 이 순서를 건너뛰면 저장 자체가 실패함
+- [2026-03-06] base64 사진을 메인 테이블에 저장하면 안됨: `class_records.photos`에 7장의 base64 사진(각 500KB~1MB)을 JSON으로 저장하면 단일 행이 수 MB. `loadClassRecords`로 200건 조회 시 응답이 거대해져 silent failure. 사진은 반드시 별도 테이블(class_record_photos) + R2에 저장하고, 메인 테이블에는 `ref:ID` 참조만 저장할 것
 
 
 ### API 관련
@@ -178,6 +180,7 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 
 ### 프론트엔드 관련
 <!-- 실수 발생 시 아래에 추가 -->
+- [2026-03-05] 모듈 init 시 파생 상태 빌드 누락: `state.timetable`을 저장했지만 `state.todayRecords`를 빌드하지 않아 "오늘은 수업이 없습니다" 표시. config 데이터를 state에 넣을 때, 그 데이터에서 파생되는 상태(todayRecords 등)도 반드시 init 시점에 빌드해야 함
 - [2026-03-05] class-record-edit vs class-record-detail 상태 키 차이: `class-record-detail`은 `state._viewingDbRecord` (DB id) 사용, `class-record-edit`는 `state._editingClassRecordIdx` (todayRecords 인덱스) + `todayRecords[idx]._dbRecordId` 사용. 수정 화면으로 이동 시 반드시 todayRecords에 DB 데이터를 로드하고 `_editingClassRecordIdx`를 설정해야 함
 - [2026-03-03] 프로젝트 경로: `/jungyoul/` ≠ `/jungyoul-planapp/` → 작업 전 반드시 `jungyoul-planapp` 경로인지 확인. 비슷한 이름의 다른 폴더에서 작업하면 시간 낭비
 - [2026-03-03] 모듈 분리 시 CSS 스코핑: 독립 모듈 CSS는 반드시 `.records-module` 같은 래퍼 클래스로 스코핑. `@keyframes`도 접두사(`rm-`) 부여하여 호스트 앱과 충돌 방지
@@ -189,7 +192,7 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 - [2026-03-04] ai-credit-log.js 다중 렌더러 export: `renderAiLoading` + `renderAiResult` 2개 렌더러를 export하여 SCREEN_MAP에 `ai-loading`과 `ai-result` 2개 화면 등록. assignment-list.js와 동일 패턴
 - [2026-03-04] `_classPhotos`와 `_classPhotoTags` 동기화: 사진 추가/삭제 시 두 배열을 반드시 동시에 조작해야 함. `_classPhotos.push()` 시 `_classPhotoTags.push('note')`, `splice(idx,1)` 시 양쪽 모두 실행. class-record.js, class-edit.js, photo-upload-v2.js 모두 해당
 - [2026-03-04] DB record의 `ai_credit_log` 타입 주의: DB에서 TEXT로 저장되어 로드 시 string일 수 있고, api.js의 `loadClassRecords`에서 `tryParseJSON`으로 파싱 후 object가 됨. 그러나 뷰에서 안전하게 `typeof === 'string'` 체크 + `tryParseJSON` 폴백 권장
-- [2026-03-04] Gemini 모델 버전 주의: 기존 `callGeminiWithFallback`은 `gemini-2.0-flash`, 새로 추가한 `callGeminiMultiImage`는 `gemini-2.5-flash` 사용. `gemini-3-flash`는 404 (모델 미존재), `gemini-3-flash-preview`만 존재하나 안정성 위해 `gemini-2.5-flash` 채택
+- [2026-03-06] Gemini 모델 버전 주의: OCR 전담 모델은 `gemini-3.1-flash` 사용. 기존 `callGeminiWithFallback`은 `gemini-2.0-flash`, `callGeminiMultiImage` 및 아하 리포트(analyze-v2, feedback)는 `gemini-3.1-flash` 사용. `gemini-2.5-flash`는 더 이상 사용하지 않음
 - [2026-03-04] AI 응답 필드 다형성: `assignment` 필드가 string/object/null 3가지 타입으로 올 수 있음. 백엔드에서 정규화하되, 프론트엔드에서도 `typeof` 분기 필수. `getAssignmentDisplayText()` 같은 공유 헬퍼로 통일 처리 권장
 - [2026-03-04] 공유 로직 추출 시 import 정리: 인라인 로직을 유틸로 추출하면 기존 파일의 import가 불필요해짐. 추출 후 반드시 소비 파일의 미사용 import 확인 및 제거
 - [2026-03-04] AI 프롬프트에서 날짜 기반 계산 지시: AI에게 상대 날짜("다음 주 월요일")를 YYYY-MM-DD로 변환하라고 지시할 때, 반드시 fullPrompt에 오늘 날짜를 함께 전달해야 함. 현재 `날짜: ${date}` 형태로 이미 포함됨
@@ -197,12 +200,18 @@ saveActivityLog()          → DB.updateActivityRecord() + DB.saveActivityLog()
 - [2026-03-05] 인라인 onclick에 문자열 전달 시 XSS/파싱 위험: `onclick="_RM.fn(${JSON.stringify(content)})"` 패턴은 content에 `"` 등이 포함되면 HTML attribute가 깨짐. 대신 `data-content="${htmlEncode(content)}"` + `this.dataset.content`로 안전하게 전달할 것
 - [2026-03-05] 변수 중복 선언: 함수 앞부분에 검증 로직을 추가할 때, 아래쪽에 동일 이름의 `const` 변수가 있으면 SyntaxError 발생. 추가 전 함수 전체에서 같은 변수명이 있는지 확인할 것 (예: `const photo` 중복)
 - [2026-03-05] 렌더 함수 내 조건 분기 누락: `_renderChain`에서 자식이 0개면 바로 카드만 반환하면서 체인 입력 폼을 렌더링하지 않는 버그. 상태(`_chainInputParentId`)에 따라 입력 폼이 필요한 경우를 조건에 포함해야 함
+- [2026-03-06] saveCreditLog 후 todayRecords에 _dbRecordId 미설정: `record.done = true`만 하고 `record._dbRecordId`를 설정하지 않으면, 이후 `_getDbRecordForPeriod()`가 DB에서 레코드를 못 찾을 때 `{ _virtual: true }` 반환 → 기록완료인데 빈 photo-upload로 이동하는 버그. 저장 후 반드시 `record._dbRecordId = recordId` 설정
+- [2026-03-06] _rebuildRecordsForDate()와 _buildTodayRecords() 로직 동기화: period-select.js의 `_rebuildRecordsForDate()`는 날짜별 시간표를 재구축하는데, records.js의 `_buildTodayRecords()`와 달리 DB 레코드를 확인하지 않아 항상 `done: false`. 같은 역할의 함수가 두 곳에 있으면 반드시 동일한 DB 조회 로직을 포함해야 함
+- [2026-03-06] 사진 저장 형식 변경 시 소비 뷰 전수 점검: `class_records.photos`를 base64 → `ref:ID` 참조로 변경했을 때, 사진을 직접 `<img src>`로 쓰는 모든 뷰(photo-album.js, class-detail.js, class-history.js)를 반드시 업데이트. `ref:ID`는 유효한 URL이 아니므로 깨진 이미지 표시됨. 데이터 형식 변경 시 해당 필드를 읽는 모든 파일을 Grep으로 찾아 전수 수정할 것
 
 ### 개발 서버 관련
 <!-- 실수 발생 시 아래에 추가 -->
 - [2026-03-05] 개발 서버 실행: `wrangler pages dev public`이 아니라 `npm run dev` (Vite)가 올바른 로컬 개발 서버. Vite가 src/index.tsx를 Functions로 처리함. `wrangler pages dev public`은 Functions shimming 없이 정적 파일만 서빙하므로 API 404 발생
 - [2026-03-05] 기록 모듈 테스트: 메인 앱(`/`)이 아니라 `/modules/records/dev.html`에서 기록 모듈 독립 테스트. 로그인 없이 바로 모듈 확인 가능. 경로를 `/dev.html`로 착각하지 말 것
-
+- [2026-03-06] Gemini 모델명 혼동 주의:
+  정확한 모델명: gemini-3.0-flash
+  잘못된 모델명: gemini-3.1-flash, gemini-3.2-flash, gemini-2.5-flash
+  → 3.0 이외 버전은 404 오류 발생. 절대 임의로 버전 변경 금지.
 ### 배포/설정 관련
 <!-- 실수 발생 시 아래에 추가 -->
 - [2026-03-04] `.dev.vars` 키 범위: 로컬 개발 시 `.dev.vars`에 필요한 API 키가 모두 있는지 확인. `callGeminiMultiImage`는 `GEMINI_API_KEY` + `OPENAI_API_KEY` 둘 다 필요 (Gemini 실패 시 OpenAI 폴백). 프로덕션은 `wrangler pages secret put`으로 별도 설정

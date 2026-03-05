@@ -8,6 +8,7 @@ import { state, getState, setState, resetState } from './core/state.js';
 import { events, EVENTS } from './core/events.js';
 import { DB } from './core/api.js';
 import { setContainer, registerView, navigate, goBack, render, setOnNavigate } from './core/router.js';
+import { kstNow, kstToday } from './core/utils.js';
 
 // ── Views ──
 import { registerHandlers as dashboardHandlers, renderDashboard } from './views/dashboard.js';
@@ -36,6 +37,9 @@ import { registerHandlers as periodSelectHandlers, renderPeriodSelect } from './
 import { registerHandlers as photoUploadV2Handlers, renderPhotoUpload } from './views/photo-upload-v2.js';
 import { registerHandlers as aiCreditLogHandlers, renderAiLoading, renderAiResult } from './views/ai-credit-log.js';
 import { registerHandlers as photoAlbumHandlers, renderPhotoAlbum } from './views/photo-album.js';
+import { registerHandlers as ahaInputHandlers, renderAhaInput } from './views/aha-report-input.js';
+import { registerHandlers as ahaResultHandlers, renderAhaLoading as renderAhaLoadingV2, renderAhaResult as renderAhaResultV2 } from './views/aha-report-result.js';
+import { registerHandlers as ahaListHandlers, renderAhaList, renderAhaDetail } from './views/aha-report-list.js';
 
 // ── Components ──
 import { initCarousel, initDetailGalleryScroll } from './components/photo-upload.js';
@@ -71,6 +75,11 @@ const SCREEN_MAP = {
   'ai-loading':            renderAiLoading,
   'ai-result':             renderAiResult,
   'photo-album':           renderPhotoAlbum,
+  'aha-input':             renderAhaInput,
+  'aha-loading':           renderAhaLoadingV2,
+  'aha-result':            renderAhaResultV2,
+  'aha-list':              renderAhaList,
+  'aha-detail':            renderAhaDetail,
 };
 
 // ── _RM 글로벌 네임스페이스 (인라인 onclick 핸들러) ──
@@ -95,6 +104,37 @@ const RM = {
   events,
   EVENTS,
 };
+
+// 오늘의 시간표 → todayRecords 빌드
+function _buildTodayRecords() {
+  const now = kstNow();
+  const dayIdx = now.getDay() - 1; // 0=월 ~ 4=금
+  if (dayIdx < 0 || dayIdx > 4) {
+    state.todayRecords = [];
+    return;
+  }
+  const tt = state.timetable || {};
+  const daySchedule = (tt.school || [])[dayIdx] || [];
+  const today = kstToday();
+  const dbRecords = state._dbClassRecords || [];
+
+  state.todayRecords = daySchedule.map((subject, i) => {
+    const period = i + 1;
+    // DB에서 오늘 날짜 + 같은 과목의 기록이 있으면 done 처리
+    const existing = dbRecords.find(r => r.date === today && r.subject === subject);
+    return {
+      period,
+      subject,
+      teacher: (tt.teachers || {})[subject] || '',
+      color: (tt.subjectColors || {})[subject] || '#636e72',
+      startTime: (tt.periodTimes || [])[i]?.start || '',
+      endTime: (tt.periodTimes || [])[i]?.end || '',
+      done: !!existing,
+      summary: existing ? (existing.topic || existing.content || '수업 기록 완료') : '',
+      _dbRecordId: existing ? existing.id : null,
+    };
+  });
+}
 
 // 모든 뷰의 핸들러 등록
 function _registerAllHandlers() {
@@ -124,6 +164,9 @@ function _registerAllHandlers() {
   photoUploadV2Handlers(RM);
   aiCreditLogHandlers(RM);
   photoAlbumHandlers(RM);
+  ahaInputHandlers(RM);
+  ahaResultHandlers(RM);
+  ahaListHandlers(RM);
 }
 
 // ── Public API ──
@@ -203,10 +246,18 @@ const RecordsModule = {
     initCarousel();
     initDetailGalleryScroll();
 
+    // 오늘의 시간표 → todayRecords 빌드
+    _buildTodayRecords();
+
     // 데이터 로드
     if (studentId) {
       DB.loadAll().then(() => {
+        // DB 로드 후 todayRecords done 상태 복원
+        _buildTodayRecords();
         events.emit(EVENTS.DATA_LOADED);
+        render();
+      }).catch(err => {
+        console.error('[RecordsModule] loadAll failed:', err);
         render();
       });
     } else {

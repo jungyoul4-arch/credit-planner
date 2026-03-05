@@ -37,7 +37,7 @@ export function renderReportProject() {
     <div class="full-screen animate-slide">
       <div class="screen-header">
         <button class="back-btn" onclick="_RM.nav('record-activity')"><i class="fas fa-arrow-left"></i></button>
-        <h1>💡 탐구보고서</h1>
+        <h1>💡 아하 리포트</h1>
       </div>
       <div class="form-body">
         <div class="rpt-header">
@@ -107,16 +107,16 @@ function renderReportProjectList() {
     <div class="full-screen animate-slide">
       <div class="screen-header">
         <button class="back-btn" onclick="_RM.nav('record-activity')"><i class="fas fa-arrow-left"></i></button>
-        <h1>💡 탐구보고서</h1>
+        <h1>💡 아하 리포트</h1>
       </div>
       <div class="form-body">
         ${reports.length === 0 ? `
           <div class="rpt-empty" style="padding:60px 20px">
             <div style="font-size:48px;margin-bottom:16px">📄</div>
-            <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px">아직 탐구보고서가 없어요</div>
-            <div style="font-size:13px;color:var(--text-muted)">창의적 체험활동에서 탐구보고서를 추가해보세요</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px">아직 아하 리포트가 없어요</div>
+            <div style="font-size:13px;color:var(--text-muted)">창의적 체험활동에서 아하 리포트를 추가해보세요</div>
             <button class="btn-primary" style="margin-top:16px;padding:10px 24px" onclick="_RM.nav('activity-add')">
-              + 새 탐구보고서 만들기
+              + 새 아하 리포트 만들기
             </button>
           </div>
         ` : reports.map(e => {
@@ -144,7 +144,7 @@ function renderReportProjectList() {
         }).join('')}
 
         <button class="rpt-add-float-btn" onclick="_RM.nav('activity-add')">
-          + 새 탐구보고서 만들기
+          + 새 아하 리포트 만들기
         </button>
       </div>
     </div>

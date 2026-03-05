@@ -86,8 +86,27 @@ const _initialState = {
   _aiAnalysisStep: '',
   _aiCreditLog: null,
   _aiCreditLogEditing: false,
+  _studentComment: '',
   _albumFilter: '전체',
   _albumTagFilter: '전체',
+
+  // 아하 리포트
+  _dbAhaReports: [],
+  _ahaPhotos: [],
+  _ahaPhotoTags: [],
+  _ahaSubject: '',
+  _ahaSource: '',
+  _ahaDate: '',
+  _ahaAnalyzing: false,
+  _ahaAnalysisStep: '',
+  _ahaResult: null,
+  _ahaEditing: false,
+  _ahaFeedback: null,
+  _ahaFeedbackLoading: false,
+  _ahaListFilter: '전체',
+  _viewingAhaId: null,
+  _ahaDetail: null,
+  _ahaDetailLoading: false,
 
   // 소급 기록
   _backfillDate: null,

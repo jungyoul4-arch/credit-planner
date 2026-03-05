@@ -142,50 +142,204 @@ async function callGeminiWithFallback(opts: {
 
 // ==================== Gemini 2.5 Flash 다중 이미지 헬퍼 ====================
 
+const GEMINI_MODEL = 'gemini-3-flash-preview'
+
+// 단일 이미지 OCR (병렬 처리용)
+async function callGeminiOcrSingle(geminiKey: string, image: { mime_type: string, data: string }, tag: string, index: number) {
+  const ocrPrompt = `이 사진(${tag})의 모든 텍스트를 정확히 읽어주세요. 수식은 LaTeX($...$) 변환. 줄바꿈 유지. 텍스트만 반환.`
+  const parts: any[] = [{ text: ocrPrompt }, { inline_data: image }]
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
+      })
+    }
+  )
+
+  if (!res.ok) throw new Error(`OCR 실패 (사진${index + 1}): ${res.status}`)
+  const data: any = await res.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+}
+
+// Sonnet 분석 호출 (텍스트 전용)
+async function callSonnetAnalysis(anthropicKey: string, systemPrompt: string, userPrompt: string, jsonMode: boolean = true, temperature: number = 0.3) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': anthropicKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8192,
+      temperature,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    })
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Sonnet 분석 실패 (${res.status}): ${err}`)
+  }
+
+  const data: any = await res.json()
+  return data.content[0].text
+}
+
 async function callGeminiMultiImage(opts: {
   geminiKey: string,
   openaiKey: string,
+  anthropicKey?: string,
+  systemPrompt?: string,
   prompt: string,
+  userContext?: string,
   images: Array<{ mime_type: string, data: string }>,
+  tags?: string[],
   jsonMode?: boolean,
   temperature?: number,
 }) {
-  const { geminiKey, openaiKey, prompt, images, jsonMode = true, temperature = 0.3 } = opts
+  const { geminiKey, openaiKey, anthropicKey, systemPrompt, prompt, userContext, images, tags = [], jsonMode = true, temperature = 0.3 } = opts
 
-  // Gemini 2.5 Flash 시도
+  // ================================================================
+  // 2단계 파이프라인: Gemini OCR (병렬) → Sonnet 분석
+  // ================================================================
+
+  // STEP 1: Gemini OCR — 모든 사진을 병렬로 텍스트 추출
+  let ocrText = ''
+  let ocrSuccess = false
+
   try {
-    const parts: any[] = [{ text: prompt }]
-    for (const img of images) {
-      parts.push({ inline_data: img })
-    }
+    console.log(`[OCR] ${images.length}장 사진 Gemini OCR 시작`)
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            temperature,
-            ...(jsonMode ? { responseMimeType: 'application/json' } : { maxOutputTokens: 4096 })
-          }
-        })
+    if (images.length >= 3) {
+      // 3장 이상: 병렬 OCR
+      const ocrPromises = images.map((img, i) =>
+        callGeminiOcrSingle(geminiKey, img, tags[i] || '노트', i)
+          .catch(e => { console.log(`OCR 사진${i + 1} 실패:`, e); return `(사진${i + 1} OCR 실패)` })
+      )
+      const ocrResults = await Promise.all(ocrPromises)
+      ocrText = ocrResults.map((text, i) => {
+        const tag = tags[i] || '노트'
+        const label = tag === '필기' ? '[Note_OCR]' : '[Reference_OCR]'
+        return `--- 사진${i + 1} ${label} ${tag} ---\n${text}`
+      }).join('\n\n')
+      ocrSuccess = true
+    } else {
+      // 1~2장: 한 번에 OCR
+      const parts: any[] = [
+        { text: '모든 사진의 텍스트를 정확히 읽어주세요. 수식은 LaTeX($...$) 변환. 줄바꿈 유지. 각 사진별로 구분해서 텍스트만 반환.' }
+      ]
+      for (const img of images) {
+        parts.push({ inline_data: img })
       }
-    )
-
-    if (geminiRes.ok) {
-      const data: any = await geminiRes.json()
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-      return { text, source: 'gemini-2.5-flash' }
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
+          })
+        }
+      )
+      if (geminiRes.ok) {
+        const data: any = await geminiRes.json()
+        const rawOcr = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+        ocrText = images.map((_, i) => {
+          const tag = tags[i] || '노트'
+          const label = tag === '필기' ? '[Note_OCR]' : '[Reference_OCR]'
+          return `--- 사진${i + 1} ${label} ${tag} ---`
+        }).join('\n') + '\n\n' + rawOcr
+        ocrSuccess = true
+      }
     }
-
-    console.log(`Gemini 2.5 Flash 실패 (${geminiRes.status}), OpenAI로 폴백`)
+    if (ocrSuccess) console.log(`[OCR] 완료 (${ocrText.length}자)`)
   } catch (e) {
-    console.log('Gemini 2.5 Flash 에러, OpenAI로 폴백:', e)
+    console.log('[OCR] Gemini OCR 실패:', e)
   }
 
-  // OpenAI 폴백 (이미지 없이 텍스트만)
+  // STEP 2: Sonnet 분석 (OCR 성공 + Anthropic 키 있을 때)
+  if (ocrSuccess && anthropicKey) {
+    try {
+      console.log('[분석] Sonnet 분석 시작')
+      const sysPrompt = systemPrompt || prompt
+      const usrPrompt = (userContext || '') + `\n\n=== OCR 결과 ===\n${ocrText}\n\n위 JSON 형식으로만 응답하세요.`
+      const text = await callSonnetAnalysis(anthropicKey, sysPrompt, usrPrompt, jsonMode, temperature)
+      console.log('[분석] Sonnet 분석 완료')
+      return { text, source: 'gemini-ocr+sonnet' }
+    } catch (e) {
+      console.log('[분석] Sonnet 실패, Gemini 분석으로 폴백:', e)
+    }
+  }
+
+  // STEP 2 폴백A: Gemini 자체 분석 (OCR 텍스트 있으면 텍스트만, 없으면 이미지 포함)
+  try {
+    if (ocrSuccess) {
+      console.log('[분석] Gemini 텍스트 분석 폴백')
+      const textPrompt = prompt + `\n\n=== OCR 결과 ===\n${ocrText}\n\n위 JSON 형식으로만 응답하세요.`
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: textPrompt }] }],
+            generationConfig: {
+              temperature,
+              ...(jsonMode ? { responseMimeType: 'application/json' } : { maxOutputTokens: 8192 })
+            }
+          })
+        }
+      )
+      if (geminiRes.ok) {
+        const data: any = await geminiRes.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+        return { text, source: `${GEMINI_MODEL}-fallback` }
+      }
+    } else {
+      // OCR도 실패: 이미지 직접 전송
+      console.log('[분석] Gemini 이미지 직접 분석 폴백')
+      const parts: any[] = [{ text: prompt }]
+      for (const img of images) {
+        parts.push({ inline_data: img })
+      }
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              temperature,
+              ...(jsonMode ? { responseMimeType: 'application/json' } : { maxOutputTokens: 4096 })
+            }
+          })
+        }
+      )
+      if (geminiRes.ok) {
+        const data: any = await geminiRes.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+        return { text, source: GEMINI_MODEL }
+      }
+    }
+    console.log(`${GEMINI_MODEL} 분석 실패, OpenAI로 폴백`)
+  } catch (e) {
+    console.log(`${GEMINI_MODEL} 에러, OpenAI로 폴백:`, e)
+  }
+
+  // STEP 2 폴백B: OpenAI (텍스트만)
+  const fallbackPrompt = ocrSuccess
+    ? prompt + `\n\n=== OCR 결과 ===\n${ocrText}\n\n위 JSON 형식으로만 응답하세요.`
+    : prompt
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -194,7 +348,7 @@ async function callGeminiMultiImage(opts: {
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: fallbackPrompt }],
       temperature,
       ...(jsonMode ? { response_format: { type: 'json_object' } } : {})
     })
@@ -202,7 +356,7 @@ async function callGeminiMultiImage(opts: {
 
   if (!openaiRes.ok) {
     const err = await openaiRes.text()
-    throw new Error(`OpenAI 폴백도 실패: ${err}`)
+    throw new Error(`모든 AI 폴백 실패: ${err}`)
   }
 
   const openaiData: any = await openaiRes.json()
@@ -212,69 +366,107 @@ async function callGeminiMultiImage(opts: {
 
 // ==================== MY CREDIT LOG 시스템 프롬프트 ====================
 
-const SYSTEM_PROMPT_CREDIT_LOG = `당신은 고등학생의 수업 필기 사진을 분석하여 "나의 수업 탐구 기록(MY CREDIT LOG)" 양식을 작성하는 AI입니다.
+const SYSTEM_PROMPT_CREDIT_LOG = `# Role
+당신은 [Subject] 분야의 최고 수준 일타강사이자 학습 코치입니다.
+선생님이 이 수업에서 무엇을 의도했는지 꿰뚫어 보고,
+이 내용이 시험에서 어떻게 출제되는지 정확히 알고 있습니다.
+학생의 날 것의 필기를 보며 놓친 핵심을 짚어주고,
+"아, 이래서 이걸 배우는 거구나"를 깨닫는 순간을 만드는 것이 목표입니다.
+교학상장(敎學相長) — 학생이 스스로 질문하고 성장하도록 돕습니다.
 
-## 분석 대상
-학생이 업로드한 사진들: 손글씨 필기 노트, 수업 프린트물, 교과서 페이지 등
+# Input Data
+- [Subject]: 과목명
+- [Student_Comment]: 학생이 입력한 오늘 수업 소감 / 궁금한 점 / 수업 후 느낀 점 (없을 수 있음)
+- [Note_OCR]: 필기 노트 OCR 텍스트 (MY CREDIT LOG 양식)
+- [Reference_OCR_1~N]: 참고사진 OCR 텍스트 (교과서/프린트/칠판 등, 없을 수 있음)
 
-## 작성 양식 (MY CREDIT LOG)
+# 수식 처리 규칙 (절대 예외 없음)
+다음에 해당하는 모든 표현을 LaTeX으로 변환한다:
 
-1. **단원/주제** (topic): 사진에서 단원명이나 수업 주제를 추출
-2. **교과서 쪽수** (pages): 교과서 페이지 범위 (예: p.84~89)
-3. **선생님 강조 포인트** (highlights): 밑줄, 별표, "중요", "시험 출제" 등 강조된 내용
-4. **핵심 키워드** (keywords): 최대 5개, 사진에서 추출 + AI 보충
-5. **세특 소재 질문** (questions): 3개, 학생의 필기에서 질문이 보이면 추출, 없으면 수업 내용 기반 생성
-6. **과제** (assignment): 사진에서 과제 관련 내용을 구조화하여 추출 (없으면 null)
+변환 대상:
+- 사칙연산: x+y, x-y, x*y, x/y
+- 거듭제곱: x², x³, x^n → $x^2$, $x^3$, $x^n$
+- 분수: a/b 형태 → $\\frac{a}{b}$
+- 루트: √x, √(a+b) → $\\sqrt{x}$, $\\sqrt{a+b}$
+- 방정식: ax²+bx+c=0 → $ax^2+bx+c=0$
+- 함수: f(x), sin(x), cos(x), log(x) → $f(x)$, $\\sin(x)$, $\\cos(x)$, $\\log(x)$
+- 극한: lim → $\\lim$
+- 적분: ∫ → $\\int$
+- 벡터: a→ → $\\vec{a}$
+- 집합: ∈, ∪, ∩ → $\\in$, $\\cup$, $\\cap$
+- 부등호: ≤, ≥ → $\\leq$, $\\geq$
+- 그리스 문자: α, β, θ, π → $\\alpha$, $\\beta$, $\\theta$, $\\pi$
 
-## 과제 추출 규칙
-- 사진에서 "과제", "숙제", "제출", "~까지", "~해오세요", "~해오기" 등 과제 관련 내용을 찾는다
-- 과제가 발견되면 아래 구조로 반환:
-  - title: 과제의 핵심을 간결하게 요약 (10~30자, 예: "3D 모델링 애니메이션 사례 조사")
-  - description: 과제의 전체 내용을 자연스러운 문장으로 정리
-  - dueDate: 아래에 제공되는 오늘 날짜를 기준으로 YYYY-MM-DD 형식으로 계산
-    - "3/9까지" → 현재 연도 기준으로 YYYY-03-09
-    - "다음 주 월요일" → 오늘 날짜 기준 계산
-    - 날짜를 특정할 수 없는 경우(예: "다음 수업시간") → 빈 문자열
-  - dueDateRaw: 사진에서 읽은 마감일 관련 원문 (날짜 계산의 근거)
-- 과제가 없으면 assignment 필드를 null로 설정
+규칙:
+1. 인라인 수식: $수식$ 형식 (문장 중간)
+2. 블록 수식: $$수식$$ 형식 (단독 줄)
+3. 텍스트에서 수학적 표현이 보이면 무조건 LaTeX으로 변환
+4. 절대 일반 텍스트로 수식을 출력하지 말 것
+5. 변환 예시: "x의 제곱" → $x^2$, "루트 2" → $\\sqrt{2}$, "a분의 b" → $\\frac{b}{a}$, "2x+3=7" → $2x+3=7$
 
-## 세특 소재 질문 고도화 규칙 (가장 중요!)
+# 공통 처리 규칙
+1. 학생 문장은 의미·의도를 보존하되 자연스럽고 품격 있게 다듬기
+2. 내용 없는 섹션은 빈값 유지 (절대 임의 생성 금지)
+3. 말투: 코치처럼 따뜻하게 격려하되 전문성 있게
 
-목적: 학생이 학교 선생님께 직접 여쭤볼 수 있는 수준으로 질문을 다듬는 것.
-어설픈 질문이 아니라, 진짜 호기심이 느껴지고 깊이 있게 고민한 흔적이 보이는 질문으로 완성.
+# Instructions
 
-각 질문에 대해:
-- "original": 학생의 필기에서 발견된 질문 원본 (없으면 수업 내용 기반으로 학생이 자연스럽게 가질 만한 질문 생성)
-- "improved": AI가 고도화한 버전
+## 1. 수업 맥락 요약 (Context Summary)
+- 일타강사의 시각으로: 선생님이 이 수업을 통해 진짜 가르치려 한 것이 무엇인지 파악
+- 노트와 참고사진 전체를 하나의 흐름으로 연결하여 핵심 주제 3문장 이내로 요약
+- [Student_Comment]가 있다면 반드시 먼저 공감하고 통찰 제시
+- 단순 요약이 아닌 "왜 이걸 배우는가"의 교육적 의미까지 포함
 
-고도화 원칙:
-- 학생의 원본 질문 의도를 존중하되, 더 구체적이고 탐구적인 형태로 개선
-- "선생님, 이 부분이 궁금합니다"라고 바로 말할 수 있는 수준의 질문으로 완성
-- 단순 암기 확인 질문 → 원리/이유/적용을 묻는 질문으로 업그레이드
-- 해당 과목의 교과 맥락에 맞는 용어 사용
-- 질문이 왜 중요한지, 어떤 탐구 방향으로 이어질 수 있는지 느껴지게
+## 2. 시험 연결 포인트 (Exam Connection)
+- 일타강사로서: 오늘 배운 내용 중 시험에 반드시 나오는 포인트 2~3개 명시
+- "선생님이 강조한 이 부분은 이런 유형으로 출제됩니다" 형식
+- 수험생 입장에서 절대 놓치면 안 되는 개념·공식·논리 흐름 짚기
 
-예시:
-  원본: "감수분열이 왜 필요해?"
-  개선: "유성생식 과정에서 감수분열 없이 체세포분열만으로 생식세포를 만든다면, 세대를 거듭할수록 염색체 수에 어떤 문제가 발생하나요? 그리고 이것이 종의 유전적 다양성에는 어떤 영향을 미치게 되나요?"
+## 3. 핵심 논리 분석 (Deep Dive)
+- 학생 필기 중 가장 깊은 사고가 담긴 지점 하나를 선택하여 구체적으로 칭찬
+- 고난도 문제/서술형 시도가 있다면 정답 여부와 무관하게 논리적 접근 과정 심층 분석
+- 학생이 미처 발전시키지 못한 사고의 방향을 한 걸음 더 안내
 
-## 필기 인식 규칙
-- 학생 필기 원본 내용을 충실하게 옮겨 적되, 문장을 매끄럽게 다듬기
-- 약어나 줄임말은 원래 단어로 복원
-- 수식이나 화학식은 정확하게 텍스트로 변환
+## 4. 세특 소재 질문 정제 (Seteuk Questions)
+- 학생이 노트에 작성한 질문들을 추출
+- 각 질문을 선생님께 실제로 여쭤볼 수 있는 전문적인 수준으로 다듬기
+- 원문과 다듬은 버전을 함께 제공 (학생이 자신의 생각이 발전하는 걸 체감하도록)
+- send_to_qbox: true → 나의 질문함에 자동 저장
 
-## 응답 형식 (반드시 이 JSON 형식으로만 응답)
+## 5. 메타인지 자극 질문 (Active Recall)
+- 오늘 학습에서 가장 헷갈리기 쉽거나 시험에 자주 나오는 부분
+- "왜 이렇게 될까?", "조건이 바뀌면 어떻게 될까?" 중심의 Why·What if 질문 2개
+- 질문과 답변을 반드시 분리된 필드로 제공 (UI에서 답 가리기 기능 연동)
+
+## 6. 세특 관찰 코멘트 (Teacher Insight)
+- 자기주도성 / 문제해결력 / 지적 호기심 중심으로 분석
+- 학교생활기록부 세특에 직접 참고할 수 있는 수준의 관찰 코멘트
+- 분량: 300~400자, 객관적이고 전문적인 톤
+
+## 7. 과제 추출 (Assignment)
+- 사진에서 "과제", "숙제", "제출", "~까지", "~해오세요" 등 과제 관련 내용을 찾는다
+- 과제가 발견되면 구조화하여 반환, 없으면 null
+
+# Output Format (반드시 이 JSON 형식으로만 응답)
 {
   "topic": "단원/주제",
   "pages": "p.XX~XX",
+  "summary": "수업 맥락 요약 (3문장 이내)",
+  "exam_connection": ["시험 연결 포인트 1", "시험 연결 포인트 2", "시험 연결 포인트 3"],
+  "deep_dive": "핵심 논리 분석 텍스트",
   "highlights": "선생님 강조 포인트 (여러 줄 가능)",
   "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5"],
   "questions": [
-    { "original": "학생 원본 질문", "improved": "AI 고도화 질문" },
-    { "original": "학생 원본 질문", "improved": "AI 고도화 질문" },
-    { "original": "학생 원본 질문", "improved": "AI 고도화 질문" }
+    { "original": "학생 원본 질문", "improved": "AI 고도화 질문", "send_to_qbox": true },
+    { "original": "학생 원본 질문", "improved": "AI 고도화 질문", "send_to_qbox": true },
+    { "original": "학생 원본 질문", "improved": "AI 고도화 질문", "send_to_qbox": true }
   ],
-  "assignment": null 또는 { "title": "과제 제목 (간결하게)", "description": "과제 상세 내용", "dueDate": "YYYY-MM-DD 또는 빈 문자열", "dueDateRaw": "원문 마감일 표현" },
+  "active_recall": [
+    { "question": "메타인지 질문 1", "answer": "답변 1" },
+    { "question": "메타인지 질문 2", "answer": "답변 2" }
+  ],
+  "teacher_insight": "세특 관찰 코멘트 (300~400자)",
+  "assignment": null 또는 { "title": "과제 제목", "description": "과제 상세", "dueDate": "YYYY-MM-DD 또는 빈 문자열", "dueDateRaw": "원문 마감일 표현" },
   "rawOcrText": "사진에서 인식한 전체 텍스트 원본"
 }`
 
@@ -417,7 +609,7 @@ app.post('/api/coaching', async (c) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         system: SYSTEM_PROMPT_COACHING + `\n\n현재 학생의 질문 단계: ${currentLevel || 'A-2'}\n과목: ${subject || '미지정'}`,
         messages: messages.map((m: any) => ({
@@ -491,7 +683,7 @@ app.post('/api/image-analyze', async (c) => {
 
 app.post('/api/ai/credit-log', async (c) => {
   try {
-    const { images, subject, period, date } = await c.req.json()
+    const { images, subject, period, date, studentComment } = await c.req.json()
     if (!images || images.length === 0) return c.json({ success: false, error: '사진이 필요합니다' }, 400)
 
     // base64 prefix 제거 + inline_data 배열 생성
@@ -500,14 +692,30 @@ app.post('/api/ai/credit-log', async (c) => {
       data: (img.base64 || '').replace(/^data:image\/\w+;base64,/, '')
     }))
 
-    const tagInfo = images.map((img: any, i: number) => `사진${i + 1}: ${img.tag || '노트'}`).join(', ')
-    const fullPrompt = SYSTEM_PROMPT_CREDIT_LOG + `\n\n과목: ${subject || '미지정'}\n교시: ${period || '미지정'}교시\n날짜: ${date || '미지정'}\n사진 태그: ${tagInfo}\n\n위 JSON 형식으로만 응답하세요.`
+    // Note_OCR / Reference_OCR 구분 정보
+    const tagInfo = images.map((img: any, i: number) => {
+      const tag = img.tag || '노트'
+      return tag === '필기' ? `사진${i + 1}: [Note_OCR] 필기 노트` : `사진${i + 1}: [Reference_OCR] 참고사진 (${tag})`
+    }).join('\n')
+
+    // [Subject] 동적 치환 — system prompt와 user prompt 분리
+    const systemPrompt = SYSTEM_PROMPT_CREDIT_LOG.replace(/\[Subject\]/g, subject || '미지정')
+    const userContext = `[Subject]: ${subject || '미지정'}\n교시: ${period || '미지정'}교시\n날짜: ${date || '미지정'}\n${studentComment ? `[Student_Comment]: ${studentComment}\n` : ''}사진 구성:\n${tagInfo}`
+    // Gemini용 (system+user 합침)
+    const fullPrompt = systemPrompt + `\n\n---\n${userContext}\n\n위 JSON 형식으로만 응답하세요.`
+
+    // 병렬 OCR용 태그 배열
+    const imageTags = images.map((img: any) => img.tag || '참고')
 
     const { text } = await callGeminiMultiImage({
       geminiKey: c.env.GEMINI_API_KEY,
       openaiKey: c.env.OPENAI_API_KEY,
+      anthropicKey: c.env.ANTHROPIC_API_KEY,
+      systemPrompt,
       prompt: fullPrompt,
+      userContext,
       images: inlineImages,
+      tags: imageTags,
       jsonMode: true,
       temperature: 0.3,
     })
@@ -527,7 +735,7 @@ app.post('/api/ai/credit-log', async (c) => {
       }
       return c.json({ success: true, data: result })
     } catch {
-      return c.json({ success: true, data: { rawOcrText: text, topic: '', pages: '', highlights: '', keywords: [], questions: [], assignment: null } })
+      return c.json({ success: true, data: { rawOcrText: text, topic: '', pages: '', summary: '', exam_connection: [], deep_dive: '', highlights: '', keywords: [], questions: [], active_recall: [], teacher_insight: '', assignment: null } })
     }
   } catch (e: any) {
     console.error('credit-log AI error:', e)
@@ -551,7 +759,7 @@ app.post('/api/deep-analyze', async (c) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         system: `당신은 고등학교 수준의 고난도 문제를 분석하는 전문 튜터입니다.
 학생이 이해할 수 있도록 단계적으로 설명하되, 핵심 개념과 풀이 전략을 명확히 제시하세요.
@@ -1474,7 +1682,7 @@ app.get('/api/student/:studentId/class-records', async (c) => {
     const limit = parseInt(c.req.query('limit') || '200');
     const offset = parseInt(c.req.query('offset') || '0');
     const records = await c.env.DB.prepare(
-      'SELECT id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags, created_at FROM class_records WHERE student_id = ? ORDER BY date DESC LIMIT ? OFFSET ?'
+      'SELECT id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags, photo_count, created_at FROM class_records WHERE student_id = ? ORDER BY date DESC LIMIT ? OFFSET ?'
     ).bind(studentId, limit, offset).all();
     return c.json({ records: records.results });
   } catch (e: any) {
@@ -1485,12 +1693,12 @@ app.get('/api/student/:studentId/class-records', async (c) => {
 app.post('/api/student/:studentId/class-records', async (c) => {
   try {
     const studentId = c.req.param('studentId');
-    const { subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags } = await c.req.json();
+    const { subject, date, content, keywords, understanding, memo, topic, pages, photos, photo_count, teacher_note, ai_credit_log, photo_tags } = await c.req.json();
     if (!subject || !date) return c.json({ error: '과목과 날짜는 필수입니다' }, 400);
 
     const result = await c.env.DB.prepare(
-      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '', topic || '', pages || '', JSON.stringify(photos || []), teacher_note || '', ai_credit_log ? JSON.stringify(ai_credit_log) : '', JSON.stringify(photo_tags || [])).run();
+      'INSERT INTO class_records (student_id, subject, date, content, keywords, understanding, memo, topic, pages, photos, teacher_note, ai_credit_log, photo_tags, photo_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(studentId, subject, date, content || '', JSON.stringify(keywords || []), understanding || 3, memo || '', topic || '', pages || '', JSON.stringify(photos || []), teacher_note || '', ai_credit_log ? JSON.stringify(ai_credit_log) : '', JSON.stringify(photo_tags || []), photo_count || 0).run();
 
     return c.json({ success: true, recordId: result.meta.last_row_id });
   } catch (e: any) {
@@ -2978,6 +3186,8 @@ app.get('/api/migrate', async (c) => {
       `ALTER TABLE class_records ADD COLUMN ai_credit_log TEXT DEFAULT ''`,
       `ALTER TABLE class_records ADD COLUMN photo_tags TEXT DEFAULT '[]'`,
       `ALTER TABLE class_record_photos ADD COLUMN tag TEXT DEFAULT 'note'`,
+      // ===== 수업 기록 사진 카운트 =====
+      `ALTER TABLE class_records ADD COLUMN photo_count INTEGER DEFAULT 0`,
       // ===== 나의 질문함 확장 컬럼 =====
       `ALTER TABLE my_questions ADD COLUMN ai_improved TEXT DEFAULT NULL`,
       `ALTER TABLE my_questions ADD COLUMN source TEXT DEFAULT NULL`,
@@ -3002,6 +3212,15 @@ app.get('/api/migrate', async (c) => {
       `CREATE TABLE IF NOT EXISTS aha_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, subject TEXT NOT NULL, unit TEXT DEFAULT '', student_name_detected TEXT DEFAULT '', subject_detected TEXT DEFAULT '', unit_detected TEXT DEFAULT '', section_problem TEXT DEFAULT '', section_topic TEXT DEFAULT '', section_research TEXT DEFAULT '', section_self_feedback TEXT DEFAULT '', ai_feedback TEXT DEFAULT '', photos TEXT DEFAULT '[]', ai_source TEXT DEFAULT 'gemini', croquet_given INTEGER DEFAULT 0, created_at DATETIME DEFAULT (datetime('now','+9 hours')), FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE)`,
       `CREATE INDEX IF NOT EXISTS idx_aha_student ON aha_reports(student_id, created_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_aha_subject ON aha_reports(student_id, subject)`,
+      // 아하 리포트 v2 섹션 컬럼 추가
+      `ALTER TABLE aha_reports ADD COLUMN section_sa TEXT DEFAULT ''`,
+      `ALTER TABLE aha_reports ADD COLUMN section_pa TEXT DEFAULT '[]'`,
+      `ALTER TABLE aha_reports ADD COLUMN section_da TEXT DEFAULT ''`,
+      `ALTER TABLE aha_reports ADD COLUMN section_poa TEXT DEFAULT ''`,
+      `ALTER TABLE aha_reports ADD COLUMN section_ppa TEXT DEFAULT '{}'`,
+      `ALTER TABLE aha_reports ADD COLUMN source TEXT DEFAULT ''`,
+      `ALTER TABLE aha_reports ADD COLUMN date TEXT DEFAULT ''`,
+      `ALTER TABLE aha_reports ADD COLUMN photo_tags TEXT DEFAULT '[]'`,
       // 외부 앱 연동용 external_user_id, external_class_id 추가 (기존 DB 호환)
       `ALTER TABLE mentors ADD COLUMN is_director INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE mentors ADD COLUMN external_user_id INTEGER DEFAULT NULL`,
@@ -3352,13 +3571,13 @@ app.put('/api/my-questions/:id/status', async (c) => {
 app.put('/api/my-questions/:qid/answer/:aid', async (c) => {
   try {
     const { qid, aid } = c.req.param() as { qid: string; aid: string }
-    const { content, studentId } = await c.req.json()
+    const { content, studentId, imageKey } = await c.req.json()
     if (!studentId || !content || content.trim().length < 2) return c.json({ error: '답변 내용을 2자 이상 입력해주세요' }, 400)
 
     const answer: any = await c.env.DB.prepare('SELECT id FROM my_answers WHERE id = ? AND question_id = ? AND student_id = ?').bind(aid, qid, studentId).first()
     if (!answer) return c.json({ error: '답변을 찾을 수 없습니다' }, 404)
 
-    await c.env.DB.prepare('UPDATE my_answers SET content = ? WHERE id = ?').bind(content.trim(), aid).run()
+    await c.env.DB.prepare('UPDATE my_answers SET content = ?, image_key = ? WHERE id = ?').bind(content.trim(), imageKey || null, aid).run()
     return c.json({ success: true })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
@@ -3544,6 +3763,313 @@ app.delete('/api/mentor/feedback/:feedbackId', async (c) => {
     return c.json({ success: true });
   } catch (e: any) { return c.json({ error: e.message }, 500); }
 });
+
+// ==================== 아하 리포트 v2 AI 분석 (5섹션: SA/PA/DA/POA/PPA) ====================
+app.post('/api/aha-report/analyze-v2', async (c) => {
+  try {
+    const geminiKey = c.env.GEMINI_API_KEY
+    if (!geminiKey) return c.json({ error: 'Gemini API 키가 설정되지 않았습니다.' }, 500)
+
+    const { photos, subject, source, date } = await c.req.json<{
+      photos: string[],
+      subject?: string,
+      source?: string,
+      date?: string
+    }>()
+
+    if (!photos || photos.length === 0) return c.json({ error: '사진이 필요합니다.' }, 400)
+    if (photos.length > 3) return c.json({ error: '사진은 최대 3장까지 가능합니다.' }, 400)
+
+    const systemPrompt = `당신은 고교학점제 전문가이자 학생들의 학습 멘토입니다.
+학생이 작성한 아하 리포트(AHA-Report) 사진을 분석합니다.
+
+[작업] 사진에서 손글씨를 OCR 인식하여 다음 5개 섹션으로 정리해주세요:
+
+1. SA (문제상황): 학생이 발견한 문제 또는 궁금증. 원문을 최대한 살려 정리.
+2. PA (탐구질문): 학생이 제기한 질문들을 배열로 추출. 각 질문은 독립된 문장으로.
+3. DA (탐구과정 & 결론): 탐구 방법과 결론을 정리. 번호가 있으면 번호별로 구분.
+4. POA (아하포인트): 깨달음, 발견, 발전 방향을 정리.
+5. PPA (성찰): 탐구 전후 생각의 변화와 부족했던 점을 정리.
+
+OCR 규칙:
+- 학생의 원문 내용을 최대한 살리되, 읽기 쉽게 문장을 정돈
+- 내용을 임의로 추가하거나 변경하지 말 것
+- 인식이 어려운 부분은 [판독 불가] 표시
+- 내용이 없는 섹션은 빈값 유지 (임의 생성 금지)
+
+수식 처리 규칙 (절대 예외 없음):
+- 사칙연산, 거듭제곱(x² → $x^2$), 분수(a/b → $\\frac{a}{b}$), 루트(√x → $\\sqrt{x}$) 등 모든 수학적 표현을 LaTeX로 변환
+- 방정식: ax²+bx+c=0 → $ax^2+bx+c=0$
+- 함수: f(x), sin, cos, log → $f(x)$, $\\sin(x)$, $\\cos(x)$, $\\log(x)$
+- 극한($\\lim$), 적분($\\int$), 벡터($\\vec{a}$), 집합($\\in$, $\\cup$, $\\cap$), 부등호($\\leq$, $\\geq$), 그리스 문자($\\alpha$, $\\beta$, $\\theta$, $\\pi$) 포함
+- 인라인: $수식$, 블록: $$수식$$
+- 텍스트에서 수학적 표현이 보이면 무조건 LaTeX으로 변환. 절대 일반 텍스트로 수식 출력 금지
+
+반드시 아래 JSON 형식으로만 응답:
+{
+  "sa": "문제상황 정리 내용",
+  "pa": ["탐구질문1", "탐구질문2"],
+  "da": "탐구과정 & 결론 정리 내용",
+  "poa": "아하포인트 정리 내용",
+  "ppa": { "change": "전후 생각 변화", "lacking": "부족했던 것" },
+  "subject_detected": "인식된 과목명",
+  "student_name": "인식된 학생 이름"
+}`
+
+    const promptText = `${systemPrompt}\n\n---\n과목: ${subject || '미선택'}\n출처: ${source || '미입력'}\n날짜: ${date || '미입력'}`
+    const parts: any[] = [{ text: promptText }]
+
+    const imageDataList: { mime_type: string, data: string }[] = []
+    for (const photo of photos) {
+      const match = photo.match(/^data:(image\/\w+);base64,(.+)$/)
+      if (match) {
+        imageDataList.push({ mime_type: match[1], data: match[2] })
+        parts.push({ inline_data: { mime_type: match[1], data: match[2] } })
+      }
+    }
+
+    let rawText = '{}'
+    let aiSource = 'gemini'
+
+    // Step 1: Gemini 시도
+    try {
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: 'application/json'
+            }
+          })
+        }
+      )
+
+      if (geminiRes.ok) {
+        const data: any = await geminiRes.json()
+        rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+      } else {
+        const errStatus = geminiRes.status
+        console.log('Gemini API error (v2):', errStatus, '→ OpenAI로 폴백')
+        throw new Error(`Gemini ${errStatus}`)
+      }
+    } catch (geminiErr) {
+      // Step 2: OpenAI GPT-4o 폴백
+      console.log('Gemini 실패 (v2), OpenAI GPT-4o로 폴백:', geminiErr)
+      aiSource = 'openai'
+
+      const openaiKey = c.env.OPENAI_API_KEY
+      if (!openaiKey) {
+        return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.', detail: 'no_fallback_key' }, 502)
+      }
+
+      const openaiContent: any[] = [{ type: 'text', text: promptText + '\n\n반드시 위에 지정한 JSON 형식으로만 응답해주세요.' }]
+      for (const img of imageDataList) {
+        openaiContent.push({
+          type: 'image_url',
+          image_url: { url: `data:${img.mime_type};base64,${img.data}`, detail: 'high' }
+        })
+      }
+
+      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: openaiContent }],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        })
+      })
+
+      if (!openaiRes.ok) {
+        const errText = await openaiRes.text()
+        console.log('OpenAI fallback error (v2):', openaiRes.status, errText)
+        return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.', detail: openaiRes.status }, 502)
+      }
+
+      const openaiData: any = await openaiRes.json()
+      rawText = openaiData.choices?.[0]?.message?.content || '{}'
+    }
+
+    let result: any
+    try {
+      result = JSON.parse(rawText)
+    } catch {
+      return c.json({ error: '분석 결과를 파싱할 수 없습니다. 사진을 다시 확인해주세요.', raw: rawText }, 500)
+    }
+
+    if (!result.sa && !result.da && !result.poa) {
+      return c.json({
+        error: '사진이 잘 안 읽혔어요. 밝은 곳에서 다시 찍어보세요.',
+        result
+      }, 422)
+    }
+
+    return c.json({
+      success: true,
+      sa: result.sa || '',
+      pa: Array.isArray(result.pa) ? result.pa : [],
+      da: result.da || '',
+      poa: result.poa || '',
+      ppa: result.ppa || { change: '', lacking: '' },
+      subject_detected: result.subject_detected || null,
+      student_name: result.student_name || null,
+      ai_source: aiSource
+    })
+  } catch (e: any) {
+    console.log('AHA Report analyze-v2 error:', e)
+    return c.json({ error: '분석에 실패했어요. 다시 시도해주세요.' }, 500)
+  }
+})
+
+// ==================== 아하 리포트 v2 피드백 ====================
+app.post('/api/aha-report/feedback', async (c) => {
+  try {
+    const geminiKey = c.env.GEMINI_API_KEY
+    const { sa, pa, da, poa, ppa, subject } = await c.req.json<{
+      sa: string, pa: string[], da: string, poa: string,
+      ppa: { change?: string, lacking?: string }, subject?: string
+    }>()
+
+    const paJoined = Array.isArray(pa) ? pa.join(', ') : String(pa || '')
+
+    const promptText = `당신은 고교학점제 탐구보고서 전문가입니다.
+
+학생의 아하 리포트를 평가하고 피드백을 작성해주세요.
+
+[입력 데이터]
+과목: ${subject || '미입력'}
+SA (문제상황): ${sa || ''}
+PA (탐구질문): ${paJoined}
+DA (탐구과정 & 결론): ${da || ''}
+POA (아하포인트): ${poa || ''}
+PPA (성찰): ${JSON.stringify(ppa || {})}
+
+[피드백 작성 규칙]
+- 따뜻하고 격려하는 톤, 반드시 존댓말 사용
+- 300~500자 내외
+- 각 섹션에 대한 간단한 평가와 개선 조언 또는 칭찬
+- 심화 탐구 방향 제안
+- 고교학점제에서 이 탐구가 갖는 의미
+- 학교 세부능력특기사항과 연결 팁
+
+반드시 아래 JSON 형식으로만 응답:
+{
+  "feedback": "피드백 전체 텍스트"
+}`
+
+    let rawText = '{}'
+    let aiSource = 'gemini'
+
+    // Step 1: Gemini 시도
+    if (geminiKey) {
+      try {
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: {
+                temperature: 0.4,
+                responseMimeType: 'application/json'
+              }
+            })
+          }
+        )
+
+        if (geminiRes.ok) {
+          const data: any = await geminiRes.json()
+          rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+        } else {
+          throw new Error(`Gemini ${geminiRes.status}`)
+        }
+      } catch (geminiErr) {
+        console.log('Gemini feedback 실패, OpenAI로 폴백:', geminiErr)
+        aiSource = 'openai'
+
+        const openaiKey = c.env.OPENAI_API_KEY
+        if (!openaiKey) {
+          return c.json({ error: '피드백 생성에 실패했어요. 다시 시도해주세요.', detail: 'no_fallback_key' }, 502)
+        }
+
+        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: promptText + '\n\n반드시 위에 지정한 JSON 형식으로만 응답해주세요.' }],
+            temperature: 0.4,
+            response_format: { type: 'json_object' }
+          })
+        })
+
+        if (!openaiRes.ok) {
+          const errText = await openaiRes.text()
+          console.log('OpenAI feedback fallback error:', openaiRes.status, errText)
+          return c.json({ error: '피드백 생성에 실패했어요. 다시 시도해주세요.', detail: openaiRes.status }, 502)
+        }
+
+        const openaiData: any = await openaiRes.json()
+        rawText = openaiData.choices?.[0]?.message?.content || '{}'
+      }
+    } else {
+      // No Gemini key, try OpenAI directly
+      aiSource = 'openai'
+      const openaiKey = c.env.OPENAI_API_KEY
+      if (!openaiKey) {
+        return c.json({ error: 'API 키가 설정되지 않았습니다.' }, 500)
+      }
+
+      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: promptText + '\n\n반드시 위에 지정한 JSON 형식으로만 응답해주세요.' }],
+          temperature: 0.4,
+          response_format: { type: 'json_object' }
+        })
+      })
+
+      if (!openaiRes.ok) {
+        return c.json({ error: '피드백 생성에 실패했어요. 다시 시도해주세요.' }, 502)
+      }
+
+      const openaiData: any = await openaiRes.json()
+      rawText = openaiData.choices?.[0]?.message?.content || '{}'
+    }
+
+    let result: any
+    try {
+      result = JSON.parse(rawText)
+    } catch {
+      return c.json({ error: '피드백 결과를 파싱할 수 없습니다.', raw: rawText }, 500)
+    }
+
+    return c.json({
+      success: true,
+      feedback: result.feedback || ''
+    })
+  } catch (e: any) {
+    console.log('AHA Report feedback error:', e)
+    return c.json({ error: '피드백 생성에 실패했어요. 다시 시도해주세요.' }, 500)
+  }
+})
 
 // ==================== 아하 리포트 AI 분석 (Gemini 3.0 Flash) ====================
 app.post('/api/aha-report/analyze', async (c) => {
@@ -3765,12 +4291,15 @@ app.post('/api/aha-report/give-croquet', async (c) => {
 // 리포트 저장 (사진은 R2 우선)
 app.post('/api/aha-report/save', async (c) => {
   try {
-    const { studentId, subject, unit, photos, sections, ai_feedback, ai_source, student_name_detected, subject_detected, unit_detected, croquet_given } = await c.req.json<{
+    const { studentId, subject, unit, photos, sections, ai_feedback, ai_source, student_name_detected, subject_detected, unit_detected, croquet_given, section_sa, section_pa, section_da, section_poa, section_ppa, source, date } = await c.req.json<{
       studentId: number, subject: string, unit?: string, photos: string[],
-      sections: { problem: string, topic: string, research: string, self_feedback: string },
+      sections?: { problem: string, topic: string, research: string, self_feedback: string },
       ai_feedback?: string, ai_source?: string,
       student_name_detected?: string, subject_detected?: string, unit_detected?: string,
-      croquet_given?: number
+      croquet_given?: number,
+      section_sa?: string, section_pa?: string, section_da?: string,
+      section_poa?: string, section_ppa?: string,
+      source?: string, date?: string, photo_tags?: string
     }>()
     if (!studentId || !subject) return c.json({ error: '필수 정보가 누락되었습니다.' }, 400)
 
@@ -3795,14 +4324,17 @@ app.post('/api/aha-report/save', async (c) => {
     }
 
     const result = await c.env.DB.prepare(
-      `INSERT INTO aha_reports (student_id, subject, unit, photos, section_problem, section_topic, section_research, section_self_feedback, ai_feedback, ai_source, student_name_detected, subject_detected, unit_detected, croquet_given)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO aha_reports (student_id, subject, unit, photos, section_problem, section_topic, section_research, section_self_feedback, ai_feedback, ai_source, student_name_detected, subject_detected, unit_detected, croquet_given, section_sa, section_pa, section_da, section_poa, section_ppa, source, date, photo_tags)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       studentId, subject, unit || '', JSON.stringify(photosToStore),
       sections?.problem || '', sections?.topic || '', sections?.research || '', sections?.self_feedback || '',
       ai_feedback || '', ai_source || 'gemini',
       student_name_detected || '', subject_detected || '', unit_detected || '',
-      croquet_given || 0
+      croquet_given || 0,
+      section_sa || '', section_pa || '[]', section_da || '',
+      section_poa || '', section_ppa || '{}',
+      source || '', date || '', photo_tags || '[]'
     ).run()
 
     return c.json({ success: true, reportId: result.meta.last_row_id })
@@ -3818,7 +4350,7 @@ app.get('/api/student/:studentId/aha-reports', async (c) => {
     const studentId = Number(c.req.param('studentId'))
     const subject = c.req.query('subject') || ''
     
-    let query = 'SELECT id, subject, unit, section_topic, ai_feedback, croquet_given, created_at, student_name_detected, subject_detected, unit_detected FROM aha_reports WHERE student_id = ?'
+    let query = 'SELECT id, subject, unit, section_topic, ai_feedback, croquet_given, created_at, student_name_detected, subject_detected, unit_detected, section_sa, section_pa, source, date, photos, photo_tags FROM aha_reports WHERE student_id = ?'
     const binds: any[] = [studentId]
     
     if (subject) {

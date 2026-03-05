@@ -40,7 +40,7 @@ export function renderClassRecordHistory() {
   const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
   const totalCount = allRecords.length;
-  const totalPhotos = allRecords.reduce((sum, r) => sum + (Array.isArray(r.photos) ? r.photos.length : 0), 0);
+  const totalPhotos = allRecords.reduce((sum, r) => sum + (r.photo_count || (Array.isArray(r.photos) ? r.photos.length : 0)), 0);
   const subjectSet = new Set(allRecords.map(r => r.subject));
   const filterSubjects = ['전체', ...Array.from(subjectSet).sort()];
 
@@ -89,7 +89,7 @@ export function renderClassRecordHistory() {
               const color = getSubjectColor(r.subject);
               const keywords = Array.isArray(r.keywords) ? r.keywords : [];
               const photos = Array.isArray(r.photos) ? r.photos : [];
-              const photoCount = photos.length;
+              const photoCount = r.photo_count || photos.length;
               const memo = (() => { try { return JSON.parse(r.memo || '{}'); } catch { return {}; } })();
               const d = new Date(r.date);
               const dayNames = ['일','월','화','수','목','금','토'];

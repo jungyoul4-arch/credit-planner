@@ -78,6 +78,35 @@ export function tryParseJSON(str, fallback) {
 }
 
 /**
+ * KaTeX 수식 렌더링: $$블록$$ + $인라인$ 처리
+ * KaTeX 미로드 시 원문 그대로 반환
+ */
+export function renderMath(text) {
+  if (!text || typeof text !== 'string') return text || '';
+  if (typeof katex === 'undefined') return text;
+
+  // 블록 수식: $$...$$
+  text = text.replace(/\$\$([^$]+)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula.trim(), {
+        displayMode: true, throwOnError: false, output: 'html'
+      });
+    } catch { return match; }
+  });
+
+  // 인라인 수식: $...$
+  text = text.replace(/\$([^$\n]+)\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula.trim(), {
+        displayMode: false, throwOnError: false, output: 'html'
+      });
+    } catch { return match; }
+  });
+
+  return text;
+}
+
+/**
  * 텍스트에서 keywords 배열에 포함된 단어를 찾아 <span class="cl-mark"> 으로 감싼다.
  * HTML 태그 내부는 건드리지 않으며, 2글자 이상 키워드만 처리한다.
  */

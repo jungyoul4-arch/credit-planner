@@ -1274,6 +1274,36 @@
   50% { opacity: 1; transform: scale(1.2); }
 }
 
+/* 단계별 로딩 메시지 */
+.records-module .al-loading-emoji {
+  font-size: 64px; display: block; text-align: center;
+  margin-bottom: 24px; animation: rm-float 2s ease-in-out infinite;
+  transition: opacity 0.3s ease;
+}
+@keyframes rm-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.records-module .al-loading-message {
+  transition: opacity 0.3s ease;
+  font-size: 20px; font-weight: 700; color: #ffffff;
+  text-align: center; margin-bottom: 8px;
+}
+.records-module .al-loading-subtitle {
+  font-size: 14px; color: rgba(255,255,255,0.5);
+  text-align: center;
+}
+.records-module .al-progress-bar {
+  width: 200px; height: 3px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px; margin: 24px auto 0; overflow: hidden;
+}
+.records-module .al-progress-fill {
+  height: 100%; border-radius: 2px; width: 0%;
+  background: linear-gradient(90deg, #7c6af7, #a78bfa);
+  transition: width 1s linear;
+}
+
 
 /* ================================================================
    MY CREDIT LOG 카드 (ai-result) — .cl-*
@@ -1303,13 +1333,13 @@
 }
 .records-module .cl-section:last-child { border-bottom: none; margin-bottom: 0; }
 .records-module .cl-section-label {
-  font-size: 24px; font-weight: 700; color: var(--text-secondary); margin-bottom: 14px;
-  display: block;
+  font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px;
+  display: block; letter-spacing: -0.2px;
 }
-.records-module .cl-section-value { font-size: 28px; line-height: 1.8; }
+.records-module .cl-section-value { font-size: 15px; line-height: 1.8; word-break: keep-all; }
 .records-module .cl-handwriting {
-  font-family: 'Pretendard Variable', Pretendard, -apple-system, sans-serif; font-size: 28px; line-height: 1.9;
-  font-weight: 500; color: var(--text-primary);
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, sans-serif; font-size: 15px; line-height: 1.8;
+  font-weight: 500; color: rgba(255,255,255,0.85); word-break: keep-all;
 }
 .records-module .cl-highlight-section {
   background: rgba(255,215,0,0.05); border-radius: 14px; padding: 24px;
@@ -1377,25 +1407,26 @@
   margin-top: 8px;
 }
 .records-module .cl-assignment-title {
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.4;
+  letter-spacing: -0.3px;
 }
 .records-module .cl-assignment-desc {
-  font-size: 22px;
-  color: var(--text-secondary);
-  margin-top: 8px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 6px;
   line-height: 1.6;
 }
 .records-module .cl-assignment-due {
-  font-size: 20px;
+  font-size: 14px;
   color: var(--accent);
-  margin-top: 12px;
+  margin-top: 10px;
   font-weight: 500;
 }
 .records-module .cl-assignment-auto-badge {
-  font-size: 18px;
+  font-size: 13px;
   color: var(--success);
   margin-top: 12px;
   padding: 6px 12px;
@@ -1437,6 +1468,93 @@
 }
 .records-module .cl-pdf-btn:hover { background: rgba(255,107,107,0.2); }
 .records-module .cl-save-btn { margin-top: 4px; }
+
+/* 수업 맥락 요약 */
+.records-module .cl-summary-section {
+  background: rgba(108,92,231,0.04); border-radius: 14px; padding: 24px;
+}
+
+/* 시험 연결 포인트 */
+.records-module .cl-exam-section {
+  background: rgba(255,107,107,0.04); border-radius: 14px; padding: 24px;
+}
+.records-module .cl-exam-list { display: flex; flex-direction: column; gap: 10px; }
+.records-module .cl-exam-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px; background: rgba(255,107,107,0.06); border-radius: 10px;
+}
+.records-module .cl-exam-num {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(255,107,107,0.15); color: #FF6B6B;
+  font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.records-module .cl-exam-text { font-size: 14px; line-height: 1.7; color: var(--text-primary); }
+
+/* 핵심 논리 분석 */
+.records-module .cl-deepdive-section {
+  background: rgba(0,184,148,0.04); border-radius: 14px; padding: 24px;
+}
+
+/* 메타인지 자극 질문 */
+.records-module .cl-recall-section {
+  background: rgba(253,203,110,0.06); border-radius: 14px; padding: 24px;
+}
+.records-module .cl-recall-list { display: flex; flex-direction: column; gap: 10px; }
+.records-module .cl-recall-item {
+  border: 1px solid rgba(253,203,110,0.3); border-radius: 12px; overflow: hidden;
+}
+.records-module .cl-recall-q {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  cursor: pointer; transition: background 0.2s;
+}
+.records-module .cl-recall-q:hover { background: rgba(253,203,110,0.08); }
+.records-module .cl-recall-icon {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px;
+  background: rgba(253,203,110,0.2); color: #F39C12;
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.records-module .cl-recall-text { flex: 1; font-size: 14px; line-height: 1.6; color: var(--text-primary); font-weight: 500; }
+.records-module .cl-recall-toggle { color: var(--text-muted); font-size: 10px; transition: transform 0.2s; }
+.records-module .cl-recall-a {
+  padding: 12px 14px; background: rgba(253,203,110,0.06);
+  border-top: 1px solid rgba(253,203,110,0.15);
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.records-module .cl-recall-a-icon {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px;
+  background: rgba(0,184,148,0.15); color: #00B894;
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.records-module .cl-recall-a span:last-child { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+.records-module .cl-recall-hint {
+  text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 8px;
+}
+
+/* 세특 관찰 코멘트 */
+.records-module .cl-insight-section {
+  background: rgba(116,185,255,0.04); border-radius: 14px; padding: 24px;
+}
+.records-module .cl-insight-box {
+  font-size: 15px; line-height: 1.8; color: rgba(255,255,255,0.85);
+  padding: 14px 16px; background: rgba(116,185,255,0.06); border-radius: 10px;
+  border-left: 3px solid rgba(116,185,255,0.4); word-break: keep-all;
+}
+
+/* 소감 입력 */
+.records-module .pu-comment-section { margin-top: 16px; }
+.records-module .pu-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.records-module .pu-comment-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.records-module .pu-comment-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.records-module .pu-comment-textarea {
+  width: 100%; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  color: var(--text-primary); font-size: 14px; line-height: 1.6;
+  resize: vertical; font-family: inherit;
+}
+.records-module .pu-comment-textarea:focus {
+  outline: none; border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+}
 
 
 /* ================================================================
@@ -1713,7 +1831,7 @@
 /* 카드 이미지 */
 .records-module .qb-card-img-wrap {
   margin-bottom: 10px; border-radius: 8px; overflow: hidden;
-  width: 56px; height: 56px; flex-shrink: 0; float: right; margin-left: 10px;
+  width: 112px; height: 112px; flex-shrink: 0; float: right; margin-left: 10px;
 }
 .records-module .qb-card-img {
   width: 100%; height: 100%; object-fit: cover; display: block;
@@ -1856,6 +1974,43 @@
   cursor: pointer; transition: all 0.15s;
 }
 .records-module .qb-answer-save:hover { background: #26b893; }
+
+/* ── 답변 사진 ── */
+.records-module .qb-answer-photo-actions {
+  display: flex; gap: 8px; margin-top: 6px;
+}
+.records-module .qb-answer-photo-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04); color: #8b949e;
+  font-size: 14px; cursor: pointer; transition: all 0.15s;
+}
+.records-module .qb-answer-photo-btn:hover {
+  background: rgba(124,106,239,0.15); color: #7c6aef;
+  border-color: rgba(124,106,239,0.3);
+}
+.records-module .qb-answer-photo-preview {
+  position: relative; margin-bottom: 8px; display: inline-block;
+  width: 72px; height: 72px; border-radius: 8px; overflow: hidden;
+}
+.records-module .qb-answer-photo-preview img {
+  width: 72px; height: 72px; object-fit: cover; border-radius: 8px;
+}
+.records-module .qb-answer-photo-remove {
+  position: absolute; top: 2px; right: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(0,0,0,0.6); color: #fff; border: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; cursor: pointer;
+}
+.records-module .qb-answer-img-wrap {
+  margin-bottom: 8px; display: inline-block;
+  width: 72px; height: 72px; border-radius: 8px; overflow: hidden; cursor: pointer;
+}
+.records-module .qb-answer-img {
+  width: 72px; height: 72px; object-fit: cover; border-radius: 8px;
+}
 
 /* ── AI 추천 질문 ── */
 .records-module .qb-ai-section {
@@ -2119,3 +2274,212 @@
   .records-module .qb-add-btn { padding: 6px 12px; font-size: 12px; }
   .records-module .qb-chain .qb-card { min-width: 220px; max-width: 280px; }
 }
+
+/* ====================
+   아하 리포트 — .aha-*
+   ==================== */
+
+/* 입력 화면: 메타 정보 */
+.records-module .aha-meta-section {
+  background: var(--bg-card); border-radius: 12px; padding: 16px;
+  margin-bottom: 16px; border: 1px solid var(--border);
+}
+.records-module .aha-meta-row {
+  display: flex; align-items: center; gap: 12px; padding: 8px 0;
+}
+.records-module .aha-meta-row + .aha-meta-row { border-top: 1px solid var(--border); }
+.records-module .aha-meta-label {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  min-width: 48px;
+}
+.records-module .aha-meta-select,
+.records-module .aha-meta-input {
+  flex: 1; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; color: var(--text-primary);
+  font-size: 14px; font-family: inherit;
+}
+.records-module .aha-meta-select:focus,
+.records-module .aha-meta-input:focus {
+  border-color: var(--primary); outline: none;
+}
+
+/* 입력: 노트 그리드 */
+.records-module .aha-note-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px; margin-top: 12px;
+}
+.records-module .aha-note-tile {
+  position: relative; border-radius: 8px; overflow: hidden;
+  aspect-ratio: 3/4; border: 1px solid var(--border);
+}
+.records-module .aha-note-tile img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+
+/* 결과 카드 */
+.records-module .aha-result-card {
+  background: var(--bg-card); border-radius: 16px; padding: 20px;
+  border: 1px solid var(--border); margin-bottom: 16px;
+}
+.records-module .aha-result-title-section {
+  text-align: center; padding-bottom: 16px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.records-module .aha-result-title {
+  font-size: 18px; font-weight: 800; color: var(--text-primary);
+}
+.records-module .aha-result-subtitle {
+  font-size: 11px; font-weight: 600; letter-spacing: 2px;
+  color: var(--primary-light); margin-top: 2px;
+}
+.records-module .aha-result-meta {
+  font-size: 12px; color: var(--text-muted); margin-top: 6px;
+}
+
+/* 섹션 */
+.records-module .aha-section {
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.records-module .aha-section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+.records-module .aha-section-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.records-module .aha-section-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 10px;
+  border-radius: 6px; letter-spacing: 0.5px;
+}
+.records-module .aha-section-label {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+}
+.records-module .aha-section-content {
+  font-size: 14px; line-height: 1.7; color: var(--text-secondary);
+  padding: 10px 14px; background: rgba(255,255,255,0.02);
+  border-radius: 8px; border: 1px solid rgba(255,255,255,0.04);
+}
+.records-module .aha-section-content .text-muted {
+  color: var(--text-muted); font-style: italic;
+}
+
+/* PA 질문 리스트 */
+.records-module .aha-pa-list { display: flex; flex-direction: column; gap: 8px; }
+.records-module .aha-pa-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: rgba(108,92,231,0.06);
+  border-radius: 10px; border: 1px solid rgba(108,92,231,0.12);
+}
+.records-module .aha-pa-num {
+  font-size: 12px; font-weight: 700; color: var(--primary-light);
+  min-width: 28px;
+}
+.records-module .aha-pa-text {
+  font-size: 14px; color: var(--text-primary); line-height: 1.5;
+}
+.records-module .aha-pa-remove {
+  background: none; border: none; color: var(--danger);
+  font-size: 18px; cursor: pointer; padding: 0 4px; margin-left: auto;
+}
+.records-module .aha-pa-add {
+  background: rgba(108,92,231,0.08); border: 1px dashed rgba(108,92,231,0.3);
+  border-radius: 10px; padding: 10px; text-align: center;
+  color: var(--primary-light); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.records-module .aha-pa-add:hover { background: rgba(108,92,231,0.15); }
+
+/* PPA 성찰 */
+.records-module .aha-ppa-content { display: flex; flex-direction: column; gap: 12px; }
+.records-module .aha-ppa-row {
+  display: flex; gap: 10px; padding: 10px 14px;
+  background: rgba(116,185,255,0.04); border-radius: 10px;
+  border: 1px solid rgba(116,185,255,0.1);
+}
+.records-module .aha-ppa-icon { font-size: 16px; margin-top: 2px; }
+.records-module .aha-ppa-row strong {
+  font-size: 12px; color: var(--text-muted); font-weight: 600;
+  display: block; margin-bottom: 4px;
+}
+.records-module .aha-ppa-row p {
+  font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin: 0;
+}
+.records-module .aha-ppa-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted); display: block;
+}
+.records-module .aha-ppa-edit { display: flex; flex-direction: column; gap: 4px; }
+
+/* 피드백 */
+.records-module .aha-feedback-section { margin-bottom: 16px; }
+.records-module .aha-feedback-card {
+  background: rgba(255,159,67,0.06); border: 1px solid rgba(255,159,67,0.15);
+  border-radius: 12px; padding: 16px;
+}
+.records-module .aha-feedback-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.records-module .aha-feedback-icon { font-size: 18px; }
+.records-module .aha-feedback-title {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+}
+.records-module .aha-feedback-body {
+  font-size: 14px; line-height: 1.7; color: var(--text-secondary);
+}
+.records-module .aha-feedback-loading {
+  text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px;
+}
+.records-module .aha-feedback-btn {
+  width: 100%; padding: 14px; background: rgba(255,159,67,0.1);
+  border: 1px solid rgba(255,159,67,0.25); border-radius: 12px;
+  color: #FF9F43; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.records-module .aha-feedback-btn:hover { background: rgba(255,159,67,0.18); }
+
+/* 목록 화면 */
+.records-module .aha-list-card {
+  background: var(--bg-card); border-radius: 12px; padding: 16px;
+  border: 1px solid var(--border); margin-bottom: 10px;
+  cursor: pointer; transition: all 0.15s;
+}
+.records-module .aha-list-card:hover { border-color: var(--primary); }
+.records-module .aha-list-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.records-module .aha-list-subject {
+  font-size: 11px; font-weight: 700; padding: 3px 10px;
+  border-radius: 6px;
+}
+.records-module .aha-list-date {
+  font-size: 12px; color: var(--text-muted);
+}
+.records-module .aha-list-sa {
+  font-size: 14px; color: var(--text-primary); line-height: 1.5;
+  margin-bottom: 8px;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.records-module .aha-list-pa {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
+}
+.records-module .aha-list-pa-chip {
+  font-size: 11px; color: var(--primary-light); background: rgba(108,92,231,0.08);
+  padding: 3px 8px; border-radius: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;
+}
+.records-module .aha-list-pa-more {
+  font-size: 11px; color: var(--text-muted); align-self: center;
+}
+.records-module .aha-list-source {
+  font-size: 11px; color: var(--text-muted);
+}
+
+/* 플로팅 추가 버튼 */
+.records-module .aha-add-float-btn {
+  display: block; width: 100%; padding: 14px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border: none; border-radius: 12px; color: white;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+  margin-top: 16px; text-align: center; font-family: inherit;
+  transition: all 0.15s;
+}
+.records-module .aha-add-float-btn:hover { opacity: 0.9; transform: translateY(-1px); }

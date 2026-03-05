@@ -119,7 +119,7 @@ export function renderDashboard() {
           { screen: 'exam-list', icon: '📝', bg: 'rgba(224,86,160,0.15)', title: '시험 관리', desc: '시험 일정 + 결과 + 성장분석', xp: '' },
           { screen: 'assignment-list', icon: '📋', bg: 'rgba(255,159,67,0.15)', title: '과제 기록', desc: '과제 등록 + 마감 관리', xp: '+15' },
           { screen: 'record-activity', icon: '🏫', bg: 'rgba(253,203,110,0.15)', title: '창의적 체험활동', desc: '비교과 활동 기록', xp: '+20' },
-          { screen: 'report-project', icon: '💡', bg: 'rgba(255,159,67,0.15)', title: '아하 리포트', desc: '영역 탐구 보고서 작성', xp: '+3' },
+          { screen: 'aha-list', icon: '💡', bg: 'rgba(255,159,67,0.15)', title: '아하 리포트', desc: '영역 탐구 보고서 작성', xp: '+15' },
           { screen: 'record-history', icon: '📜', bg: 'rgba(116,185,255,0.15)', title: '기록 히스토리', desc: '모든 기록 한눈에 보기', xp: '' },
           { screen: 'school-record', icon: '📄', bg: 'rgba(162,155,254,0.15)', title: '생활기록부 관리', desc: '생기부 업로드 및 분석', xp: '+30' },
         ].map((item, i) => `

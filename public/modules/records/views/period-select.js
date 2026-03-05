@@ -70,16 +70,22 @@ function _rebuildRecordsForDate(dateStr) {
   }
   const tt = state.timetable || {};
   const daySchedule = (tt.school || [])[dayIdx] || [];
-  state.todayRecords = daySchedule.map((subject, i) => ({
-    period: i + 1,
-    subject: subject,
-    teacher: (tt.teachers || {})[subject] || '',
-    color: (tt.subjectColors || {})[subject] || '#636e72',
-    startTime: (tt.periodTimes || [])[i]?.start || '',
-    endTime: (tt.periodTimes || [])[i]?.end || '',
-    done: false,
-    summary: '',
-  }));
+  const dbRecords = state._dbClassRecords || [];
+
+  state.todayRecords = daySchedule.map((subject, i) => {
+    const existing = dbRecords.find(r => r.date === dateStr && r.subject === subject);
+    return {
+      period: i + 1,
+      subject: subject,
+      teacher: (tt.teachers || {})[subject] || '',
+      color: (tt.subjectColors || {})[subject] || '#636e72',
+      startTime: (tt.periodTimes || [])[i]?.start || '',
+      endTime: (tt.periodTimes || [])[i]?.end || '',
+      done: !!existing,
+      summary: existing ? (existing.topic || existing.content || '수업 기록 완료') : '',
+      _dbRecordId: existing ? existing.id : null,
+    };
+  });
 }
 
 function _getActiveRecords() {
@@ -95,14 +101,25 @@ function _isPeriodRecorded(record) {
 }
 
 function _getDbRecordForPeriod(record) {
+  const dbRecords = state._dbClassRecords || [];
+
+  // _dbRecordId가 있으면 ID로 직접 찾기 (가장 확실)
+  if (record._dbRecordId) {
+    const byId = dbRecords.find(r => r.id === record._dbRecordId);
+    if (byId) return byId;
+    // DB 레코드가 메모리에 없어도 ID가 있으면 최소한의 레코드 반환
+    return { id: record._dbRecordId, subject: record.subject, date: _getActiveDate(), _fromId: true };
+  }
+
+  const dateStr = _getActiveDate();
+
   if (record.done) {
-    const dateStr = _getActiveDate();
-    return (state._dbClassRecords || []).find(r =>
+    return dbRecords.find(r =>
       r.date === dateStr && r.subject === record.subject
     ) || { _virtual: true };
   }
-  const dateStr = _getActiveDate();
-  return (state._dbClassRecords || []).find(r => {
+
+  return dbRecords.find(r => {
     if (r.date !== dateStr || r.subject !== record.subject) return false;
     const memo = tryParseJSON(r.memo, {});
     return !record.period || memo.period == record.period || !memo.period;
@@ -119,8 +136,7 @@ function _renderPeriodItem(record, idx) {
 
   if (isRecorded && !dbRec._virtual) {
     // 기록 완료 카드
-    const photos = dbRec.photos || [];
-    const photoCount = photos.length;
+    const photoCount = dbRec.photo_count || (dbRec.photos || []).length;
     const aiLog = dbRec.ai_credit_log;
     const hasAi = !!aiLog;
     const keywords = dbRec.keywords || [];

@@ -8,7 +8,7 @@ import { state } from '../core/state.js';
 import { DB } from '../core/api.js';
 import { navigate } from '../core/router.js';
 import { events, EVENTS } from '../core/events.js';
-import { kstToday, kstDateOffset, getSubjectColor, markKeywords, generatePlanSteps, SUBJECT_COLOR_MAP } from '../core/utils.js';
+import { kstToday, kstDateOffset, getSubjectColor, markKeywords, renderMath, generatePlanSteps, SUBJECT_COLOR_MAP } from '../core/utils.js';
 import { generateCreditLogPDF } from '../components/pdf-generator.js';
 import { showXpPopup } from '../components/xp-popup.js';
 
@@ -25,6 +25,10 @@ export function registerHandlers(RM) {
     if (!state._aiCreditLog || !state._aiCreditLog.assignment) return;
     state._aiCreditLog.assignment[field] = value;
   };
+  RM.toggleRecallAnswer = (idx) => {
+    const el = document.getElementById(`recall-answer-${idx}`);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
 }
 
 // === AI 분석 실행 (ai-loading 화면 진입 시 호출) ===
@@ -33,19 +37,19 @@ async function runAnalysis() {
   const photos = state._classPhotos || [];
   const tags = state._classPhotoTags || [];
 
-  // 필기 노트(태그='필기')만 AI에 전송, 참고 사진은 제외
-  const notePhotos = photos.filter((_, i) => tags[i] === '필기');
-  if (notePhotos.length === 0) {
+  // 사진이 최소 1장 필요 (필기 또는 참고)
+  if (photos.length === 0) {
     state._aiAnalyzing = false;
     state._aiAnalysisStep = 'error';
     navigate(state.currentScreen, { replace: true });
     return;
   }
 
-  const images = notePhotos.map(p => ({
+  // 모든 사진(필기+참고)을 태그와 함께 전송
+  const images = photos.map((p, i) => ({
     base64: p,
     mimeType: 'image/jpeg',
-    tag: '필기'
+    tag: tags[i] || '참고'
   }));
 
   try {
@@ -53,7 +57,8 @@ async function runAnalysis() {
       images,
       record ? record.subject : '',
       record ? record.period : 0,
-      state._backfillDate || kstToday()
+      state._backfillDate || kstToday(),
+      state._studentComment || ''
     );
 
     if (result) {
@@ -203,6 +208,7 @@ async function saveCreditLog() {
 
   // todayRecords 업데이트
   record.done = true;
+  record._dbRecordId = recordId || null;
   record.summary = log.topic || log.keywords?.join(', ') || '수업 기록 완료';
 
   // 미션 업데이트
@@ -216,6 +222,7 @@ async function saveCreditLog() {
   state._classPhotoTags = [];
   state._aiCreditLog = null;
   state._aiCreditLogEditing = false;
+  state._studentComment = '';
   state._selectedPeriodIdx = null;
 
   const xpLabel = assignmentRegistered ? 'MY CREDIT LOG 완료! + 과제 자동 등록' : 'MY CREDIT LOG 완료!';
@@ -231,13 +238,59 @@ function downloadPDF() {
   generateCreditLogPDF(log, record?.subject || '', kstToday());
 }
 
+// === 단계별 로딩 메시지 ===
+const CLASS_LOADING_STEPS = [
+  { time: 0,  message: "필기를 인식하고 있어요...",       emoji: "✍️",  progress: 5 },
+  { time: 5,  message: "수업 핵심을 파악하고 있어요...",   emoji: "🔍",  progress: 25 },
+  { time: 12, message: "시험 포인트를 연결하고 있어요...", emoji: "📌",  progress: 50 },
+  { time: 20, message: "세특 소재를 정리하고 있어요...",   emoji: "✨",  progress: 75 },
+  { time: 27, message: "거의 다 됐어요...",               emoji: "🎯",  progress: 90 },
+];
+
+let _loadingTimers = [];
+
+function startLoadingSteps(steps) {
+  _loadingTimers.forEach(t => clearTimeout(t));
+  _loadingTimers = [];
+
+  steps.forEach((step, i) => {
+    const timer = setTimeout(() => {
+      const msgEl = document.getElementById('al-loading-msg');
+      const emojiEl = document.getElementById('al-loading-emoji');
+      const fillEl = document.getElementById('al-progress-fill');
+      if (!msgEl || !emojiEl) return;
+
+      // 페이드 아웃
+      msgEl.style.opacity = '0';
+      emojiEl.style.opacity = '0';
+      setTimeout(() => {
+        msgEl.textContent = step.message;
+        emojiEl.textContent = step.emoji;
+        msgEl.style.opacity = '1';
+        emojiEl.style.opacity = '1';
+      }, 300);
+
+      if (fillEl) fillEl.style.width = step.progress + '%';
+    }, step.time * 1000);
+    _loadingTimers.push(timer);
+  });
+}
+
 // === 로딩 화면 렌더러 ===
 export function renderAiLoading() {
   const isError = state._aiAnalysisStep === 'error';
 
   // 분석 시작 (비동기)
   if (state._aiAnalyzing && state._aiAnalysisStep === 'analyzing') {
-    setTimeout(() => runAnalysis(), 100);
+    setTimeout(() => {
+      startLoadingSteps(CLASS_LOADING_STEPS);
+      runAnalysis();
+    }, 100);
+  }
+
+  if (isError) {
+    _loadingTimers.forEach(t => clearTimeout(t));
+    _loadingTimers = [];
   }
 
   return `
@@ -254,15 +307,11 @@ export function renderAiLoading() {
             ← 사진 업로드로 돌아가기
           </button>
         ` : `
-          <div class="al-spinner">
-            <div class="al-pen-icon">✍️</div>
-          </div>
-          <div class="al-step-text">AI가 필기를 분석하고 있어요...</div>
-          <div class="al-sub-text">사진에서 내용을 읽고, 수업 탐구 기록을 정리합니다</div>
-          <div class="al-dots">
-            <span class="al-dot"></span>
-            <span class="al-dot"></span>
-            <span class="al-dot"></span>
+          <span class="al-loading-emoji" id="al-loading-emoji">✍️</span>
+          <p class="al-loading-message" id="al-loading-msg">필기를 인식하고 있어요...</p>
+          <p class="al-loading-subtitle">수업 탐구 기록을 정리합니다</p>
+          <div class="al-progress-bar">
+            <div class="al-progress-fill" id="al-progress-fill"></div>
           </div>
         `}
       </div>
@@ -308,7 +357,7 @@ function _renderQuestionPair(q, idx, editing, keywords) {
           <span class="cl-q-label">✨ 선생님께 이렇게 여쭤보세요</span>
           ${editing
             ? `<textarea class="cl-edit-textarea" oninput="_RM.updateQuestionField(${idx},'improved',this.value)" rows="3">${q.improved || ''}</textarea>`
-            : `<p>${markKeywords(q.improved || '(개선 질문 없음)', keywords)}</p>`}
+            : `<p>${renderMath(markKeywords(q.improved || '(개선 질문 없음)', keywords))}</p>`}
         </div>
       </div>
     </div>`;
@@ -356,6 +405,82 @@ function _renderAssignmentSection(log, editing) {
     <div class="cl-section cl-assignment-section">
       <span class="cl-section-label">📌 과제</span>
       <div class="cl-section-value cl-handwriting">${asg}</div>
+    </div>`;
+}
+
+// === 새 섹션 렌더러 ===
+function _renderSummarySection(log, editing) {
+  if (!log.summary && !editing) return '';
+  return `
+    <div class="cl-section cl-summary-section">
+      <span class="cl-section-label">📋 수업 맥락 요약</span>
+      ${editing
+        ? `<textarea class="cl-edit-textarea" rows="3" oninput="_RM.updateCreditLogField('summary',this.value)">${log.summary || ''}</textarea>`
+        : `<div class="cl-section-value cl-handwriting">${renderMath((log.summary || '—').replace(/\n/g, '<br>'))}</div>`}
+    </div>`;
+}
+
+function _renderExamConnection(log, editing) {
+  const items = log.exam_connection || [];
+  if (items.length === 0 && !editing) return '';
+  return `
+    <div class="cl-section cl-exam-section">
+      <span class="cl-section-label">🎯 시험 연결 포인트</span>
+      <div class="cl-exam-list">
+        ${items.map((item, i) => `
+          <div class="cl-exam-item">
+            <span class="cl-exam-num">${i + 1}</span>
+            <span class="cl-exam-text">${renderMath(item)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+function _renderDeepDive(log, editing) {
+  if (!log.deep_dive && !editing) return '';
+  return `
+    <div class="cl-section cl-deepdive-section">
+      <span class="cl-section-label">🔬 핵심 논리 분석</span>
+      ${editing
+        ? `<textarea class="cl-edit-textarea" rows="4" oninput="_RM.updateCreditLogField('deep_dive',this.value)">${log.deep_dive || ''}</textarea>`
+        : `<div class="cl-section-value cl-handwriting">${renderMath((log.deep_dive || '—').replace(/\n/g, '<br>'))}</div>`}
+    </div>`;
+}
+
+function _renderActiveRecall(log) {
+  const items = log.active_recall || [];
+  if (items.length === 0) return '';
+  return `
+    <div class="cl-section cl-recall-section">
+      <span class="cl-section-label">🧠 메타인지 자극 질문</span>
+      <div class="cl-recall-list">
+        ${items.map((item, i) => `
+          <div class="cl-recall-item">
+            <div class="cl-recall-q" onclick="_RM.toggleRecallAnswer(${i})">
+              <span class="cl-recall-icon">Q</span>
+              <span class="cl-recall-text">${renderMath(item.question)}</span>
+              <i class="fas fa-chevron-down cl-recall-toggle"></i>
+            </div>
+            <div id="recall-answer-${i}" class="cl-recall-a" style="display:none">
+              <span class="cl-recall-a-icon">A</span>
+              <span>${renderMath(item.answer)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="cl-recall-hint">질문을 탭하면 답을 확인할 수 있어요</div>
+    </div>`;
+}
+
+function _renderTeacherInsight(log, editing) {
+  if (!log.teacher_insight && !editing) return '';
+  return `
+    <div class="cl-section cl-insight-section">
+      <span class="cl-section-label">📝 세특 관찰 코멘트</span>
+      ${editing
+        ? `<textarea class="cl-edit-textarea" rows="5" oninput="_RM.updateCreditLogField('teacher_insight',this.value)">${log.teacher_insight || ''}</textarea>`
+        : `<div class="cl-insight-box">${renderMath((log.teacher_insight || '—').replace(/\n/g, '<br>'))}</div>`}
     </div>`;
 }
 
@@ -410,12 +535,18 @@ export function renderAiResult() {
               : `<div class="cl-section-value cl-handwriting">${log.pages || '—'}</div>`}
           </div>
 
+          ${_renderSummarySection(log, editing)}
+
+          ${_renderExamConnection(log, editing)}
+
           <div class="cl-section cl-highlight-section">
             <span class="cl-section-label">⭐ 선생님 강조 포인트</span>
             ${editing
               ? `<textarea class="cl-edit-textarea" rows="3" oninput="_RM.updateCreditLogField('highlights',this.value)">${log.highlights || ''}</textarea>`
-              : `<div class="cl-section-value cl-handwriting">${markKeywords((log.highlights || '—').replace(/\n/g, '<br>'), kw)}</div>`}
+              : `<div class="cl-section-value cl-handwriting">${renderMath(markKeywords((log.highlights || '—').replace(/\n/g, '<br>'), kw))}</div>`}
           </div>
+
+          ${_renderDeepDive(log, editing)}
 
           <div class="cl-section">
             <span class="cl-section-label">🔑 오늘 수업의 핵심 키워드 <span style="color:var(--text-muted);font-weight:400">(최대 5개)</span></span>
@@ -426,6 +557,10 @@ export function renderAiResult() {
             <span class="cl-section-label">💡 세특 소재 질문</span>
             ${questions.map((q, i) => _renderQuestionPair(q, i, editing, kw)).join('')}
           </div>
+
+          ${_renderActiveRecall(log)}
+
+          ${_renderTeacherInsight(log, editing)}
 
           ${_renderAssignmentSection(log, editing)}
         </div>

@@ -105,6 +105,7 @@ export function registerHandlers(RM) {
   RM.showAnswerInput = (qId) => {
     state._qbAnswerEditing = qId;
     state._qbEditingAnswerId = null;
+    state._qbAnswerPhoto = null;
     RM.render();
     setTimeout(() => {
       const el = document.getElementById('qb-answer-textarea');
@@ -114,15 +115,24 @@ export function registerHandlers(RM) {
   RM.cancelAnswer = () => {
     state._qbAnswerEditing = null;
     state._qbEditingAnswerId = null;
+    state._qbAnswerPhoto = null;
     RM.render();
   };
   RM.submitAnswer = (qId) => submitAnswer(qId);
 
+  // 답변 사진
+  RM.pickAnswerPhoto = (mode) => pickAnswerPhoto(mode);
+  RM.removeAnswerPhoto = () => {
+    state._qbAnswerPhoto = null;
+    _rerender();
+  };
+
   // 답변 수정
-  RM.editAnswer = (qId, aId, content) => {
+  RM.editAnswer = (qId, aId, content, imageKey) => {
     state._qbAnswerEditing = qId;
     state._qbEditingAnswerId = aId;
     state._qbEditingAnswerContent = content;
+    state._qbAnswerPhoto = imageKey || null;
     RM.render();
     setTimeout(() => {
       const el = document.getElementById('qb-answer-textarea');
@@ -205,6 +215,23 @@ export function registerHandlers(RM) {
     _rerender();
   };
 
+  // 히스토리 등 외부에서 특정 질문으로 직접 이동
+  RM.goToQuestion = (id) => {
+    state._expandedQuestionId = id;
+    state._qbAnswerEditing = null;
+    state._qbEditingAnswerId = null;
+    state._qbInputMode = false;
+    state._myQuestionFilter = '전체';
+    state._qbSourceFilter = null;
+    _loadQuestionDetail(id);
+    navigate('record-question');
+    // 펼쳐진 카드로 스크롤
+    setTimeout(() => {
+      const card = document.querySelector(`.qb-card[data-qid="${id}"]`);
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
   // 기존 상세뷰 호환 (안전장치)
   RM.viewMyQuestion = (id) => { RM.toggleQuestionExpand(id); };
   RM.backToQuestionList = () => {
@@ -254,16 +281,18 @@ async function toggleResolved(id, currentStatus) {
 async function submitAnswer(questionId) {
   const el = document.getElementById('qb-answer-textarea');
   const content = el?.value?.trim();
-  if (!content || content.length < 2) {
-    alert('답변을 2자 이상 입력해주세요.');
+  if (!content || content.length < 10) {
+    alert('답변을 10자 이상 입력해주세요.');
     return;
   }
-  const result = await DB.saveMyAnswer(questionId, { content });
+  const imageKey = state._qbAnswerPhoto || null;
+  const result = await DB.saveMyAnswer(questionId, { content, imageKey });
   if (result) {
     showXpPopup(5, '답변 작성! +5 XP');
     events.emit(EVENTS.XP_EARNED, { amount: 5, label: '답변 작성' });
     state._qbAnswerEditing = null;
     state._qbEditingAnswerId = null;
+    state._qbAnswerPhoto = null;
     // 캐시 갱신
     const detail = await DB.getMyQuestionDetail(questionId);
     if (detail) {
@@ -279,14 +308,16 @@ async function submitAnswer(questionId) {
 async function updateAnswer(questionId, answerId) {
   const el = document.getElementById('qb-answer-textarea');
   const content = el?.value?.trim();
-  if (!content || content.length < 2) {
-    alert('답변을 2자 이상 입력해주세요.');
+  if (!content || content.length < 10) {
+    alert('답변을 10자 이상 입력해주세요.');
     return;
   }
-  const ok = await DB.updateMyAnswer(questionId, answerId, content);
+  const imageKey = state._qbAnswerPhoto || null;
+  const ok = await DB.updateMyAnswer(questionId, answerId, content, imageKey);
   if (ok) {
     state._qbAnswerEditing = null;
     state._qbEditingAnswerId = null;
+    state._qbAnswerPhoto = null;
     const detail = await DB.getMyQuestionDetail(questionId);
     if (detail) {
       if (!state._qbDetailCache) state._qbDetailCache = {};
@@ -337,6 +368,23 @@ async function toggleAiImprove(id) {
     state._myQuestions = [...questions];
     navigate('record-question', { replace: true });
   }
+}
+
+/* ── 답변 사진 선택 ── */
+function pickAnswerPhoto(mode) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  if (mode === 'camera') input.capture = 'environment';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    _resizeImage(file, 1200).then(base64 => {
+      state._qbAnswerPhoto = base64;
+      _rerender();
+    });
+  };
+  input.click();
 }
 
 /* ── 사진 선택 ── */
@@ -824,6 +872,8 @@ function _renderAnswerSection(qId, answers, isResolved) {
   let html = `<div class="qb-answer-section">`;
   html += `<div class="qb-answer-divider"><span>나의 답변</span></div>`;
 
+  const answerPhoto = state._qbAnswerPhoto || null;
+
   if (answers.length === 0 && !isEditing) {
     html += `
       <div class="qb-answer-empty">아직 답변이 없습니다</div>
@@ -838,7 +888,17 @@ function _renderAnswerSection(qId, answers, isResolved) {
         // 수정 모드
         html += `
           <div class="qb-answer-card qb-answer-card--editing">
+            ${answerPhoto ? `
+              <div class="qb-answer-photo-preview">
+                <img src="${answerPhoto}" alt="답변 사진">
+                <button class="qb-answer-photo-remove" onclick="event.stopPropagation();_RM.removeAnswerPhoto()"><i class="fas fa-times"></i></button>
+              </div>
+            ` : ''}
             <textarea id="qb-answer-textarea" class="qb-answer-textarea" rows="3">${a.content || ''}</textarea>
+            <div class="qb-answer-photo-actions">
+              <button class="qb-answer-photo-btn" onclick="event.stopPropagation();_RM.pickAnswerPhoto('camera')"><i class="fas fa-camera"></i></button>
+              <button class="qb-answer-photo-btn" onclick="event.stopPropagation();_RM.pickAnswerPhoto('gallery')"><i class="fas fa-image"></i></button>
+            </div>
             <div class="qb-answer-actions">
               <button class="qb-answer-cancel" onclick="event.stopPropagation();_RM.cancelAnswer()">취소</button>
               <button class="qb-answer-save" onclick="event.stopPropagation();_RM.updateAnswer(${qId},${a.id})">수정 저장</button>
@@ -848,13 +908,19 @@ function _renderAnswerSection(qId, answers, isResolved) {
       } else {
         // content를 안전하게 HTML attribute에 넣기 위해 인코딩
         const safeContent = (a.content || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+        const safeImageKey = (a.image_key || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
         html += `
           <div class="qb-answer-card">
+            ${a.image_key ? `
+              <div class="qb-answer-img-wrap" onclick="event.stopPropagation();_RM.openPhotoViewer('${a.image_key}')">
+                <img class="qb-answer-img" src="${a.image_key}" alt="답변 사진" loading="lazy">
+              </div>
+            ` : ''}
             <div class="qb-answer-content">${(a.content || '').replace(/\n/g, '<br>')}</div>
             <div class="qb-answer-meta">
               <span>${_formatTimeAgo(a.created_at)}</span>
               <div class="qb-answer-btns">
-                <button data-content="${safeContent}" onclick="event.stopPropagation();_RM.editAnswer(${qId},${a.id},this.dataset.content)" class="qb-answer-edit-btn">수정</button>
+                <button data-content="${safeContent}" data-imgkey="${safeImageKey}" onclick="event.stopPropagation();_RM.editAnswer(${qId},${a.id},this.dataset.content,this.dataset.imgkey)" class="qb-answer-edit-btn">수정</button>
                 <button onclick="event.stopPropagation();_RM.deleteAnswer(${qId},${a.id})" class="qb-answer-delete-btn">삭제</button>
               </div>
             </div>
@@ -867,7 +933,17 @@ function _renderAnswerSection(qId, answers, isResolved) {
     if (isEditing && !editingAnswerId) {
       html += `
         <div class="qb-answer-card qb-answer-card--editing">
+          ${answerPhoto ? `
+            <div class="qb-answer-photo-preview">
+              <img src="${answerPhoto}" alt="답변 사진">
+              <button class="qb-answer-photo-remove" onclick="event.stopPropagation();_RM.removeAnswerPhoto()"><i class="fas fa-times"></i></button>
+            </div>
+          ` : ''}
           <textarea id="qb-answer-textarea" class="qb-answer-textarea" placeholder="답변을 적어보세요..." rows="3"></textarea>
+          <div class="qb-answer-photo-actions">
+            <button class="qb-answer-photo-btn" onclick="event.stopPropagation();_RM.pickAnswerPhoto('camera')"><i class="fas fa-camera"></i></button>
+            <button class="qb-answer-photo-btn" onclick="event.stopPropagation();_RM.pickAnswerPhoto('gallery')"><i class="fas fa-image"></i></button>
+          </div>
           <div class="qb-answer-actions">
             <button class="qb-answer-cancel" onclick="event.stopPropagation();_RM.cancelAnswer()">취소</button>
             <button class="qb-answer-save" onclick="event.stopPropagation();_RM.submitAnswer(${qId})">답변 저장</button>
