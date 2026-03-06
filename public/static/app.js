@@ -1339,6 +1339,16 @@ async function externalLogin(userId, deviceMode) {
       _mentor.initialLoading = true;
       renderScreen();
       fetch('/api/migrate').catch(() => {});
+      // 학생 동기화를 비동기로 실행 (로그인 응답에 영향 없음)
+      if (data.user?.id && data.externalUserId) {
+        fetch(`/api/mentor/${data.user.id}/sync-students`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ externalUserId: data.externalUserId })
+        }).then(r => r.json()).then(r => {
+          if (r.synced > 0) console.log(`[SYNC] ${r.synced} students synced`);
+        }).catch(() => {});
+      }
       mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(e => {
         console.error('External mentor load:', e);
         _mentor.initialLoading = false;
@@ -1415,6 +1425,16 @@ function autoLogin() {
     } else if (auth.role === 'mentor') {
       _mentor.initialLoading = true;
       fetch('/api/migrate').catch(() => {});
+      // 학생 동기화를 비동기로 실행 (자동 로그인 시)
+      if (auth.user?.id && auth.externalUserId) {
+        fetch(`/api/mentor/${auth.user.id}/sync-students`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ externalUserId: auth.externalUserId })
+        }).then(r => r.json()).then(r => {
+          if (r.synced > 0) console.log(`[SYNC] ${r.synced} students synced`);
+        }).catch(() => {});
+      }
       // 멘토 대시보드 데이터 비동기 로드
       mentorLoadGroups().then(() => mentorLoadGroupSummary()).catch(e => { console.error('autoLogin mentor load:', e); _mentor.initialLoading = false; _mentor.loading = false; renderScreen(); });
     }
