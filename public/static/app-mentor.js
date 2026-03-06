@@ -1612,11 +1612,58 @@ function __renderMentorRelay() {
   return _renderRelaySubmissionStatus(words);
 }
 
+// 콤마 분리 자동 입력 처리
+function _handleRelayWordCommaInput(inputEl) {
+  const val = inputEl.value;
+  if (!val.includes(',')) return;
+  const inputs = Array.from(document.querySelectorAll('.relay-word-input'));
+  const idx = inputs.indexOf(inputEl);
+  if (idx < 0) return;
+  const parts = val.split(',').map(s => s.trim()).filter(s => s);
+  if (parts.length <= 1) return;
+  // 첫 번째 단어는 현재 필드에, 나머지는 다음 필드들에 순서대로
+  for (let i = 0; i < parts.length && (idx + i) < inputs.length; i++) {
+    inputs[idx + i].value = parts[i];
+  }
+  // 마지막으로 입력된 필드의 다음 빈 필드로 포커스 이동
+  const lastFilled = Math.min(idx + parts.length, inputs.length) - 1;
+  const nextEmpty = inputs.findIndex((inp, j) => j > lastFilled && !inp.value.trim());
+  if (nextEmpty >= 0) inputs[nextEmpty].focus();
+  else if (lastFilled + 1 < inputs.length) inputs[lastFilled + 1].focus();
+  // 입력 카운터 업데이트
+  _updateRelayWordCount();
+}
+function _handleRelayWordPaste(e) {
+  const paste = (e.clipboardData || window.clipboardData).getData('text');
+  if (!paste.includes(',') && !paste.includes('\n') && !paste.includes('\t')) return;
+  e.preventDefault();
+  const inputEl = e.target;
+  const inputs = Array.from(document.querySelectorAll('.relay-word-input'));
+  const idx = inputs.indexOf(inputEl);
+  if (idx < 0) return;
+  // 콤마, 줄바꿈, 탭으로 분리
+  const parts = paste.split(/[,\n\t]+/).map(s => s.trim()).filter(s => s);
+  for (let i = 0; i < parts.length && (idx + i) < inputs.length; i++) {
+    inputs[idx + i].value = parts[i];
+  }
+  const lastFilled = Math.min(idx + parts.length, inputs.length) - 1;
+  const nextEmpty = inputs.findIndex((inp, j) => j > lastFilled && !inp.value.trim());
+  if (nextEmpty >= 0) inputs[nextEmpty].focus();
+  else if (lastFilled + 1 < inputs.length) inputs[lastFilled + 1].focus();
+  _updateRelayWordCount();
+}
+function _updateRelayWordCount() {
+  const cnt = document.querySelectorAll('.relay-word-input');
+  const filled = Array.from(cnt).filter(i => i.value.trim()).length;
+  const el = document.getElementById('relay-word-count');
+  if (el) el.textContent = filled;
+}
+
 // 단어 입력 화면 (멘토)
 function _renderRelayWordInput(existingWords) {
   const words = existingWords || [];
   let html = `
-    <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+    <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div>
         <h3 style="font-size:18px;font-weight:700;color:var(--text-main);margin:0">📚 오늘의 릴레이단어장</h3>
         <p style="font-size:13px;color:var(--text-muted);margin-top:4px">${_mentor._relayClassName} · ${kstToday()}</p>
@@ -1630,6 +1677,9 @@ function _renderRelayWordInput(existingWords) {
         </button>
       </div>
     </div>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;padding:0 4px">
+      💡 <b>콤마(,)</b>로 구분하여 여러 단어를 한 번에 입력할 수 있습니다. (예: apple, banana, cat)
+    </p>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
   `;
   for (let i = 0; i < 40; i++) {
@@ -1638,13 +1688,14 @@ function _renderRelayWordInput(existingWords) {
       <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-input);border-radius:8px">
         <span style="font-size:12px;color:var(--text-muted);min-width:24px;text-align:right;font-weight:600">${i+1}</span>
         <input class="relay-word-input" type="text" value="${v}" placeholder="영어 단어 ${i+1}" 
+          oninput="_handleRelayWordCommaInput(this)" onpaste="_handleRelayWordPaste(event)"
           style="flex:1;background:none;border:none;color:var(--text-main);font-size:14px;outline:none;padding:6px 0">
       </div>
     `;
   }
   html += `</div>
     <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text-muted)">
-      입력된 단어: <span style="color:var(--primary-light);font-weight:700">${words.filter(w=>w).length}</span> / 40
+      입력된 단어: <span id="relay-word-count" style="color:var(--primary-light);font-weight:700">${words.filter(w=>w).length}</span> / 40
     </p>
   `;
   return html;
