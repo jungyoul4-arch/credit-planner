@@ -441,6 +441,9 @@ function renderStudentApp() {
   if (state.currentScreen === 'class-record-history') return renderClassRecordHistory();
   if (state.currentScreen === 'class-record-detail') return renderClassRecordDetail();
   if (state.currentScreen === 'record-status') return renderRecordStatus();
+  if (state.currentScreen === 'period-select') return renderRecordStatus(); // 오늘의 수업 → 기존 record-status 연결
+  if (state.currentScreen === 'photo-album') return renderPhotoAlbum();
+  if (state.currentScreen === 'aha-list') return renderAhaReportList(); // 아하 리포트 목록 → 기존 함수 연결
   if (state.currentScreen === 'mentor-feedback') return renderStudentFeedbackScreen();
   if (state.currentScreen === 'timetable-onboarding') return renderTimetableOnboarding();
 
@@ -2588,6 +2591,47 @@ function startBackfillRecord(date, period, subject) {
 }
 
 // 수업 기록 히스토리 (DB 기반 + 오늘 기록 통합)
+function renderPhotoAlbum() {
+  const dbRecords = (state._dbClassRecords || []);
+  const photosWithMeta = [];
+  dbRecords.forEach(r => {
+    if (r.photos && Array.isArray(r.photos)) {
+      r.photos.forEach(p => {
+        photosWithMeta.push({ url: p.url || p, tag: p.tag || '', subject: r.subject || '', date: r.date || '', recordId: r.id });
+      });
+    }
+  });
+
+  return `
+    <div class="tab-content animate-in">
+      <div class="screen-header" style="display:flex;align-items:center;gap:12px">
+        <button class="back-btn" onclick="state.studentTab='record';goScreen('main')"><i class="fas fa-arrow-left"></i></button>
+        <h1>📷 사진 앨범</h1>
+      </div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">수업 중 찍은 필기·프린트 사진을 모아봅니다</p>
+      ${photosWithMeta.length === 0 ? `
+        <div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+          <div style="font-size:48px;margin-bottom:16px">📷</div>
+          <div style="font-size:15px;font-weight:600;margin-bottom:8px">아직 사진이 없습니다</div>
+          <div style="font-size:13px">수업 기록 시 사진을 첨부하면 여기에 모입니다</div>
+        </div>
+      ` : `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
+          ${photosWithMeta.map(p => `
+            <div style="border-radius:10px;overflow:hidden;background:var(--bg-card);border:1px solid var(--border);cursor:pointer" onclick="state._viewingDbRecord='${p.recordId}';goScreen('class-record-detail')">
+              <img src="${p.url}" style="width:100%;height:120px;object-fit:cover" onerror="this.style.display='none'" />
+              <div style="padding:6px 8px">
+                <div style="font-size:11px;font-weight:600;color:var(--text-primary)">${p.subject}</div>
+                <div style="font-size:10px;color:var(--text-muted)">${p.date}${p.tag ? ' · ' + p.tag : ''}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
 function renderClassRecordHistory() {
   const dbRecords = (state._dbClassRecords || []).map(r => ({ ...r, _source: 'db' }));
   
@@ -4943,6 +4987,8 @@ function renderNotifications() {
 // ==================== RECORD TAB (R-01~R-06) ====================
 
 function renderRecordTab() {
+  const classRecordCount = (state._dbClassRecords || []).length;
+
   return `
     <div class="tab-content animate-in">
       <div class="screen-header">
@@ -4950,40 +4996,53 @@ function renderRecordTab() {
       </div>
       
       <div class="record-type-grid">
-        <!-- 당일 수업 · 당일 복습하기 (최상단) -->
-        <div class="record-type-card stagger-0 animate-in" style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(0,184,148,0.08));border:1.5px solid rgba(108,92,231,0.3)" onclick="goScreen('record-status')">
+        <!-- 오늘의 수업 (교시 선택) -->
+        <div class="record-type-card stagger-0 animate-in" style="background:linear-gradient(135deg,rgba(108,92,231,0.12),rgba(0,184,148,0.08));border:1.5px solid rgba(108,92,231,0.3)" onclick="goScreen('period-select')">
           <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📝</div>
           <div class="record-type-info">
-            <h3>당일 수업 · 당일 복습하기</h3>
-            <p>학교 + 학원 수업을 당일에 바로 기록</p>
+            <h3>오늘의 수업</h3>
+            <p>사진 찍고 AI가 수업 탐구 기록 자동 정리</p>
           </div>
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
+
         <!-- 나의 수업 기록 열람 -->
         <div class="record-type-card stagger-1 animate-in" style="background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.2)" onclick="goScreen('class-record-history')">
           <div class="record-type-icon" style="background:rgba(108,92,231,0.2)">📚</div>
           <div class="record-type-info">
-            <h3>나의 수업 기록</h3>
-            <p>기록한 수업 내용·사진 열람 ${(state._dbClassRecords||[]).length > 0 ? '<span style="color:var(--primary-light);font-weight:600">' + (state._dbClassRecords||[]).length + '건</span>' : ''}</p>
+            <h3>나의 수업 다시보기</h3>
+            <p>기록한 수업 내용·사진 다시보기 ${classRecordCount > 0 ? '<span style="color:var(--primary-light);font-weight:600">' + classRecordCount + '건</span>' : ''}</p>
           </div>
           <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
         </div>
+
+        <!-- 사진 앨범 -->
+        <div class="record-type-card stagger-2 animate-in" style="background:rgba(0,184,148,0.08);border:1px solid rgba(0,184,148,0.2)" onclick="goScreen('photo-album')">
+          <div class="record-type-icon" style="background:rgba(0,184,148,0.2)">📷</div>
+          <div class="record-type-info">
+            <h3>사진 앨범</h3>
+            <p>수업 필기·프린트 사진 모아보기</p>
+          </div>
+          <span style="color:var(--primary-light);font-size:14px"><i class="fas fa-chevron-right"></i></span>
+        </div>
+
         ${[
-          { screen:'__aha-options__', icon:'💡', bg:'rgba(255,159,67,0.15)', title:'아하 리포트', desc:'영역 탐구 보고서 작성 · 사진 기록', xp:'🍩+3' },
-          { screen:'record-assignment', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'선생님 과제를 기록하고 계획', xp:'+15' },
-          { screen:'__qa-new__', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'질문 코칭', desc:'2축 9단계 정율 코칭', xp:'+8~30' },
+          { screen:'record-question', icon:'❓', bg:'rgba(255,107,107,0.15)', title:'나의 질문함', desc:'궁금한 것을 기록하고 답을 찾아가기', xp:'+3' },
           { screen:'record-teach', icon:'🤝', bg:'rgba(0,184,148,0.15)', title:'교학상장', desc:'친구에게 가르친 경험', xp:'+30' },
+          { screen:'exam-list', icon:'📝', bg:'rgba(224,86,160,0.15)', title:'시험 관리', desc:'시험 일정 + 결과 + 성장분석', xp:'' },
+          { screen:'assignment-list', icon:'📋', bg:'rgba(255,159,67,0.15)', title:'과제 기록', desc:'과제 등록 + 마감 관리', xp:'+15' },
           { screen:'record-activity', icon:'🏫', bg:'rgba(253,203,110,0.15)', title:'창의적 체험활동', desc:'비교과 활동 기록', xp:'+20' },
-          { screen:'exam-list', icon:'📝', bg:'rgba(116,185,255,0.15)', title:'시험 관리', desc:'중간·기말·모의·수행평가', xp:'+25' },
-          { screen:'record-schoolrecord', icon:'📄', bg:'rgba(162,155,254,0.15)', title:'학교 생활기록부 관리', desc:'생기부 업로드 및 정율 분석', xp:'+30' },
+          { screen:'aha-list', icon:'💡', bg:'rgba(255,159,67,0.15)', title:'아하 리포트', desc:'영역 탐구 보고서 작성', xp:'+15' },
+          { screen:'record-history', icon:'📜', bg:'rgba(116,185,255,0.15)', title:'기록 히스토리', desc:'모든 기록 한눈에 보기', xp:'' },
+          { screen:'record-schoolrecord', icon:'📄', bg:'rgba(162,155,254,0.15)', title:'생활기록부 관리', desc:'생기부 업로드 및 분석', xp:'+30' },
         ].map((item,i) => `
-          <div class="record-type-card stagger-${i+1} animate-in" onclick="goScreen('${item.screen}')">
+          <div class="record-type-card stagger-${i+3} animate-in" onclick="goScreen('${item.screen}')">
             <div class="record-type-icon" style="background:${item.bg}">${item.icon}</div>
             <div class="record-type-info">
               <h3>${item.title}</h3>
               <p>${item.desc}</p>
             </div>
-            <span class="xp-badge-sm">${item.xp}</span>
+            ${item.xp ? `<span class="xp-badge-sm">${item.xp}</span>` : ''}
           </div>
         `).join('')}
       </div>
@@ -5020,79 +5079,34 @@ function renderRecordTab() {
 
       <!-- Upcoming Assignments Mini -->
       ${state.assignments.filter(a => a.status !== 'completed').length > 0 ? `
-      <div class="card stagger-6 animate-in">
+      <div class="card stagger-7 animate-in">
         <div class="card-header-row">
           <span class="card-title">📋 진행 중인 과제</span>
           <button class="card-link" onclick="goScreen('assignment-list')">전체보기 →</button>
         </div>
-        ${state.assignments.filter(a => a.status !== 'completed').slice(0, 2).map(a => {
+        ${state.assignments.filter(a => a.status !== 'completed').slice(0, 3).map(a => {
           const dDay = getDday(a.dueDate);
           const dDayText = dDay === 0 ? 'D-Day' : dDay > 0 ? `D-${dDay}` : `D+${Math.abs(dDay)}`;
           const urgency = dDay <= 1 ? 'urgent' : dDay <= 3 ? 'warning' : 'normal';
           return `
           <div class="assignment-mini-row" onclick="state.viewingAssignment='${a.id}';goScreen('assignment-plan')">
-            <div class="assignment-mini-dot" style="background:${a.color}"></div>
+            <div class="assignment-mini-dot" style="background:${a.color||'var(--primary)'}"></div>
             <div class="assignment-mini-info">
-              <span class="assignment-mini-subject">${a.subject}</span>
+              <span class="assignment-mini-subject">${a.subject} · ${dDayText}</span>
               <span class="assignment-mini-title">${a.title}</span>
             </div>
             <div class="assignment-mini-right">
-              <span class="assignment-dday ${urgency}">${dDayText}</span>
-              <div class="assignment-mini-bar"><div class="assignment-mini-bar-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+              <span style="font-size:11px;font-weight:700;color:var(--text-muted)">${a.progress||0}%</span>
+              <div class="assignment-mini-bar"><div class="assignment-mini-bar-fill" style="width:${a.progress||0}%;background:${a.color||'var(--primary)'}"></div></div>
             </div>
           </div>
           `;
         }).join('')}
       </div>
       ` : ''}
-
-      <!-- 진행 중인 비교과 활동 -->
-      ${state.extracurriculars.filter(e => e.status !== 'completed').length > 0 ? `
-      <div class="card stagger-7 animate-in">
-        <div class="card-header-row">
-          <span class="card-title">📚 진행 중인 비교과 활동</span>
-          <button class="card-link" onclick="goScreen('record-activity')">전체보기 →</button>
-        </div>
-        ${state.extracurriculars.filter(e => e.status !== 'completed').slice(0, 4).map(e => {
-          const typeLabel = e.type === 'report' ? '📄 탐구보고서' : e.type === 'reading' ? '📖 독서' : e.subType === 'career' ? '🎯 진로' : e.subType === 'self' ? '🧠 자율자치' : '🎭 동아리';
-          const statusLabel = e.status === 'in-progress' ? '진행중' : '예정';
-          const onclick = e.type === 'report' && e.report 
-            ? `state.viewingReport='${e.id}';state.reportPhaseTab=${e.report.currentPhase};goScreen('report-project')` 
-            : `state.viewingActivity='${e.id}';goScreen('activity-detail')`;
-          return `
-          <div class="ec-mini-row" onclick="${onclick}" style="cursor:pointer">
-            <div class="ec-mini-dot" style="background:${e.color}"></div>
-            <div class="ec-mini-info">
-              <div class="ec-mini-top">
-                <span class="ec-mini-type">${typeLabel}</span>
-                <span class="ec-mini-subject">${e.subject}</span>
-              </div>
-              <span class="ec-mini-title">${e.title}</span>
-            </div>
-            <div class="ec-mini-right">
-              <span class="ec-mini-status ${e.status}">${statusLabel}</span>
-              <div class="ec-mini-bar"><div class="ec-mini-bar-fill" style="width:${e.progress}%;background:${e.color}"></div></div>
-            </div>
-          </div>
-          `;
-        }).join('')}
-      </div>
-      ` : ''}
-
-      <!-- 생기부 포트폴리오 -->
-      <div class="card stagger-8 animate-in" onclick="goScreen('portfolio')" style="cursor:pointer">
-        <div class="portfolio-entry">
-          <div class="portfolio-icon">📊</div>
-          <div class="portfolio-text">
-            <strong>나의 활동 기록부</strong>
-            <p>기간별 수업·질문·과제·비교과 종합 리포트</p>
-          </div>
-          <i class="fas fa-chevron-right" style="color:var(--text-muted)"></i>
-        </div>
-      </div>
 
       <!-- Recent Records Timeline -->
-      <div class="card stagger-7 animate-in">
+      <div class="card stagger-8 animate-in">
         <div class="card-header-row">
           <span class="card-title">📜 최근 기록</span>
           <button class="card-link" onclick="goScreen('record-history')">전체보기 →</button>
@@ -5111,7 +5125,7 @@ function renderRecordTab() {
             </div>
           </div>
           `).join('')}
-          ${(state._dbClassRecords || []).length === 0 ? '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px">아직 기록이 없습니다. 수업을 기록해보세요!</div>' : ''}
+          ${classRecordCount === 0 ? '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px">아직 기록이 없습니다. 수업을 기록해보세요!</div>' : ''}
         </div>
       </div>
     </div>
