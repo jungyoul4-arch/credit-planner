@@ -1570,7 +1570,7 @@ async function _saveRelayWordbook(isReady) {
     const data = await res.json();
     if (data.success) {
       await _loadRelayWordbook();
-      renderScreen();
+      renderScreen(true);
     } else {
       alert('저장 실패: ' + (data.error || ''));
     }
@@ -1588,9 +1588,9 @@ function __renderMentorRelay() {
   }
 
   // 데이터 미로드 시 비동기 로드
-  if (_mentor._relayWordbook === undefined || _mentor._relayWordbook === null && !_mentor._relayLoaded) {
+  if (!_mentor._relayLoaded) {
     _mentor._relayLoaded = true;
-    _loadRelayWordbook().then(() => renderScreen());
+    _loadRelayWordbook().then(() => renderScreen(true)).catch(() => renderScreen(true));
     return `<div style="text-align:center;padding:40px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin" style="font-size:24px"></i><p style="margin-top:12px">릴레이단어장 로딩 중...</p></div>`;
   }
 
