@@ -3541,6 +3541,11 @@ textarea.input-field { resize:none; min-height:60px; line-height:1.6; }
 
 /* ==================== 모바일 하단 탭바 ==================== */
 #mobile-bottom-tab { display:none; }
+
+/* device_mode=1 (폰 모드) 강제 적용 — PC에서도 하단 탭바 표시, 사이드바 숨김 */
+body.force-phone-mode #tablet-sidebar { display:none !important; }
+body.force-phone-mode #tablet-content { padding-bottom:64px !important; }
+body.force-phone-mode #mobile-bottom-tab { display:block !important; }
 .mobile-bottom-tab-bar {
   position:fixed; bottom:0; left:0; right:0; z-index:9999;
   height:56px;

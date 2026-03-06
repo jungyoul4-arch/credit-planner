@@ -234,8 +234,10 @@ function _renderScreenImpl(forced) {
   if (deviceSelector) deviceSelector.style.display = hideControls ? 'none' : 'flex';
 
   // 프리뷰 프레임 래퍼 관리
+  // 외부 앱 호출(_externalMode)일 때는 프리뷰 프레임 없이 전체 화면으로 표시
   let previewFrame = document.getElementById('device-preview-frame');
-  if (isPreviewMode && (devicePreview === 'phone' || devicePreview === 'tablet' || devicePreview === 'tablet-landscape')) {
+  const usePreviewFrame = isPreviewMode && !_externalMode && (devicePreview === 'phone' || devicePreview === 'tablet' || devicePreview === 'tablet-landscape');
+  if (usePreviewFrame) {
     // phone/tablet 프리뷰: tablet-container를 프리뷰 프레임 안에 배치
     if (!previewFrame) {
       previewFrame = document.createElement('div');
@@ -1245,12 +1247,16 @@ function applyDeviceMode(mode) {
   const m = Number(mode);
   if (m === 1) {
     devicePreview = 'phone';
+    document.body.classList.add('force-phone-mode');
   } else if (m === 2) {
     devicePreview = 'tablet';
+    document.body.classList.remove('force-phone-mode');
   } else if (m === 3) {
     devicePreview = 'tablet-landscape';
+    document.body.classList.remove('force-phone-mode');
   } else if (m === 4) {
     devicePreview = null; // PC = no preview (full desktop)
+    document.body.classList.remove('force-phone-mode');
   }
 }
 
