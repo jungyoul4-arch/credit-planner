@@ -14137,17 +14137,32 @@ syncTodayRecords(); // 오늘 요일 기준 학교 시간표 동적 생성
 initTodayAcademy(); // 오늘 요일 기준 학원 시간표 동적 생성
 
 // 외부 앱 파라미터 체크 → 자동 로그인 or 일반 자동 로그인
+// ★ 서비스 워커 등록 및 업데이트 (모든 접속 시)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js').then(reg => {
+    console.log('SW registered:', reg.scope);
+    // 새 SW가 대기 중이면 즉시 활성화 요청
+    if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+    reg.addEventListener('updatefound', () => {
+      const newSW = reg.installing;
+      if (newSW) {
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'activated') {
+            console.log('[SW] New version activated');
+          }
+        });
+      }
+    });
+    // 명시적 업데이트 체크
+    reg.update();
+  }).catch(err => console.error('[SW] registration failed:', err));
+}
+
 const _urlParams = getUrlParams();
 if (_urlParams.user_id) {
   // 외부 앱에서 호출됨 → 이전 세션 완전 제거 후 새로 로그인
   localStorage.removeItem('cp_auth');
   _externalMode = true;
-  // 서비스워커 업데이트 강제 요청
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration().then(reg => {
-      if (reg) reg.update();
-    });
-  }
   externalLogin(_urlParams.user_id, _urlParams.device_mode);
 } else {
   // 일반 접속 → localStorage 기반 자동 로그인
