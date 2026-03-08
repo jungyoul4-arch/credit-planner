@@ -49,7 +49,6 @@ const state = {
   level: 1,
   streak: 0,
   // 성장 아하 리포트 상태
-  _growthAhaOpen: false,
   _growthAhaClasses: [],  // [] = 빈 배열(로드됨), null = 로딩 중
   mood: null,
   selectedStudent: null,
@@ -352,7 +351,7 @@ function _renderScreenImpl(forced) {
         initAuthEvents(tabletContent);
         initMobileBottomTab();
         setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
-        setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
+        setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') { loadXpHistory(); loadGrowthAhaClasses(); } }, 100);
         setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
         setTimeout(() => smartScrollTimetable(), 80);
         // Home tab GSAP stagger animation
@@ -377,7 +376,7 @@ function _renderScreenImpl(forced) {
         initStudentEvents(container);
         initAuthEvents(container);
         setTimeout(() => { if (state.currentScreen === 'growth-analysis') drawGrowthChart(); }, 50);
-        setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') loadXpHistory(); }, 100);
+        setTimeout(() => { if (state.studentTab === 'my' && state.currentScreen === 'main') { loadXpHistory(); loadGrowthAhaClasses(); } }, 100);
         setTimeout(() => { const chat = document.getElementById('socrates-chat-area'); if (chat) bindAiGeneratedButtons(chat); }, 150);
         setTimeout(() => smartScrollTimetable(), 80);
         // Home tab GSAP stagger animation (phone)
@@ -1303,7 +1302,6 @@ function logout() {
   localStorage.removeItem('cp_auth');
   _archiveModuleActive = false;
   _hideArchiveModule();
-  state._growthAhaOpen = false;
   state._growthAhaClasses = [];
   state.currentScreen = 'login';
   state.mode = 'student';
@@ -12670,23 +12668,23 @@ function renderCommunityTab() {
 
 // ==================== 성장 아하 리포트 ====================
 
-async function toggleGrowthAhaReport() {
-  state._growthAhaOpen = !state._growthAhaOpen;
-  if (state._growthAhaOpen && state._growthAhaClasses.length === 0) {
-    // 처음 열 때 클래스 목록 로드
-    state._growthAhaClasses = null; // 로딩 상태
-    renderScreen();
-    try {
-      const extId = state._externalUserId || state._authUser?.external_user_id;
-      if (!extId) { state._growthAhaClasses = []; renderScreen(); return; }
-      const res = await fetch(`/api/student/classes?user_id=${extId}`);
-      const data = await res.json();
-      state._growthAhaClasses = data.success ? (data.classes || []) : [];
-    } catch (e) {
-      console.error('[GrowthAha] Failed to load classes:', e);
-      state._growthAhaClasses = [];
-    }
+let _growthAhaLoading = false;
+async function loadGrowthAhaClasses() {
+  if (_growthAhaLoading || (state._growthAhaClasses && state._growthAhaClasses.length > 0)) return;
+  _growthAhaLoading = true;
+  state._growthAhaClasses = null; // 로딩 상태
+  renderScreen();
+  try {
+    const extId = state._externalUserId || state._authUser?.external_user_id;
+    if (!extId) { state._growthAhaClasses = []; renderScreen(); _growthAhaLoading = false; return; }
+    const res = await fetch(`/api/student/classes?user_id=${extId}`);
+    const data = await res.json();
+    state._growthAhaClasses = data.success ? (data.classes || []) : [];
+  } catch (e) {
+    console.error('[GrowthAha] Failed to load classes:', e);
+    state._growthAhaClasses = [];
   }
+  _growthAhaLoading = false;
   renderScreen();
 }
 
@@ -12837,11 +12835,8 @@ function renderMyTab() {
 
       <!-- 성장 아하 리포트 -->
       <div class="card stagger-4b animate-in">
-        <div class="card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleGrowthAhaReport()">
-          <span>📊 성장 아하 리포트</span>
-          <i class="fas fa-chevron-${state._growthAhaOpen ? 'up' : 'down'}" style="font-size:14px;color:var(--text-muted);transition:transform 0.2s"></i>
-        </div>
-        <div id="growth-aha-report-list" style="display:${state._growthAhaOpen ? 'block' : 'none'};margin-top:8px">
+        <div class="card-title">📊 성장 아하 리포트</div>
+        <div id="growth-aha-report-list" style="margin-top:8px">
           ${state._growthAhaClasses === null ? '<div style="text-align:center;padding:12px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> 클래스 로딩 중...</div>' : 
             state._growthAhaClasses.length === 0 ? '<div style="text-align:center;padding:12px;color:var(--text-muted)">속한 클래스가 없습니다</div>' :
             state._growthAhaClasses.map(cls => `
