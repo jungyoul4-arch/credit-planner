@@ -135,7 +135,7 @@ switch ($action) {
         echo json_encode(['success' => true, 'members' => $members], JSON_UNESCAPED_UNICODE);
         break;
 
-    // ==================== 학생이 속한 모든 활성 클래스 ====================
+    // ==================== 학생이 속한 활성 클래스 (아하 리포트 대상만) ====================
     case 'get_student_classes':
         $user_id = $_GET['user_id'] ?? null;
         if (!$user_id) {
@@ -147,7 +147,8 @@ switch ($action) {
             SELECT c.class_id, c.class_name, c.genre_id
             FROM ClassMember cm
             JOIN Class c ON c.class_id = cm.class_id
-            WHERE cm.user_id = ? AND cm.kind = 2 AND cm.active_flag = 1 AND c.is_active = 1
+            WHERE cm.user_id = ? AND cm.kind = 2 AND cm.active_flag = 1
+              AND c.is_active = 1 AND c.is_aha_report = 1
             ORDER BY c.class_name
         ');
         $stmt->execute([$user_id]);
