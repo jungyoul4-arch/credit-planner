@@ -3657,7 +3657,7 @@ function saveClassRecordEdit(idx) {
 // 릴레이 상태 초기화
 if (!state._relay) state._relay = { classId: null, className: '', checked: false, wordbook: null, myEntry: null, finishedStudents: [], loading: false };
 
-// 학생의 릴레이 자격 확인 (영어 클래스 + 16명 이상)
+// 학생의 릴레이 자격 확인 (영어 클래스 + 학생 15명 이상)
 async function _studentCheckRelay() {
   if (state._relay.checked) return;
   state._relay.checked = true;
@@ -4204,7 +4204,7 @@ function renderHomeTab() {
           </div>
         </div>
 
-        <!-- 릴레이단어장 위젯 (영어 클래스 + 16명 이상일 때만 표시) -->
+        <!-- 릴레이단어장 위젯 (영어 클래스 + 학생 15명 이상일 때만 표시) -->
         ${renderRelayWordbookWidget()}
 
         <!-- Weekly Mini Chart -->

@@ -5149,7 +5149,7 @@ app.get('/api/aha-report/:reportId', async (c) => {
 
 // ==================== 릴레이단어장 API ====================
 
-// 릴레이 자격 확인: 사용자(멘토/학생)의 영어 클래스 중 멤버 16명 이상인 클래스 목록
+// 릴레이 자격 확인: 사용자(멘토/학생)의 영어 클래스 중 학생(kind=2) 15명 이상인 클래스 목록
 app.get('/api/relay/classes', async (c) => {
   try {
     const userId = c.req.query('user_id')
