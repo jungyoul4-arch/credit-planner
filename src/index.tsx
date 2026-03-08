@@ -5163,6 +5163,24 @@ app.get('/api/aha-report/:reportId', async (c) => {
 
 // ==================== 릴레이단어장 API ====================
 
+// 학생이 속한 모든 활성 클래스 목록 (성장 아하 리포트용)
+app.get('/api/student/classes', async (c) => {
+  try {
+    const userId = c.req.query('user_id')
+    if (!userId) return c.json({ error: 'user_id 필요' }, 400)
+
+    const jyskApiUrl = c.env.JYSK_API_URL || 'https://jungyoul.com/api/jysk-api.php'
+    const jyskApiKey = c.env.JYSK_API_KEY || 'jysk-planner-2026'
+
+    const res = await fetch(`${jyskApiUrl}?action=get_student_classes&user_id=${userId}&key=${jyskApiKey}`)
+    const data: any = await res.json()
+    if (!data.success) return c.json({ success: false, classes: [] })
+    return c.json({ success: true, classes: data.classes || [] })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
 // 릴레이 자격 확인: 사용자(멘토/학생)의 영어 클래스 중 학생(kind=2) 15명 이상인 클래스 목록
 app.get('/api/relay/classes', async (c) => {
   try {

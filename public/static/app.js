@@ -48,6 +48,9 @@ const state = {
   xp: 0,
   level: 1,
   streak: 0,
+  // 성장 아하 리포트 상태
+  _growthAhaOpen: false,
+  _growthAhaClasses: [],  // [] = 빈 배열(로드됨), null = 로딩 중
   mood: null,
   selectedStudent: null,
   inputMode: 'keyword',
@@ -1300,6 +1303,8 @@ function logout() {
   localStorage.removeItem('cp_auth');
   _archiveModuleActive = false;
   _hideArchiveModule();
+  state._growthAhaOpen = false;
+  state._growthAhaClasses = [];
   state.currentScreen = 'login';
   state.mode = 'student';
   renderScreen();
@@ -12663,6 +12668,35 @@ function renderCommunityTab() {
   `;
 }
 
+// ==================== 성장 아하 리포트 ====================
+
+async function toggleGrowthAhaReport() {
+  state._growthAhaOpen = !state._growthAhaOpen;
+  if (state._growthAhaOpen && state._growthAhaClasses.length === 0) {
+    // 처음 열 때 클래스 목록 로드
+    state._growthAhaClasses = null; // 로딩 상태
+    renderScreen();
+    try {
+      const extId = state._externalUserId || state._authUser?.external_user_id;
+      if (!extId) { state._growthAhaClasses = []; renderScreen(); return; }
+      const res = await fetch(`/api/student/classes?user_id=${extId}`);
+      const data = await res.json();
+      state._growthAhaClasses = data.success ? (data.classes || []) : [];
+    } catch (e) {
+      console.error('[GrowthAha] Failed to load classes:', e);
+      state._growthAhaClasses = [];
+    }
+  }
+  renderScreen();
+}
+
+function openGrowthAhaReport(classId, className) {
+  const extId = state._externalUserId || state._authUser?.external_user_id;
+  if (!extId) { alert('로그인 정보를 확인할 수 없습니다.'); return; }
+  const url = `https://meta-view-639571255676.asia-northeast3.run.app/dashboard/${extId}/${classId}/`;
+  window.open(url, '_blank');
+}
+
 // ==================== MY TAB (M-01~M-05) ====================
 
 function renderMyTab() {
@@ -12798,6 +12832,30 @@ function renderMyTab() {
         </div>
         <div class="pause-card-info">
           😴 쉼표 카드 (주 1회) — 하루 쉬어도 스트릭 유지!
+        </div>
+      </div>
+
+      <!-- 성장 아하 리포트 -->
+      <div class="card stagger-4b animate-in">
+        <div class="card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleGrowthAhaReport()">
+          <span>📊 성장 아하 리포트</span>
+          <i class="fas fa-chevron-${state._growthAhaOpen ? 'up' : 'down'}" style="font-size:14px;color:var(--text-muted);transition:transform 0.2s"></i>
+        </div>
+        <div id="growth-aha-report-list" style="display:${state._growthAhaOpen ? 'block' : 'none'};margin-top:8px">
+          ${state._growthAhaClasses === null ? '<div style="text-align:center;padding:12px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> 클래스 로딩 중...</div>' : 
+            state._growthAhaClasses.length === 0 ? '<div style="text-align:center;padding:12px;color:var(--text-muted)">속한 클래스가 없습니다</div>' :
+            state._growthAhaClasses.map(cls => `
+              <div class="my-menu-item" style="cursor:pointer" onclick="openGrowthAhaReport(${cls.class_id}, '${escapeHtml(cls.class_name)}')">
+                <div class="my-menu-icon" style="background:${['rgba(108,92,231,0.15)','rgba(0,184,148,0.15)','rgba(255,159,67,0.15)','rgba(234,67,53,0.15)','rgba(52,152,219,0.15)'][cls.genre_id % 5]}">
+                  <i class="fas ${cls.genre_id===1?'fa-book':cls.genre_id===2?'fa-calculator':cls.genre_id===3?'fa-globe':cls.genre_id===4?'fa-flask':cls.genre_id===5?'fa-landmark':'fa-graduation-cap'}" style="color:${['var(--primary-light)','#00B894','#FF9F43','#EA4335','#3498DB'][cls.genre_id % 5]}"></i>
+                </div>
+                <div class="my-menu-text">
+                  <span class="my-menu-title">${escapeHtml(cls.class_name)}</span>
+                  <span class="my-menu-desc">성장 분석 리포트 보기</span>
+                </div>
+                <i class="fas fa-external-link-alt" style="color:var(--text-muted);font-size:12px"></i>
+              </div>
+            `).join('')}
         </div>
       </div>
 
